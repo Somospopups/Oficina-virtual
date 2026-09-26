@@ -30,6 +30,7 @@
 
 <!-- HUD -->
 <div id="hud">
+  <div id="clock">🌙 --:--</div>
   <div id="chatPanel">
     <div id="chatLog"></div>
     <input id="chatInput" maxlength="200" placeholder="Enter para hablar…  /w nombre msg = privado" autocomplete="off">
@@ -45,7 +46,8 @@
   <div class="join-card help-card">
     <h2>🎮 Controles</h2>
     <table>
-      <tr><td class="key">WASD / ←↑→↓</td><td>Moverte por la oficina</td></tr>
+      <tr><td class="key">WASD / ←↑→↓</td><td>Moverte (si estás sentado, te levantás)</td></tr>
+      <tr><td class="key">Quedarte quieto sobre una silla</td><td>Sentarte en ese puesto 🪑</td></tr>
       <tr><td class="key">Enter</td><td>Abrir el chat (Enter envía, Esc cancela)</td></tr>
       <tr><td class="key">/w nombre msg</td><td>Mensaje privado (susurro)</td></tr>
       <tr><td class="key">F</td><td>Saludar 👋 al compañero más cercano</td></tr>
@@ -53,7 +55,7 @@
       <tr><td class="key">Z X C V B N M</td><td>Emotes: 👋 😂 🎉 👍 🤔 🔥 ☕</td></tr>
       <tr><td class="key">H</td><td>Mostrar/ocultar esta ayuda</td></tr>
     </table>
-    <p class="tips">💡 Parate en una silla para quedar "codeando". Acercate al counter junto a la ventana (estación de café) y tu estado cambia solo a "pausa café".</p>
+    <p class="tips">💡 Al entrar aparecés sentado en tu puesto. El ventanal cambia con la hora real: 🌅 amanecer, ☀️ mañana, 🌇 tarde y 🌙 noche.</p>
     <button onclick="document.getElementById('help').classList.add('hidden')">Cerrar</button>
   </div>
 </div>

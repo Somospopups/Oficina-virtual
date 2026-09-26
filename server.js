@@ -53,7 +53,7 @@ function broadcast(obj, exceptWs = null) {
 function publicState() {
   return [...players.values()].map((p) => ({
     id: p.id, name: p.name, color: p.color,
-    x: p.x, y: p.y, dir: p.dir, moving: p.moving,
+    x: p.x, y: p.y, dir: p.dir, moving: p.moving, seated: !!p.seated,
     status: p.status, bubble: p.bubble, bubbleUntil: p.bubbleUntil,
     emote: p.emote, emoteUntil: p.emoteUntil, wave: p.wave, waveUntil: p.waveUntil,
   }));
@@ -70,7 +70,7 @@ wss.on('connection', (ws) => {
   const player = {
     id, name: 'Anónimo', color: 0,
     x: 10 * 16, y: 21 * 16, // spawn: entrada (en tiles * TILE)
-    dir: 'down', moving: false,
+    dir: 'down', moving: false, seated: false,
     status: 'disponible',
     bubble: null, bubbleUntil: 0,
     emote: null, emoteUntil: 0,
@@ -117,6 +117,7 @@ wss.on('connection', (ws) => {
         }
         if (['up', 'down', 'left', 'right'].includes(msg.dir)) p.dir = msg.dir;
         p.moving = !!msg.moving;
+        p.seated = !!msg.seated;
         p.lastMove = Date.now();
         break;
       }
