@@ -27,13 +27,18 @@ interactúa en una oficina compartida, en tiempo real desde el navegador.
 | `Z X C V B N M` | Emotes: 👋 😂 🎉 👍 🤔 🔥 ☕ |
 | `H` | Ayuda |
 
-## 🗺️ La oficina
+## 🗺️ La oficina (réplica del local real)
 
-- **Escritorios** con monitores (terminal verde 💚): parate en una silla y tu
-  estado cambia solo a "codeando".
-- **Sala de reuniones** (vidriada, con pizarra): al entrar, estado "en reunión" automático.
-- **Cocina** con máquina de café: al entrar, estado "pausa café" automático.
-- **Lounge** con sofá, biblioteca y plantas.
+El mapa está calcado de la foto del espacio del equipo, en versión pixel art cenital:
+
+- **Ventanal** al fondo con vista a la ciudad (skyline generado por código) y
+  parches de sol reflejados sobre el piso.
+- **Porcelanato beige brillante** con juntas de pastillas grandes y paredes blancas.
+- **Counter bajo la ventana**: estantes de madera abiertos + gabinete blanco, con
+  la **estación de café** ☕ (acercarte cambia tu estado a "pausa café" solo).
+- **Puestos de trabajo** blancos con canto de madera y monitor con terminal
+  verde 💚: pararte en la silla te pone "codeando".
+- Lamparitas colgantes, spots embutidos y entrada con felpudo.
 - Burbujas de chat sobre la cabeza, nombres con emoji de estado, lista de
   compañeros online, sonidos sutiles y reconexión automática.
 
