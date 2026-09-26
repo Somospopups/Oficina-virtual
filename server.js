@@ -69,7 +69,7 @@ wss.on('connection', (ws) => {
   // Nuevo jugador aparece en la entrada (spawn)
   const player = {
     id, name: 'Anónimo', color: 0,
-    x: 10 * 16, y: 21 * 16, // spawn: entrada (en tiles * TILE)
+    x: 724, y: 1000, // spawn: centro del piso, en coords virtuales del fondo
     dir: 'down', moving: false, seated: false,
     status: 'disponible',
     bubble: null, bubbleUntil: 0,
