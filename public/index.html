@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🏢 Oficina Virtual — Equipo opencode</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
+</head>
+<body>
+
+<!-- Pantalla de ingreso -->
+<div id="join" class="overlay">
+  <div class="join-card">
+    <h1>🏢 Oficina Virtual</h1>
+    <p class="sub">El espacio 2D de tu equipo · estilo pixel art</p>
+    <canvas id="avatarPreview" width="120" height="120"></canvas>
+    <input id="nameInput" maxlength="16" placeholder="Tu nombre" autocomplete="off">
+    <div class="lbl">Elegí tu color:</div>
+    <div id="colors"></div>
+    <button id="joinBtn">▶ Entrar a la oficina</button>
+    <p class="tips">WASD/flechas para moverte · Enter para hablar · H para ayuda</p>
+  </div>
+</div>
+
+<!-- Juego -->
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="chatPanel">
+    <div id="chatLog"></div>
+    <input id="chatInput" maxlength="200" placeholder="Enter para hablar…  /w nombre msg = privado" autocomplete="off">
+  </div>
+  <div id="playerList"></div>
+  <div id="statusBar"></div>
+  <div id="hint"></div>
+  <div id="toast"></div>
+</div>
+
+<!-- Ayuda -->
+<div id="help" class="overlay hidden">
+  <div class="join-card help-card">
+    <h2>🎮 Controles</h2>
+    <table>
+      <tr><td class="key">WASD / ←↑→↓</td><td>Moverte por la oficina</td></tr>
+      <tr><td class="key">Enter</td><td>Abrir el chat (Enter envía, Esc cancela)</td></tr>
+      <tr><td class="key">/w nombre msg</td><td>Mensaje privado (susurro)</td></tr>
+      <tr><td class="key">F</td><td>Saludar 👋 al compañero más cercano</td></tr>
+      <tr><td class="key">1 – 5</td><td>Cambiar estado: 💻 🤝 ☕ 🌙 🟢</td></tr>
+      <tr><td class="key">Z X C V B N M</td><td>Emotes: 👋 😂 🎉 👍 🤔 🔥 ☕</td></tr>
+      <tr><td class="key">H</td><td>Mostrar/ocultar esta ayuda</td></tr>
+    </table>
+    <p class="tips">💡 Parate en una silla para quedar "codeando". Entrá a la sala de reuniones o a la cocina y tu estado cambia solo.</p>
+    <button onclick="document.getElementById('help').classList.add('hidden')">Cerrar</button>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
