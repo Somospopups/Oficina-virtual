@@ -15,12 +15,12 @@ const WIN = { x: 484, y: 291, w: 255, h: 84 };
 // Piso caminable (trapecio en perspectiva, bien profundo)
 const FLOOR = { yTop: 460, yBot: 890, xlTop: 505, xrTop: 720, xlBot: 280, xrBot: 935 };
 
-// Los 4 puestos: uno por escritorio, bien separados
+// Los 4 puestos: marcados sobre el pasillo, frente a cada teclado
 const SEATS = [
-  { x: 233, y: 747, face: 'left' },
-  { x: 420, y: 560, face: 'left' },
-  { x: 784, y: 560, face: 'right' },
-  { x: 962, y: 747, face: 'right' },
+  { x: 365, y: 725, face: 'left' },
+  { x: 510, y: 518, face: 'left' },
+  { x: 750, y: 518, face: 'right' },
+  { x: 875, y: 720, face: 'right' },
 ];
 
 // Zona café: frente al gabinete blanco bajo la ventana
@@ -142,40 +142,134 @@ function getSprite(colorIdx, dir, frame) {
   return cv;
 }
 
-// Silla gamer + persona sentada (o silla vacía)
+// ---------- Personajes sentados: 4 variantes elegibles ----------
+// SIT_VARIANT: 'A' gamer pro | 'B' hoodie de espaldas | 'C' perfil realista | 'D' chibi
+let SIT_VARIANT = 'A';
+
+function chairCommon(g, frame) {
+  // asiento, base con ruedas y apoyabrazos (común a todas las variantes)
+  g.fillStyle = '#1d2126'; g.fillRect(12, 40, 28, 6);
+  g.fillStyle = '#3a4048'; g.fillRect(8, 38, 4, 8); g.fillRect(36, 38, 4, 8);
+  g.fillStyle = '#14171b'; g.fillRect(24, 46, 4, 5);
+  g.fillRect(14, 51, 24, 2); g.fillRect(14, 51, 2, 4); g.fillRect(36, 51, 2, 4); g.fillRect(24, 53, 4, 2);
+}
+
+function sitA(g, shirt, hair, frame) { // Gamer pro: auriculares con micrófono, tipeo alternado
+  g.fillStyle = '#1d2126'; g.fillRect(30, 6, 14, 34);
+  g.fillStyle = '#2b3038'; g.fillRect(32, 8, 10, 30);
+  g.fillStyle = '#14171b'; g.fillRect(32, 10, 10, 2); g.fillRect(32, 16, 10, 2);
+  g.fillStyle = '#e8e8e8'; g.fillRect(35, 12, 4, 3);
+  const bob = frame ? 1 : 0;
+  // piernas
+  g.fillStyle = '#39424e'; g.fillRect(12, 40, 14, 6); g.fillRect(8, 44, 6, 8);
+  g.fillStyle = '#22262e'; g.fillRect(4, 50, 8, 3);
+  // torso
+  g.fillStyle = shirt; g.fillRect(14, 26 + bob, 18, 15);
+  g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(14, 36 + bob, 18, 5);
+  // brazos tipeando (alternan)
+  g.fillStyle = shirt;
+  g.fillRect(6, 30 + bob + (frame ? 0 : 2), 12, 4);
+  g.fillRect(8, 34 + bob + (frame ? 2 : 0), 12, 4);
+  g.fillStyle = '#f0c8a0';
+  g.fillRect(2, 30 + bob + (frame ? 0 : 2), 4, 4);
+  g.fillRect(4, 34 + bob + (frame ? 2 : 0), 4, 4);
+  // cabeza + auriculares con mic
+  g.fillStyle = '#f0c8a0'; g.fillRect(16, 10 + bob, 14, 14);
+  g.fillStyle = hair; g.fillRect(18, 8 + bob, 12, 4); g.fillRect(26, 10 + bob, 4, 8);
+  g.fillStyle = '#14161c'; g.fillRect(16, 8 + bob, 14, 3); g.fillRect(22, 12 + bob, 5, 6);
+  g.fillRect(16, 18 + bob, 6, 2); g.fillRect(14, 18 + bob, 2, 3); // mic
+  g.fillStyle = '#26221e'; g.fillRect(18, 16 + bob, 2, 2);
+  chairCommon(g, frame);
+}
+
+function sitB(g, shirt, hair, frame) { // Hoodie de espaldas: se ve el respaldo a los costados
+  const sway = frame ? 1 : 0;
+  g.fillStyle = '#1d2126'; g.fillRect(8, 18, 6, 26); g.fillRect(34, 18, 6, 26);
+  g.fillStyle = '#2b3038'; g.fillRect(9, 20, 4, 22); g.fillRect(35, 20, 4, 22);
+  // torso hoodie
+  g.fillStyle = shirt; g.fillRect(12, 24 + sway, 24, 18);
+  g.fillStyle = 'rgba(0,0,0,0.20)'; g.fillRect(12, 36 + sway, 24, 6);
+  // capucha apilada
+  g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(16, 22 + sway, 16, 5);
+  // hombros que se mueven al tipear
+  g.fillStyle = shirt;
+  g.fillRect(8, 26 + sway + (frame ? 0 : 1), 5, 8);
+  g.fillRect(35, 26 + sway + (frame ? 1 : 0), 5, 8);
+  // cabeza de espaldas: pelo + auriculares
+  g.fillStyle = hair; g.fillRect(16, 8 + sway, 16, 15);
+  g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(18, 10 + sway, 12, 3);
+  g.fillStyle = '#14161c'; g.fillRect(16, 6 + sway, 16, 3); g.fillRect(13, 12 + sway, 4, 7); g.fillRect(31, 12 + sway, 4, 7);
+  chairCommon(g, frame);
+}
+
+function sitC(g, shirt, hair, frame) { // Perfil realista: postura inclinada al monitor
+  g.fillStyle = '#1d2126'; g.fillRect(32, 4, 10, 6);           // apoyacabeza
+  g.fillStyle = '#2b3038'; g.fillRect(32, 10, 8, 28);          // respaldo mesh
+  g.fillStyle = '#14171b'; for (let y = 12; y < 36; y += 4) g.fillRect(33, y, 6, 1);
+  // piernas bajo el escritorio
+  g.fillStyle = '#39424e'; g.fillRect(10, 40, 16, 6); g.fillRect(6, 44, 6, 9);
+  g.fillStyle = '#22262e'; g.fillRect(2, 51, 9, 3);
+  // torso inclinado
+  g.fillStyle = shirt;
+  g.fillRect(16, 26, 16, 6); g.fillRect(14, 30, 18, 6); g.fillRect(14, 36, 18, 5);
+  // brazo extendido al teclado
+  g.fillStyle = shirt; g.fillRect(10, 28 + (frame ? 0 : 1), 10, 4);
+  g.fillStyle = '#f0c8a0'; g.fillRect(2, 30 + (frame ? 0 : 1), 9, 3);
+  g.fillStyle = shirt; g.fillRect(12, 33 + (frame ? 1 : 0), 10, 4);
+  g.fillStyle = '#f0c8a0'; g.fillRect(4, 35 + (frame ? 1 : 0), 9, 3);
+  // cabeza de perfil con nariz y ojo
+  g.fillStyle = '#f0c8a0'; g.fillRect(16, 10, 13, 14);
+  g.fillRect(14, 16, 2, 3);                                     // nariz
+  g.fillStyle = hair; g.fillRect(18, 8, 12, 4); g.fillRect(26, 10, 4, 9);
+  g.fillStyle = '#26221e'; g.fillRect(18, 15, 2, 2);           // ojo
+  g.fillStyle = '#b06a4a'; g.fillRect(16, 21, 3, 1);           // boca
+  chairCommon(g, frame);
+}
+
+function sitD(g, shirt, hair, frame) { // Chibi kawaii: cabezón rebotando al tipear
+  const hop = frame ? 1 : 0;
+  g.fillStyle = '#1d2126'; g.fillRect(30, 12, 14, 30);
+  g.fillStyle = '#2b3038'; g.fillRect(32, 14, 10, 26);
+  g.fillStyle = '#e8e8e8'; g.fillRect(34, 18, 3, 2); g.fillRect(38, 18, 2, 2); // carita en el respaldo
+  // cuerpecito
+  g.fillStyle = shirt; g.fillRect(16, 30 + hop, 16, 12);
+  g.fillStyle = shirt; g.fillRect(6, 33 + hop + (frame ? 0 : 1), 12, 4);
+  g.fillStyle = '#f0c8a0'; g.fillRect(3, 33 + hop + (frame ? 0 : 1), 4, 4);
+  // cabezón
+  g.fillStyle = '#f0c8a0'; g.fillRect(10, 6 + hop, 24, 24);
+  g.fillStyle = hair; g.fillRect(12, 4 + hop, 22, 6); g.fillRect(28, 6 + hop, 6, 10);
+  g.fillStyle = '#26221e'; g.fillRect(15, 16 + hop, 4, 6);                       // ojazos
+  g.fillStyle = '#ffffff'; g.fillRect(16, 17 + hop, 2, 2);
+  g.fillStyle = '#f28b8b'; g.fillRect(12, 23 + hop, 3, 2);                       // rubor
+  g.fillStyle = '#b06a4a'; g.fillRect(18, 25 + hop, 3, 1);
+  chairCommon(g, frame);
+}
+
 const sitCache = {};
-function getSitSprite(colorIdx, face, occupied) {
-  const key = `c${colorIdx}_${face}_${occupied ? 1 : 0}`;
+function getSitSprite(colorIdx, face, occupied, frame = 0) {
+  const key = `v${SIT_VARIANT}_c${colorIdx}_${face}_${occupied ? 1 : 0}_${frame}`;
   if (sitCache[key]) return sitCache[key];
   const cv = document.createElement('canvas');
-  cv.width = 40; cv.height = 48;
+  cv.width = 48; cv.height = 56;
   const g = cv.getContext('2d');
+  const shirt = SHIRT_COLORS[colorIdx % 8], hair = HAIR_COLORS[colorIdx % 8];
   const draw = (gg) => {
-    // respaldo (mirando a la izquierda)
-    gg.fillStyle = '#1d2126'; gg.fillRect(22, 4, 14, 30);
-    gg.fillStyle = '#2b3038'; gg.fillRect(24, 6, 10, 26);
-    gg.fillStyle = '#14171b'; gg.fillRect(24, 8, 10, 2); gg.fillRect(24, 14, 10, 2);
-    gg.fillStyle = '#e8e8e8'; gg.fillRect(27, 10, 4, 3); // logo
-    if (occupied) {
-      const shirt = SHIRT_COLORS[colorIdx % 8], hair = HAIR_COLORS[colorIdx % 8];
-      // torso de espaldas-al-frente mirando al monitor
-      gg.fillStyle = shirt; gg.fillRect(10, 20, 14, 14);
-      gg.fillStyle = shirt; gg.fillRect(2, 24, 10, 4);          // brazo al teclado
-      gg.fillStyle = '#f0c8a0'; gg.fillRect(0, 24, 4, 4);       // mano
-      gg.fillStyle = '#f0c8a0'; gg.fillRect(10, 8, 12, 12);     // cabeza
-      gg.fillStyle = hair; gg.fillRect(12, 6, 10, 4); gg.fillRect(18, 8, 4, 8); // pelo nuca
-      gg.fillStyle = '#14161c'; gg.fillRect(14, 6, 4, 2); gg.fillRect(14, 6, 2, 6); // auriculares
-    } else {
-      gg.fillStyle = '#2b3038'; gg.fillRect(12, 30, 16, 6);     // asiento
+    if (!occupied) {
+      // silla vacía
+      gg.fillStyle = '#1d2126'; gg.fillRect(30, 6, 14, 34);
+      gg.fillStyle = '#2b3038'; gg.fillRect(32, 8, 10, 30);
+      gg.fillStyle = '#e8e8e8'; gg.fillRect(35, 12, 4, 3);
+      gg.fillStyle = '#2b3038'; gg.fillRect(14, 34, 20, 6);
+      chairCommon(gg, 0);
+      return;
     }
-    // asiento + base
-    gg.fillStyle = '#1d2126'; gg.fillRect(10, 34, 24, 6);
-    gg.fillStyle = '#3a4048'; gg.fillRect(6, 32, 4, 8); gg.fillRect(34, 32, 4, 8); // apoyabrazos
-    gg.fillStyle = '#14171b'; gg.fillRect(20, 40, 4, 4);
-    gg.fillRect(10, 44, 24, 2); gg.fillRect(10, 44, 2, 4); gg.fillRect(32, 44, 2, 4); gg.fillRect(20, 46, 4, 2);
+    if (SIT_VARIANT === 'B') sitB(gg, shirt, hair, frame);
+    else if (SIT_VARIANT === 'C') sitC(gg, shirt, hair, frame);
+    else if (SIT_VARIANT === 'D') sitD(gg, shirt, hair, frame);
+    else sitA(gg, shirt, hair, frame);
   };
   if (face === 'left') draw(g);
-  else { g.translate(40, 0); g.scale(-1, 1); draw(g); }
+  else { g.translate(48, 0); g.scale(-1, 1); draw(g); }
   sitCache[key] = cv;
   return cv;
 }
@@ -647,8 +741,9 @@ function render() {
     let topY, shR, fs;
     if (p.seated) {
       const ss = sitScale(p.y);
-      const spr = getSitSprite(p.color || 0, p.x < VW / 2 ? 'left' : 'right', true);
-      const w = 40 * ss, h = 48 * ss;
+      const sframe = Math.floor(now / 280) % 2;
+      const spr = getSitSprite(p.color || 0, p.x < VW / 2 ? 'left' : 'right', true, sframe);
+      const w = 41 * ss, h = 48 * ss;
       ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
       topY = p.y - h; shR = 15 * ss; fs = Math.round(3.1 * ss);
     } else {
