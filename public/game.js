@@ -6,26 +6,26 @@
 'use strict';
 
 // ---------- Espacio virtual = dimensiones del fondo ----------
-const VW = 1448, VH = 1086;
+const VW = 1195, VH = 896;
 let viewScale = 1, viewOX = 0, viewOY = 0;
 
 // Rectángulo del ventanal (para el cielo dinámico)
-const WIN = { x: 452, y: 287, w: 610, h: 206 };
+const WIN = { x: 484, y: 291, w: 255, h: 84 };
 
-// Piso caminable (trapecio en perspectiva)
-const FLOOR = { yTop: 640, yBot: 1080, xlTop: 490, xrTop: 970, xlBot: 330, xrBot: 1120 };
+// Piso caminable (trapecio en perspectiva, bien profundo)
+const FLOOR = { yTop: 460, yBot: 890, xlTop: 505, xrTop: 720, xlBot: 280, xrBot: 935 };
 
-// Puestos (donde estaban las sillas en la foto original)
+// Los 4 puestos: uno por escritorio, bien separados
 const SEATS = [
-  { x: 350, y: 800, face: 'left' },
-  { x: 490, y: 665, face: 'left' },
-  { x: 975, y: 665, face: 'right' },
-  { x: 1105, y: 800, face: 'right' },
+  { x: 233, y: 747, face: 'left' },
+  { x: 420, y: 560, face: 'left' },
+  { x: 784, y: 560, face: 'right' },
+  { x: 962, y: 747, face: 'right' },
 ];
 
 // Zona café: frente al gabinete blanco bajo la ventana
 const ZONES = [
-  { name: 'Estación de café (junto a la ventana)', x0: 760, y0: 560, x1: 990, y1: 720, status: 'cafe' },
+  { name: 'Estación de café (junto a la ventana)', x0: 510, y0: 400, x1: 720, y1: 520, status: 'cafe' },
 ];
 
 const SPEED = 320;           // px virtuales / segundo
@@ -51,8 +51,8 @@ function lerpColor(a, b, t) {
   const A = hex2rgb(a), B = hex2rgb(b);
   return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`;
 }
-function depthScale(y) { return lerp(8.5, 13, clamp((y - FLOOR.yTop) / (FLOOR.yBot - FLOOR.yTop), 0, 1)); }
-function sitScale(y) { return lerp(6.8, 10.2, clamp((y - 700) / 200, 0, 1)); }
+function depthScale(y) { return lerp(3.1, 20, clamp((y - FLOOR.yTop) / (FLOOR.yBot - FLOOR.yTop), 0, 1)); }
+function sitScale(y) { return lerp(4.8, 9.8, clamp((y - 560) / 190, 0, 1)); }
 
 // ---------- Ciclo día/noche ----------
 const SKY_STOPS = [
@@ -193,8 +193,27 @@ const keys = {};
 let lastSend = 0, lastZone = null, audioCtx = null;
 const bgImg = new Image();
 let bgReady = false;
-bgImg.onload = () => { bgReady = true; };
-bgImg.src = 'bg.png';
+const bgCv = document.createElement('canvas');
+function pxAt(g, x, y) { const d = g.getImageData(x, y, 1, 1).data; return `rgb(${d[0]},${d[1]},${d[2]})`; }
+bgImg.onload = () => {
+  bgCv.width = bgImg.width; bgCv.height = bgImg.height;
+  const g = bgCv.getContext('2d');
+  g.drawImage(bgImg, 0, 0);
+  // parchea artefactos blancos del piso con degradados del propio piso
+  const PEGS = [[472, 664, 28, 56], [743, 664, 28, 56], [421, 778, 30, 60], [794, 778, 30, 60], [608, 592, 20, 22]];
+  for (const [x, y, w, h] of PEGS) {
+    const gh = g.createLinearGradient(x, 0, x + w, 0);
+    gh.addColorStop(0, pxAt(g, x - 4, y + (h >> 1)));
+    gh.addColorStop(1, pxAt(g, x + w + 4, y + (h >> 1)));
+    g.fillStyle = gh; g.fillRect(x, y, w, h);
+    const gv = g.createLinearGradient(0, y, 0, y + h);
+    gv.addColorStop(0, pxAt(g, x + (w >> 1), y - 4));
+    gv.addColorStop(1, pxAt(g, x + (w >> 1), y + h + 4));
+    g.globalAlpha = 0.5; g.fillStyle = gv; g.fillRect(x, y, w, h); g.globalAlpha = 1;
+  }
+  bgReady = true;
+};
+bgImg.src = 'bg_deep2.png';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -515,7 +534,8 @@ function update(dt) {
   }
   if (want && !me.seated) {
     const len = Math.hypot(dx, dy); dx /= len; dy /= len;
-    const nx = me.x + dx * SPEED * dt, ny = me.y + dy * SPEED * dt;
+    const sp = SPEED * clamp(depthScale(me.y) / 12, 0.35, 1.6); // perspectiva: lejos se camina "más lento"
+    const nx = me.x + dx * sp * dt, ny = me.y + dy * sp * dt;
     if (walkable(nx, me.y)) me.x = nx;
     if (walkable(me.x, ny)) me.y = ny;
     me.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
@@ -580,7 +600,7 @@ function render() {
   const sky = skyNow(hf);
 
   // fondo
-  if (bgReady) ctx.drawImage(bgImg, 0, 0, VW, VH);
+  if (bgReady) ctx.drawImage(bgCv, 0, 0, VW, VH);
   else { ctx.fillStyle = '#20242e'; ctx.fillRect(0, 0, VW, VH); }
 
   // ventanal dinámico
@@ -592,7 +612,7 @@ function render() {
     ctx.globalAlpha = sky.patchA;
     ctx.fillStyle = sky.patch;
     ctx.beginPath();
-    ctx.moveTo(480, 660); ctx.lineTo(980, 660); ctx.lineTo(1060, 950); ctx.lineTo(400, 950);
+    ctx.moveTo(509, 458); ctx.lineTo(719, 458); ctx.lineTo(820, 700); ctx.lineTo(410, 700);
     ctx.closePath(); ctx.fill();
     ctx.globalAlpha = 1;
   }
@@ -601,18 +621,20 @@ function render() {
     ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
     ctx.fillRect(0, 0, VW, VH);
     ctx.globalCompositeOperation = 'lighter';
-    // glow monitores
+    // glow monitores (4 puestos)
     ctx.fillStyle = `rgba(90,140,255,${(0.10 * sky.amb * 3).toFixed(2)})`;
-    ctx.fillRect(20, 400, 310, 210); ctx.fillRect(1150, 400, 290, 210);
+    ctx.fillRect(19, 345, 245, 140); ctx.fillRect(341, 345, 98, 75);
+    ctx.fillRect(775, 345, 98, 75); ctx.fillRect(962, 345, 210, 140);
     // glow LEDs estantes
     ctx.fillStyle = `rgba(59,130,246,${(0.14 * sky.amb * 3).toFixed(2)})`;
-    ctx.fillRect(0, 240, 390, 60); ctx.fillRect(1100, 240, 348, 60);
-    // lamparitas
-    for (const [lx, ly] of [[383, 70], [1063, 70]]) {
-      const rg = ctx.createRadialGradient(lx, ly, 4, lx, ly, 90);
+    ctx.fillRect(0, 209, 318, 51); ctx.fillRect(327, 262, 140, 33);
+    ctx.fillRect(757, 262, 140, 33); ctx.fillRect(906, 209, 289, 51);
+    // lamparitas en profundidad
+    for (const [lx, ly] of [[313, 51], [878, 51], [420, 158], [789, 158], [477, 205], [733, 205]]) {
+      const rg = ctx.createRadialGradient(lx, ly, 3, lx, ly, 70);
       rg.addColorStop(0, `rgba(255,224,160,${(0.5 * sky.amb * 2).toFixed(2)})`);
       rg.addColorStop(1, 'rgba(255,224,160,0)');
-      ctx.fillStyle = rg; ctx.fillRect(lx - 90, ly - 90, 180, 180);
+      ctx.fillStyle = rg; ctx.fillRect(lx - 70, ly - 70, 140, 140);
     }
     ctx.globalCompositeOperation = 'source-over';
   }

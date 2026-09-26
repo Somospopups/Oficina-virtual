@@ -69,7 +69,7 @@ wss.on('connection', (ws) => {
   // Nuevo jugador aparece en la entrada (spawn)
   const player = {
     id, name: 'Anónimo', color: 0,
-    x: 724, y: 1000, // spawn: centro del piso, en coords virtuales del fondo
+    x: 597, y: 820, // spawn: centro del pasillo, coords virtuales del fondo
     dir: 'down', moving: false, seated: false,
     status: 'disponible',
     bubble: null, bubbleUntil: 0,
