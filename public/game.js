@@ -51,7 +51,8 @@ function lerpColor(a, b, t) {
   const A = hex2rgb(a), B = hex2rgb(b);
   return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`;
 }
-function depthScale(y) { return lerp(7, 12, clamp((y - FLOOR.yTop) / (FLOOR.yBot - FLOOR.yTop), 0, 1)); }
+function depthScale(y) { return lerp(8.5, 13, clamp((y - FLOOR.yTop) / (FLOOR.yBot - FLOOR.yTop), 0, 1)); }
+function sitScale(y) { return lerp(6.8, 10.2, clamp((y - 700) / 200, 0, 1)); }
 
 // ---------- Ciclo día/noche ----------
 const SKY_STOPS = [
@@ -330,7 +331,7 @@ function walkable(x, y) {
   const xr = lerp(FLOOR.xrTop, FLOOR.xrBot, t) - 24;
   return x >= xl && x <= xr;
 }
-function seatNear(x, y, r = 95) {
+function seatNear(x, y, r = 110) {
   let best = null, bd = r;
   for (const s of SEATS) { const d = Math.hypot(s.x - x, s.y - y); if (d < bd) { bd = d; best = s; } }
   return best;
@@ -338,7 +339,7 @@ function seatNear(x, y, r = 95) {
 function freeSeat() {
   for (const s of SEATS) {
     let taken = false;
-    for (const p of state.players.values()) if (Math.hypot(p.x - s.x, p.y - s.y) < 60) { taken = true; break; }
+    for (const p of state.players.values()) if (Math.hypot(p.x - s.x, p.y - s.y) < 80) { taken = true; break; }
     if (!taken) return s;
   }
   return null;
@@ -505,7 +506,7 @@ function update(dt) {
   if (me.seated && want) {
     me.seated = false;
     const toward = me.x < VW / 2 ? 1 : -1;
-    let nx = me.x + toward * 90, ny = me.y + 40;
+    let nx = me.x + toward * 120, ny = me.y + 40;
     ny = clamp(ny, FLOOR.yTop + 12, FLOOR.yBot - 8);
     if (!walkable(nx, ny)) nx = me.x + toward * 40;
     me.x = nx; me.y = ny;
@@ -621,31 +622,32 @@ function render() {
   const list = [...state.players.values()].sort((a, b) => a.y - b.y);
   for (const p of list) {
     if (!p.name) continue;
-    const s = depthScale(p.y);
+    let topY, shR, fs;
     if (p.seated) {
+      const ss = sitScale(p.y);
       const spr = getSitSprite(p.color || 0, p.x < VW / 2 ? 'left' : 'right', true);
-      const w = 40 * s * 0.62, h = 48 * s * 0.62;
-      ctx.drawImage(spr, p.x - w / 2, p.y - h + 10 * s * 0.62, w, h);
-      var topY = p.y - h + 10 * s * 0.62;
+      const w = 40 * ss, h = 48 * ss;
+      ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
+      topY = p.y - h; shR = 15 * ss; fs = Math.round(3.1 * ss);
     } else {
+      const s = depthScale(p.y);
       const f = p.id === state.myId ? (p.moving ? frame : 0) : (p.moving ? Math.floor(now / 160) % 2 : 0);
       const spr = getSprite(p.color || 0, p.dir || 'down', f);
-      const w = 32 * s * 0.62, h = 44 * s * 0.62;
+      const w = 32 * s, h = 44 * s;
       ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
       if (p.wave && now < p.waveUntil) {
         ctx.save(); ctx.translate(p.x - w / 2, p.y - h); ctx.scale(w / 32, h / 44);
         drawWaveArm(ctx, p.color || 0, now);
         ctx.restore();
       }
-      var topY = p.y - h;
+      topY = p.y - h; shR = 11 * s; fs = Math.round(3.1 * s);
     }
     // sombra
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.beginPath(); ctx.ellipse(p.x, p.y + 4, 16 * s * 0.62, 5 * s * 0.62, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + 4, shR, shR * 0.32, 0, 0, Math.PI * 2); ctx.fill();
 
     // nombre + estado
     const st = STATUS_INFO[p.status] || STATUS_INFO.disponible;
-    const fs = Math.round(3.1 * s);
     ctx.font = `${fs}px "Press Start 2P", monospace`;
     ctx.textAlign = 'center';
     const label = `${st.emoji} ${p.name}`;
