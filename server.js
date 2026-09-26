@@ -8,7 +8,7 @@ const path = require('path');
 const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 3000;
-const PUBLIC_DIR = path.join(__dirname, 'public');
+const PUBLIC_DIR = __dirname; // el sitio vive en la raíz (compatible con GitHub Pages)
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -27,6 +27,10 @@ const server = http.createServer((req, res) => {
   const filePath = path.join(PUBLIC_DIR, path.normalize(urlPath));
   if (!filePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403); return res.end('Forbidden');
+  }
+  const rel = path.relative(PUBLIC_DIR, filePath).split(path.sep)[0];
+  if (rel === 'node_modules' || rel === '.git') {
+    res.writeHead(404); return res.end('Not Found');
   }
   fs.readFile(filePath, (err, data) => {
     if (err) {

@@ -3,17 +3,24 @@
 Entorno 2D multiplayer estilo videojuego (pixel art) donde el equipo trabaja e
 interactúa en una oficina compartida, en tiempo real desde el navegador.
 
-## ▶️ Cómo usarla
+## 🌐 Opción 1 (recomendada, SIN servidor): GitHub Pages
 
-1. **Levantar el servidor**
-   ```bash
-   cd oficina-virtual
-   npm install        # solo la primera vez (única dependencia: ws)
-   node server.js     # escucha en 0.0.0.0:3000
-   ```
-2. **Compartir la URL** con el equipo. Todos entran al mismo link,
-   eligen nombre + color y aparecen en la oficina.
-   - Tip: se puede pre-cargar el nombre con `?name=Laura` en la URL.
+El sitio vive en la **raíz del repo** y el multiplayer funciona **P2P (WebRTC
+vía Trystero)**: los navegadores se conectan directo entre sí, sin servidor.
+
+1. En el repo: **Settings → Pages → Deploy from a branch → `main` + `/ (root)` → Save**
+2. Esperar 1 min → URL pública: `https://<usuario>.github.io/<repo>/`
+3. Compartir esa URL con el equipo. Listo, se abre como cualquier página.
+
+## 🖥️ Opción 2: servidor propio (WebSocket)
+
+```bash
+npm install          # única dependencia: ws
+node server.js       # escucha en 0.0.0.0:3000 (o $PORT)
+```
+
+Compartís `http://tu-host:3000`. En este modo la sincronización usa
+WebSockets contra este servidor. Tip: `?name=Laura` pre-carga el nombre.
 
 ## 🎮 Controles
 

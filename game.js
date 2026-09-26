@@ -1,7 +1,7 @@
 /* ============================================================
    🏢 OFICINA VIRTUAL — escena en perspectiva (pixel art)
-   Fondo = réplica del estudio real. Personajes con profundidad,
-   sentados en sus puestos, ventanal con ciclo día/noche real.
+   Fondo = réplica profunda del estudio real.
+   Multiplayer: WebSocket (servidor propio) o P2P Trystero (GitHub Pages).
    ============================================================ */
 'use strict';
 
@@ -9,13 +9,13 @@
 const VW = 1195, VH = 896;
 let viewScale = 1, viewOX = 0, viewOY = 0;
 
-// Rectángulo del ventanal (para el cielo dinámico)
+// Rectángulo del ventanal (cielo dinámico)
 const WIN = { x: 484, y: 291, w: 255, h: 84 };
 
 // Piso caminable (trapecio en perspectiva, bien profundo)
 const FLOOR = { yTop: 460, yBot: 890, xlTop: 505, xrTop: 720, xlBot: 280, xrBot: 935 };
 
-// Los 4 puestos: marcados sobre el pasillo, frente a cada teclado
+// Los 4 puestos: marcados frente a cada teclado
 const SEATS = [
   { x: 365, y: 725, face: 'left' },
   { x: 510, y: 518, face: 'left' },
@@ -28,7 +28,7 @@ const ZONES = [
   { name: 'Estación de café (junto a la ventana)', x0: 510, y0: 400, x1: 720, y1: 520, status: 'cafe' },
 ];
 
-const SPEED = 320;           // px virtuales / segundo
+const SPEED = 320;
 const SEND_MS = 70;
 
 const STATUS_INFO = {
@@ -54,7 +54,7 @@ function lerpColor(a, b, t) {
 function depthScale(y) { return lerp(3.1, 20, clamp((y - FLOOR.yTop) / (FLOOR.yBot - FLOOR.yTop), 0, 1)); }
 function sitScale(y) { return lerp(4.8, 9.8, clamp((y - 560) / 190, 0, 1)); }
 
-// ---------- Ciclo día/noche ----------
+// ---------- Ciclo día/noche (hora real) ----------
 const SKY_STOPS = [
   { h: 0,   top: '#070b1e', bot: '#141c33', star: 1,   patch: '#39456b', patchA: 0.25, amb: 0.34 },
   { h: 5,   top: '#070b1e', bot: '#141c33', star: 1,   patch: '#39456b', patchA: 0.25, amb: 0.34 },
@@ -89,15 +89,15 @@ const BUILDINGS = [];
 (function () {
   let x = 0, i = 0;
   while (x < WIN.w + 20) {
-    const w = 18 + Math.floor(rnd(i, 7, 1) * 26);
-    const h = 30 + Math.floor(rnd(i, 3, 2) * 90);
+    const w = 10 + Math.floor(rnd(i, 7, 1) * 16);
+    const h = 16 + Math.floor(rnd(i, 3, 2) * 50);
     BUILDINGS.push({ x, w, h, brick: rnd(i, 11, 3) > 0.72 });
-    x += w + 2 + Math.floor(rnd(i, 9, 5) * 6);
+    x += w + 1 + Math.floor(rnd(i, 9, 5) * 4);
     i++;
   }
 })();
 
-// ---------- Sprites (resolución 2x para que combinen con el fondo) ----------
+// ---------- Sprites de pie (32x44) ----------
 const spriteCache = {};
 function getSprite(colorIdx, dir, frame) {
   const key = `s${colorIdx}_${dir}_${frame}`;
@@ -108,19 +108,16 @@ function getSprite(colorIdx, dir, frame) {
   const shirt = SHIRT_COLORS[colorIdx % 8], hair = HAIR_COLORS[colorIdx % 8];
   const skin = '#f0c8a0', skinD = '#d9a878', pants = '#39424e', shoe = '#22262e';
   const step = frame === 1;
-  // piernas
   g.fillStyle = pants;
   if (step) { g.fillRect(8, 32, 6, 8); g.fillRect(18, 32, 6, 8); }
   else { g.fillRect(10, 32, 6, 8); g.fillRect(16, 32, 6, 8); }
   g.fillStyle = shoe;
   if (step) { g.fillRect(8, 40, 6, 2); g.fillRect(18, 40, 6, 2); }
   else { g.fillRect(10, 40, 6, 2); g.fillRect(16, 40, 6, 2); }
-  // torso
   g.fillStyle = shirt; g.fillRect(8, 18, 16, 14);
   g.fillStyle = 'rgba(0,0,0,0.15)'; g.fillRect(8, 28, 16, 4);
   g.fillStyle = shirt; g.fillRect(6, 20, 2, 10); g.fillRect(24, 20, 2, 10);
   g.fillStyle = skin; g.fillRect(6, 30, 2, 2); g.fillRect(24, 30, 2, 2);
-  // cabeza
   g.fillStyle = skin; g.fillRect(10, 6, 12, 12);
   g.fillStyle = skinD; g.fillRect(10, 16, 12, 2);
   g.fillStyle = hair;
@@ -142,111 +139,92 @@ function getSprite(colorIdx, dir, frame) {
   return cv;
 }
 
-// ---------- Personajes sentados: 4 variantes elegibles ----------
-// SIT_VARIANT: 'A' gamer pro | 'B' hoodie de espaldas | 'C' perfil realista | 'D' chibi
+// ---------- Personajes sentados: variantes (48x56) ----------
+// SIT_VARIANT: 'A' gamer pro | 'B' hoodie | 'C' perfil realista (OFICIAL) | 'D' chibi
 let SIT_VARIANT = 'C';
 
-function chairCommon(g, frame) {
-  // asiento, base con ruedas y apoyabrazos (común a todas las variantes)
+function chairCommon(g) {
   g.fillStyle = '#1d2126'; g.fillRect(12, 40, 28, 6);
   g.fillStyle = '#3a4048'; g.fillRect(8, 38, 4, 8); g.fillRect(36, 38, 4, 8);
   g.fillStyle = '#14171b'; g.fillRect(24, 46, 4, 5);
   g.fillRect(14, 51, 24, 2); g.fillRect(14, 51, 2, 4); g.fillRect(36, 51, 2, 4); g.fillRect(24, 53, 4, 2);
 }
-
-function sitA(g, shirt, hair, frame) { // Gamer pro: auriculares con micrófono, tipeo alternado
+function sitA(g, shirt, hair, frame) {
   g.fillStyle = '#1d2126'; g.fillRect(30, 6, 14, 34);
   g.fillStyle = '#2b3038'; g.fillRect(32, 8, 10, 30);
   g.fillStyle = '#14171b'; g.fillRect(32, 10, 10, 2); g.fillRect(32, 16, 10, 2);
   g.fillStyle = '#e8e8e8'; g.fillRect(35, 12, 4, 3);
   const bob = frame ? 1 : 0;
-  // piernas
   g.fillStyle = '#39424e'; g.fillRect(12, 40, 14, 6); g.fillRect(8, 44, 6, 8);
   g.fillStyle = '#22262e'; g.fillRect(4, 50, 8, 3);
-  // torso
   g.fillStyle = shirt; g.fillRect(14, 26 + bob, 18, 15);
   g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(14, 36 + bob, 18, 5);
-  // brazos tipeando (alternan)
   g.fillStyle = shirt;
   g.fillRect(6, 30 + bob + (frame ? 0 : 2), 12, 4);
   g.fillRect(8, 34 + bob + (frame ? 2 : 0), 12, 4);
   g.fillStyle = '#f0c8a0';
   g.fillRect(2, 30 + bob + (frame ? 0 : 2), 4, 4);
   g.fillRect(4, 34 + bob + (frame ? 2 : 0), 4, 4);
-  // cabeza + auriculares con mic
   g.fillStyle = '#f0c8a0'; g.fillRect(16, 10 + bob, 14, 14);
   g.fillStyle = hair; g.fillRect(18, 8 + bob, 12, 4); g.fillRect(26, 10 + bob, 4, 8);
   g.fillStyle = '#14161c'; g.fillRect(16, 8 + bob, 14, 3); g.fillRect(22, 12 + bob, 5, 6);
-  g.fillRect(16, 18 + bob, 6, 2); g.fillRect(14, 18 + bob, 2, 3); // mic
+  g.fillRect(16, 18 + bob, 6, 2); g.fillRect(14, 18 + bob, 2, 3);
   g.fillStyle = '#26221e'; g.fillRect(18, 16 + bob, 2, 2);
-  chairCommon(g, frame);
+  chairCommon(g);
 }
-
-function sitB(g, shirt, hair, frame) { // Hoodie de espaldas: se ve el respaldo a los costados
+function sitB(g, shirt, hair, frame) {
   const sway = frame ? 1 : 0;
   g.fillStyle = '#1d2126'; g.fillRect(8, 18, 6, 26); g.fillRect(34, 18, 6, 26);
   g.fillStyle = '#2b3038'; g.fillRect(9, 20, 4, 22); g.fillRect(35, 20, 4, 22);
-  // torso hoodie
   g.fillStyle = shirt; g.fillRect(12, 24 + sway, 24, 18);
   g.fillStyle = 'rgba(0,0,0,0.20)'; g.fillRect(12, 36 + sway, 24, 6);
-  // capucha apilada
   g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(16, 22 + sway, 16, 5);
-  // hombros que se mueven al tipear
   g.fillStyle = shirt;
   g.fillRect(8, 26 + sway + (frame ? 0 : 1), 5, 8);
   g.fillRect(35, 26 + sway + (frame ? 1 : 0), 5, 8);
-  // cabeza de espaldas: pelo + auriculares
   g.fillStyle = hair; g.fillRect(16, 8 + sway, 16, 15);
   g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(18, 10 + sway, 12, 3);
   g.fillStyle = '#14161c'; g.fillRect(16, 6 + sway, 16, 3); g.fillRect(13, 12 + sway, 4, 7); g.fillRect(31, 12 + sway, 4, 7);
-  chairCommon(g, frame);
+  chairCommon(g);
 }
-
-function sitC(g, shirt, hair, frame) { // Perfil realista: postura inclinada al monitor
-  g.fillStyle = '#1d2126'; g.fillRect(32, 4, 10, 6);           // apoyacabeza
-  g.fillStyle = '#2b3038'; g.fillRect(32, 10, 8, 28);          // respaldo mesh
+function sitC(g, shirt, hair, frame) { // OFICIAL: perfil realista, manos SOBRE el teclado
+  g.fillStyle = '#1d2126'; g.fillRect(32, 4, 10, 6);
+  g.fillStyle = '#2b3038'; g.fillRect(32, 10, 8, 28);
   g.fillStyle = '#14171b'; for (let y = 12; y < 36; y += 4) g.fillRect(33, y, 6, 1);
-  // piernas bajo el escritorio
   g.fillStyle = '#39424e'; g.fillRect(10, 40, 16, 6); g.fillRect(6, 44, 6, 9);
   g.fillStyle = '#22262e'; g.fillRect(2, 51, 9, 3);
-  // torso inclinado
   g.fillStyle = shirt;
   g.fillRect(16, 26, 16, 6); g.fillRect(14, 30, 18, 6); g.fillRect(14, 36, 18, 5);
-  // brazos extendidos: las manos APOYAN sobre el teclado y tipean alternadas
   g.fillStyle = shirt;
-  g.fillRect(8, 28, 10, 4);    // hombro/brazo 1
-  g.fillRect(4, 30, 8, 3);     // antebrazo 1
-  g.fillRect(10, 32, 10, 4);   // hombro/brazo 2
-  g.fillRect(6, 34, 8, 3);     // antebrazo 2
+  g.fillRect(8, 28, 10, 4);
+  g.fillRect(4, 30, 8, 3);
+  g.fillRect(10, 32, 10, 4);
+  g.fillRect(6, 34, 8, 3);
   g.fillStyle = '#f0c8a0';
-  g.fillRect(0, 29 + (frame ? 0 : 1), 5, 3);   // mano 1 sobre el teclado
-  g.fillRect(2, 33 + (frame ? 1 : 0), 5, 3);   // mano 2 sobre el teclado
-  // cabeza de perfil con nariz y ojo
+  g.fillRect(0, 29 + (frame ? 0 : 1), 5, 3);
+  g.fillRect(2, 33 + (frame ? 1 : 0), 5, 3);
   g.fillStyle = '#f0c8a0'; g.fillRect(16, 10, 13, 14);
-  g.fillRect(14, 16, 2, 3);                                     // nariz
+  g.fillRect(14, 16, 2, 3);
   g.fillStyle = hair; g.fillRect(18, 8, 12, 4); g.fillRect(26, 10, 4, 9);
-  g.fillStyle = '#26221e'; g.fillRect(18, 15, 2, 2);           // ojo
-  g.fillStyle = '#b06a4a'; g.fillRect(16, 21, 3, 1);           // boca
-  chairCommon(g, frame);
+  g.fillStyle = '#26221e'; g.fillRect(18, 15, 2, 2);
+  g.fillStyle = '#b06a4a'; g.fillRect(16, 21, 3, 1);
+  chairCommon(g);
 }
-
-function sitD(g, shirt, hair, frame) { // Chibi kawaii: cabezón rebotando al tipear
+function sitD(g, shirt, hair, frame) {
   const hop = frame ? 1 : 0;
   g.fillStyle = '#1d2126'; g.fillRect(30, 12, 14, 30);
   g.fillStyle = '#2b3038'; g.fillRect(32, 14, 10, 26);
-  g.fillStyle = '#e8e8e8'; g.fillRect(34, 18, 3, 2); g.fillRect(38, 18, 2, 2); // carita en el respaldo
-  // cuerpecito
+  g.fillStyle = '#e8e8e8'; g.fillRect(34, 18, 3, 2); g.fillRect(38, 18, 2, 2);
   g.fillStyle = shirt; g.fillRect(16, 30 + hop, 16, 12);
   g.fillStyle = shirt; g.fillRect(6, 33 + hop + (frame ? 0 : 1), 12, 4);
   g.fillStyle = '#f0c8a0'; g.fillRect(3, 33 + hop + (frame ? 0 : 1), 4, 4);
-  // cabezón
   g.fillStyle = '#f0c8a0'; g.fillRect(10, 6 + hop, 24, 24);
   g.fillStyle = hair; g.fillRect(12, 4 + hop, 22, 6); g.fillRect(28, 6 + hop, 6, 10);
-  g.fillStyle = '#26221e'; g.fillRect(15, 16 + hop, 4, 6);                       // ojazos
+  g.fillStyle = '#26221e'; g.fillRect(15, 16 + hop, 4, 6);
   g.fillStyle = '#ffffff'; g.fillRect(16, 17 + hop, 2, 2);
-  g.fillStyle = '#f28b8b'; g.fillRect(12, 23 + hop, 3, 2);                       // rubor
+  g.fillStyle = '#f28b8b'; g.fillRect(12, 23 + hop, 3, 2);
   g.fillStyle = '#b06a4a'; g.fillRect(18, 25 + hop, 3, 1);
-  chairCommon(g, frame);
+  chairCommon(g);
 }
 
 const sitCache = {};
@@ -259,12 +237,11 @@ function getSitSprite(colorIdx, face, occupied, frame = 0) {
   const shirt = SHIRT_COLORS[colorIdx % 8], hair = HAIR_COLORS[colorIdx % 8];
   const draw = (gg) => {
     if (!occupied) {
-      // silla vacía
       gg.fillStyle = '#1d2126'; gg.fillRect(30, 6, 14, 34);
       gg.fillStyle = '#2b3038'; gg.fillRect(32, 8, 10, 30);
       gg.fillStyle = '#e8e8e8'; gg.fillRect(35, 12, 4, 3);
       gg.fillStyle = '#2b3038'; gg.fillRect(14, 34, 20, 6);
-      chairCommon(gg, 0);
+      chairCommon(gg);
       return;
     }
     if (SIT_VARIANT === 'B') sitB(gg, shirt, hair, frame);
@@ -289,6 +266,7 @@ function drawWaveArm(g, colorIdx, time) {
 const state = { myId: null, myName: '', myColor: 0, players: new Map(), joined: false };
 const keys = {};
 let lastSend = 0, lastZone = null, audioCtx = null;
+
 const bgImg = new Image();
 let bgReady = false;
 const bgCv = document.createElement('canvas');
@@ -297,7 +275,6 @@ bgImg.onload = () => {
   bgCv.width = bgImg.width; bgCv.height = bgImg.height;
   const g = bgCv.getContext('2d');
   g.drawImage(bgImg, 0, 0);
-  // parchea artefactos blancos del piso con degradados del propio piso
   const PEGS = [[472, 664, 28, 56], [743, 664, 28, 56], [421, 778, 30, 60], [794, 778, 30, 60], [608, 592, 20, 22]];
   for (const [x, y, w, h] of PEGS) {
     const gh = g.createLinearGradient(x, 0, x + w, 0);
@@ -340,27 +317,83 @@ function beep(freq, dur, vol = 0.04, type = 'square') {
   } catch { /* sin audio */ }
 }
 
-// ---------- Red ----------
-let ws = null, reconnectTimer = null;
+// ---------- Red: WS (servidor) o P2P (Trystero, sin servidor) ----------
+let ws = null, reconnectTimer = null, sendFn = null;
+const USE_P2P = location.hostname.endsWith('github.io') || new URLSearchParams(location.search).has('p2p');
+function send(o) { if (sendFn) { try { sendFn(o); } catch { /* offline */ } } }
 function wsUrl() { return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`; }
-function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
-function connect() {
+
+function myPublic() {
+  const me = state.players.get(state.myId);
+  if (!me) return null;
+  return {
+    id: me.id, name: me.name, color: me.color, x: me.x, y: me.y, dir: me.dir,
+    moving: me.moving, seated: me.seated, status: me.status,
+    bubble: me.bubble, bubbleUntil: me.bubbleUntil, emote: me.emote, emoteUntil: me.emoteUntil,
+    wave: me.wave, waveUntil: me.waveUntil,
+  };
+}
+function sendMoveNow() { const p = myPublic(); if (p) send(Object.assign({ type: 'move' }, p)); }
+
+function connect() { if (USE_P2P) connectP2P(); else connectWS(); }
+
+function connectWS() {
   ws = new WebSocket(wsUrl());
-  ws.onopen = () => { toast('✅ Conectado a la oficina'); if (state.joined) send({ type: 'profile', name: state.myName, color: state.myColor }); };
-  ws.onclose = () => { if (state.joined) { toast('🔌 Desconectado. Reintentando...'); clearTimeout(reconnectTimer); reconnectTimer = setTimeout(connect, 2000); } };
+  sendFn = (o) => { if (ws.readyState === 1) ws.send(JSON.stringify(o)); };
+  ws.onopen = () => {
+    toast('✅ Conectado a la oficina');
+    if (state.joined) { send({ type: 'profile', id: state.myId, name: state.myName, color: state.myColor }); sendMoveNow(); }
+  };
+  ws.onclose = () => {
+    sendFn = null;
+    if (state.joined) { toast('🔌 Desconectado. Reintentando...'); clearTimeout(reconnectTimer); reconnectTimer = setTimeout(connectWS, 2000); }
+  };
   ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } handleMsg(m); };
 }
+
+async function connectP2P() {
+  toast('🌐 Modo sin servidor: conectando P2P...');
+  try {
+    const mod = await import('https://esm.run/trystero/nostr');
+    const room = mod.joinRoom({ appId: 'oficina-virtual-somospopups-v1' }, 'oficina-principal');
+    const [sendG, recvG] = room.makeAction('g');
+    sendFn = (o) => sendG(o);
+    recvG((m, peerId) => { if (m && m.type) { m._pid = peerId; handleMsg(m); } });
+    room.onPeerJoin(() => { sendMoveNow(); });
+    room.onPeerLeave((pid) => {
+      const p = [...state.players.values()].find((q) => q.pid === pid);
+      if (p) { state.players.delete(p.id); addChat(null, `${p.name} salió de la oficina`, 'system'); renderPlayerList(); }
+    });
+    toast('✅ Conectado P2P (sin servidor)');
+    if (state.joined) { send({ type: 'profile', id: state.myId, name: state.myName, color: state.myColor }); sendMoveNow(); }
+  } catch (e) {
+    toast('⚠️ No se pudo conectar P2P');
+  }
+}
+
 function handleMsg(msg) {
   switch (msg.type) {
-    case 'welcome': state.myId = msg.id; for (const p of msg.players) upsertRemote(p, true); renderPlayerList(); break;
+    case 'move':
+      if (msg.id && msg.id !== state.myId) upsertRemote(msg, false);
+      break;
+    case 'welcome':
+      state.myId = msg.id;
+      for (const p of msg.players) upsertRemote(p, true);
+      renderPlayerList();
+      break;
     case 'state': {
       for (const p of msg.players) if (p.id !== state.myId) upsertRemote(p, false);
       const ids = new Set(msg.players.map((p) => p.id));
       for (const id of [...state.players.keys()]) if (id !== state.myId && !ids.has(id)) state.players.delete(id);
-      renderPlayerList(); break;
+      renderPlayerList();
+      break;
     }
-    case 'joined': upsertRemote(msg.player, true); if (msg.player.name !== state.myName) beep(660, 0.08); renderPlayerList(); break;
-    case 'left': state.players.delete(msg.id); addChat(null, `${msg.name} salió de la oficina`, 'system'); renderPlayerList(); break;
+    case 'joined': upsertRemote(msg.player, true); renderPlayerList(); break;
+    case 'left':
+      state.players.delete(msg.id);
+      addChat(null, `${msg.name} salió de la oficina`, 'system');
+      renderPlayerList();
+      break;
     case 'system': addChat(null, msg.text, 'system'); break;
     case 'chat': {
       const mine = msg.from === state.myName, isW = !!msg.to;
@@ -380,16 +413,21 @@ function handleMsg(msg) {
     case 'profile': { const p = state.players.get(msg.id); if (p) { p.name = msg.name; p.color = msg.color; } renderPlayerList(); break; }
   }
 }
+
 function upsertRemote(p, snap) {
   let cur = state.players.get(p.id);
-  if (!cur) { cur = { ...p, tx: p.x, ty: p.y }; state.players.set(p.id, cur); }
-  else {
-    cur.name = p.name; cur.color = p.color; cur.dir = p.dir;
-    cur.moving = p.moving; cur.status = p.status; cur.seated = !!p.seated;
-    cur.tx = p.x; cur.ty = p.y;
-    if (snap || p.seated) { cur.x = p.x; cur.y = p.y; }
-    if (p.bubble && cur.bubble !== p.bubble) { cur.bubble = p.bubble; cur.bubbleUntil = performance.now() + 5000; }
+  if (!cur) {
+    cur = { ...p, tx: p.x, ty: p.y };
+    state.players.set(p.id, cur);
+    if (state.joined && p.id !== state.myId) { addChat(null, `${p.name} entró a la oficina`, 'system'); beep(660, 0.08); }
   }
+  cur.pid = p._pid || cur.pid;
+  cur.seen = performance.now();
+  cur.name = p.name; cur.color = p.color; cur.dir = p.dir;
+  cur.moving = p.moving; cur.status = p.status; cur.seated = !!p.seated;
+  cur.tx = p.x; cur.ty = p.y;
+  if (snap || p.seated) { cur.x = p.x; cur.y = p.y; }
+  if (p.bubble && cur.bubble !== p.bubble) { cur.bubble = p.bubble; cur.bubbleUntil = performance.now() + 5000; }
 }
 
 // ---------- UI ----------
@@ -406,9 +444,9 @@ function addChat(from, text, cls, to) {
 function sendChat(raw) {
   const text = raw.trim(); if (!text) return;
   const w = text.match(/^\/w\s+(\S+)\s+([\s\S]+)$/i);
-  if (w) send({ type: 'chat', text: w[2], to: w[1] });
+  if (w) send({ type: 'chat', id: state.myId, from: state.myName, text: w[2], to: w[1] });
   else if (text.startsWith('/')) addChat(null, 'Comando desconocido. Usá /w nombre mensaje', 'system');
-  else send({ type: 'chat', text });
+  else send({ type: 'chat', id: state.myId, from: state.myName, text });
 }
 let myStatus = 'disponible';
 function buildStatusBar() {
@@ -422,7 +460,7 @@ function buildStatusBar() {
   });
 }
 function setStatus(k, silent) {
-  myStatus = k; send({ type: 'status', status: k });
+  myStatus = k; send({ type: 'status', id: state.myId, status: k });
   const me = state.players.get(state.myId); if (me) me.status = k;
   document.querySelectorAll('.status-btn').forEach((b) => b.classList.toggle('active', b.dataset.status === k));
   renderPlayerList();
@@ -481,10 +519,10 @@ window.addEventListener('keydown', (e) => {
   if (n >= 1 && n <= 5) { setStatus(STATUS_KEYS[n - 1]); return; }
   const emoteMap = { z: '👋', x: '😂', c: '🎉', v: '👍', b: '🤔', n: '🔥', m: '☕' };
   const em = emoteMap[e.key.toLowerCase()];
-  if (em) { send({ type: 'emote', emote: em }); const me = state.players.get(state.myId); if (me) { me.emote = em; me.emoteUntil = performance.now() + 3000; } return; }
+  if (em) { send({ type: 'emote', id: state.myId, emote: em }); const me = state.players.get(state.myId); if (me) { me.emote = em; me.emoteUntil = performance.now() + 3000; } return; }
   if (e.key.toLowerCase() === 'f') {
     const near = nearestPlayer();
-    send({ type: 'wave', at: near ? near.name : null });
+    send({ type: 'wave', id: state.myId, at: near ? near.name : null });
     const me = state.players.get(state.myId);
     if (me) { me.wave = true; me.waveUntil = performance.now() + 1500; }
     if (near) { addChat(null, `Saludaste a ${near.name} 👋`, 'system'); beep(600, 0.06); }
@@ -521,13 +559,13 @@ function previewAvatar(i) {
   const g = pv.getContext('2d');
   g.imageSmoothingEnabled = false;
   g.clearRect(0, 0, pv.width, pv.height);
-  g.drawImage(getSitSprite(i, 'left', true), 0, 0, 40, 48, (pv.width - 80) / 2, (pv.height - 96) / 2, 80, 96);
+  g.drawImage(getSitSprite(i, 'left', true, 0), 0, 0, 48, 56, (pv.width - 96) / 2, (pv.height - 112) / 2, 96, 112);
 }
 function join() {
   const name = (nameInput.value || '').trim() || ('Invitado' + Math.floor(Math.random() * 99));
   state.myName = name; state.myColor = selectedColor; state.joined = true;
   const seat = freeSeat();
-  const sx = seat ? seat.x : VW / 2, sy = seat ? seat.y : 1000;
+  const sx = seat ? seat.x : VW / 2, sy = seat ? seat.y : 820;
   const me = {
     id: state.myId || 'me', name, color: selectedColor,
     x: sx, y: sy, tx: sx, ty: sy,
@@ -537,8 +575,8 @@ function join() {
   };
   if (state.myId) state.players.set(state.myId, me);
   joinOverlay.classList.add('hidden');
-  send({ type: 'profile', name, color: selectedColor });
-  send({ type: 'move', x: sx, y: sy, dir: me.dir, moving: false, seated: me.seated });
+  send({ type: 'profile', id: state.myId, name, color: selectedColor });
+  sendMoveNow();
   if (seat) { setStatus('codeando', true); addChat(null, 'Te sentaste en tu puesto 💻 — WASD para levantarte', 'system'); }
   addChat(null, `¡Bienvenido/a a la oficina, ${name}! Presioná H para la ayuda.`, 'system');
   beep(523, 0.09); setTimeout(() => beep(784, 0.12), 100);
@@ -569,43 +607,42 @@ function drawSky(now, hf, sky) {
       const sx = rnd(i, 1, 2) * W, sy = rnd(i, 2, 3) * (H * 0.5);
       const tw = 0.5 + 0.5 * Math.sin(now * 0.003 + i * 2.1);
       g.fillStyle = `rgba(255,255,255,${(sky.star * tw * 0.9).toFixed(2)})`;
-      g.fillRect(sx, sy, 2, 2);
+      g.fillRect(sx, sy, 1, 1);
     }
   }
   if (hf >= 6 && hf <= 19) {
     const t = (hf - 6) / 13;
     const sx = t * W, sy = H * 0.75 - Math.sin(Math.PI * t) * H * 0.55;
-    g.fillStyle = 'rgba(255,215,106,0.35)'; g.beginPath(); g.arc(sx, sy, 16, 0, 7); g.fill();
-    g.fillStyle = '#ffd76a'; g.beginPath(); g.arc(sx, sy, 9, 0, 7); g.fill();
+    g.fillStyle = 'rgba(255,215,106,0.35)'; g.beginPath(); g.arc(sx, sy, 8, 0, 7); g.fill();
+    g.fillStyle = '#ffd76a'; g.beginPath(); g.arc(sx, sy, 4, 0, 7); g.fill();
   } else {
     const hn = (hf >= 19 ? hf - 19 : hf + 5) / 11;
     const mx = hn * W, my = H * 0.7 - Math.sin(Math.PI * hn) * H * 0.5;
-    g.fillStyle = '#e8ecf2'; g.beginPath(); g.arc(mx, my, 9, 0, 7); g.fill();
-    g.fillStyle = '#c9cfda'; g.fillRect(mx - 4, my - 4, 4, 4);
+    g.fillStyle = '#e8ecf2'; g.beginPath(); g.arc(mx, my, 5, 0, 7); g.fill();
+    g.fillStyle = '#c9cfda'; g.fillRect(mx - 2, my - 2, 2, 2);
   }
   const cloudA = 0.85 - sky.star * 0.6;
   for (let i = 0; i < 4; i++) {
-    const cx = ((now * 0.006 * (1 + i * 0.3) + i * 173) % (W + 80)) - 40;
-    const cy = 20 + i * 22;
+    const cx = ((now * 0.004 * (1 + i * 0.3) + i * 73) % (W + 40)) - 20;
+    const cy = 8 + i * 10;
     g.fillStyle = `rgba(255,255,255,${cloudA.toFixed(2)})`;
-    g.fillRect(cx, cy, 46, 8); g.fillRect(cx + 8, cy - 5, 26, 5); g.fillRect(cx + 12, cy + 8, 22, 4);
+    g.fillRect(cx, cy, 24, 4); g.fillRect(cx + 4, cy - 2, 14, 2); g.fillRect(cx + 6, cy + 4, 12, 2);
   }
   const night = sky.star;
   for (const b of BUILDINGS) {
     g.fillStyle = night > 0.5 ? '#1c2438' : (b.brick ? '#b07860' : '#9aa0a8');
     g.fillRect(b.x, H - b.h, b.w, b.h);
-    for (let wy = H - b.h + 4; wy < H - 4; wy += 6) {
-      for (let wx = b.x + 3; wx < b.x + b.w - 3; wx += 5) {
+    for (let wy = H - b.h + 3; wy < H - 3; wy += 4) {
+      for (let wx = b.x + 2; wx < b.x + b.w - 2; wx += 3) {
         const on = rnd(wx, wy, 21) > 0.45;
-        if (night > 0.4) { if (on) { g.fillStyle = `rgba(255,215,106,${(0.4 + night * 0.6).toFixed(2)})`; g.fillRect(wx, wy, 2, 3); } }
-        else { g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(wx, wy, 2, 3); }
+        if (night > 0.4) { if (on) { g.fillStyle = `rgba(255,215,106,${(0.4 + night * 0.6).toFixed(2)})`; g.fillRect(wx, wy, 1, 2); } }
+        else { g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(wx, wy, 1, 2); }
       }
     }
   }
-  // marco y parantes
   g.fillStyle = '#e8e8ec';
-  g.fillRect(0, 0, W, 6); g.fillRect(0, H - 8, W, 8);
-  g.fillRect(W / 3 - 4, 0, 8, H); g.fillRect(2 * W / 3 - 4, 0, 8, H);
+  g.fillRect(0, 0, W, 3); g.fillRect(0, H - 4, W, 4);
+  g.fillRect(W / 3 - 2, 0, 4, H); g.fillRect(2 * W / 3 - 2, 0, 4, H);
 }
 
 function update(dt) {
@@ -627,12 +664,12 @@ function update(dt) {
     ny = clamp(ny, FLOOR.yTop + 12, FLOOR.yBot - 8);
     if (!walkable(nx, ny)) nx = me.x + toward * 40;
     me.x = nx; me.y = ny;
-    send({ type: 'move', x: me.x, y: me.y, dir: me.dir, moving: true, seated: false });
+    sendMoveNow();
     lastSend = performance.now();
   }
   if (want && !me.seated) {
     const len = Math.hypot(dx, dy); dx /= len; dy /= len;
-    const sp = SPEED * clamp(depthScale(me.y) / 12, 0.35, 1.6); // perspectiva: lejos se camina "más lento"
+    const sp = SPEED * clamp(depthScale(me.y) / 12, 0.35, 1.6);
     const nx = me.x + dx * sp * dt, ny = me.y + dy * sp * dt;
     if (walkable(nx, me.y)) me.x = nx;
     if (walkable(me.x, ny)) me.y = ny;
@@ -644,7 +681,7 @@ function update(dt) {
       const seat = seatNear(me.x, me.y);
       if (seat) {
         me.seated = true; me.dir = seat.face; me.x = seat.x; me.y = seat.y;
-        send({ type: 'move', x: me.x, y: me.y, dir: me.dir, moving: false, seated: true });
+        sendMoveNow();
         lastSend = performance.now();
       }
     }
@@ -652,13 +689,8 @@ function update(dt) {
   me.tx = me.x; me.ty = me.y;
 
   const now = performance.now();
-  if (me.moving && now - lastSend > SEND_MS) {
-    lastSend = now;
-    send({ type: 'move', x: Math.round(me.x), y: Math.round(me.y), dir: me.dir, moving: true, seated: false });
-  } else if (!me.moving && now - lastSend > 400) {
-    lastSend = now;
-    send({ type: 'move', x: Math.round(me.x), y: Math.round(me.y), dir: me.dir, moving: false, seated: me.seated });
-  }
+  if (me.moving && now - lastSend > SEND_MS) { lastSend = now; sendMoveNow(); }
+  else if (!me.moving && now - lastSend > 400) { lastSend = now; sendMoveNow(); }
 
   const z = me.seated ? { name: 'tu puesto', status: 'codeando' } : zoneAt(me.x, me.y);
   const zKey = z ? z.name : null;
@@ -675,6 +707,17 @@ function update(dt) {
     if (p.seated) { p.x = p.tx; p.y = p.ty; continue; }
     const k = Math.min(1, dt * 12);
     p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k;
+  }
+
+  // P2P: podar compañeros silenciosos
+  if (USE_P2P) {
+    for (const p of [...state.players.values()]) {
+      if (p.id !== state.myId && p.seen && now - p.seen > 6000) {
+        state.players.delete(p.id);
+        addChat(null, `${p.name} salió de la oficina`, 'system');
+        renderPlayerList();
+      }
+    }
   }
 
   const near = nearestPlayer();
@@ -697,15 +740,12 @@ function render() {
   const hf = d.getHours() + d.getMinutes() / 60;
   const sky = skyNow(hf);
 
-  // fondo
   if (bgReady) ctx.drawImage(bgCv, 0, 0, VW, VH);
   else { ctx.fillStyle = '#20242e'; ctx.fillRect(0, 0, VW, VH); }
 
-  // ventanal dinámico
   drawSky(now, hf, sky);
   ctx.drawImage(skyCv, WIN.x, WIN.y);
 
-  // tinte del reflejo en el piso según la hora
   if (sky.patchA > 0.02) {
     ctx.globalAlpha = sky.patchA;
     ctx.fillStyle = sky.patch;
@@ -714,20 +754,16 @@ function render() {
     ctx.closePath(); ctx.fill();
     ctx.globalAlpha = 1;
   }
-  // ambiente nocturno + luces
   if (sky.amb > 0.01) {
     ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
     ctx.fillRect(0, 0, VW, VH);
     ctx.globalCompositeOperation = 'lighter';
-    // glow monitores (4 puestos)
     ctx.fillStyle = `rgba(90,140,255,${(0.10 * sky.amb * 3).toFixed(2)})`;
     ctx.fillRect(19, 345, 245, 140); ctx.fillRect(341, 345, 98, 75);
     ctx.fillRect(775, 345, 98, 75); ctx.fillRect(962, 345, 210, 140);
-    // glow LEDs estantes
     ctx.fillStyle = `rgba(59,130,246,${(0.14 * sky.amb * 3).toFixed(2)})`;
     ctx.fillRect(0, 209, 318, 51); ctx.fillRect(327, 262, 140, 33);
     ctx.fillRect(757, 262, 140, 33); ctx.fillRect(906, 209, 289, 51);
-    // lamparitas en profundidad
     for (const [lx, ly] of [[313, 51], [878, 51], [420, 158], [789, 158], [477, 205], [733, 205]]) {
       const rg = ctx.createRadialGradient(lx, ly, 3, lx, ly, 70);
       rg.addColorStop(0, `rgba(255,224,160,${(0.5 * sky.amb * 2).toFixed(2)})`);
@@ -737,7 +773,6 @@ function render() {
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  // personajes ordenados por profundidad
   const frame = Math.floor(animT / 160) % 2;
   const list = [...state.players.values()].sort((a, b) => a.y - b.y);
   for (const p of list) {
@@ -763,11 +798,9 @@ function render() {
       }
       topY = p.y - h; shR = 11 * s; fs = Math.round(3.1 * s);
     }
-    // sombra
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath(); ctx.ellipse(p.x, p.y + 4, shR, shR * 0.32, 0, 0, Math.PI * 2); ctx.fill();
 
-    // nombre + estado
     const st = STATUS_INFO[p.status] || STATUS_INFO.disponible;
     ctx.font = `${fs}px "Press Start 2P", monospace`;
     ctx.textAlign = 'center';
@@ -821,7 +854,9 @@ function loop(t) {
   render();
   requestAnimationFrame(loop);
 }
+
 function init() {
+  if (USE_P2P) state.myId = 'me' + Math.random().toString(36).slice(2, 8);
   resize();
   buildStatusBar();
   buildColorPicker();
