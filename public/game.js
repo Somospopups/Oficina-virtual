@@ -6,7 +6,7 @@
 // ---------- Constantes ----------
 const TILE = 16;                 // tamaño lógico de tile (px)
 let SCALE = 3;                   // zoom (se ajusta según pantalla)
-const MAP_W = 44, MAP_H = 30;
+const MAP_W = 20, MAP_H = 24;
 const SPEED = 72;                // px/segundo (mundo)
 const SEND_MS = 70;              // frecuencia de envío de posición
 
@@ -14,48 +14,44 @@ const SEND_MS = 70;              // frecuencia de envío de posición
 // '#' pared  '=' vidrio  '.' piso  'F' alfombra  'd' felpudo
 // 'D' escritorio  'C' silla  'T' mesa reunión  'c' silla reunión
 // 'K' mesada  'M' máquina café  'P' planta  'S' sofá  'B' biblioteca  'W' pizarra
+// Réplica de la oficina real (aviso de Marketplace):
+// ventanal con vista a la ciudad arriba, counter con estantes de madera
+// y gabinete blanco bajo la ventana, porcelanato brillante, entrada abajo.
 const MAP_ROWS = [
-'############################################',
-'#............#................=............#',
-'#.BBBB.......#................=..WWWWWW..P.#',
-'#...FFFFFF...#................=............#',
-'#.SSFFFFFF...#................=.TTTTTTT....#',
-'#.S.FFFFFF...#................=.TTTTTTT....#',
-'#...FFFFFF..P#................=.TTTTTTT....#',
-'#............#.............................#',
-'#............#.............................#',
-'#.............................=============#',
-'#..DD...DD...DD...DD...DD..................#',
-'#..CC...CC...CC...CC...CC..................#',
-'#..........................................#',
-'#..........................................#',
-'#..........................................#',
-'#..DD...DD...DD...DD...DD..................#',
-'#..CC...CC...CC...CC...CC..................#',
-'#.................................KKKKKK...#',
-'#..DD...DD...DD.......................M....#',
-'#..CC...CC...CC............................#',
-'#........................................K.#',
-'#........................................K.#',
-'#........................................K.#',
-'#........................................K.#',
-'#........................................K.#',
-'#........................................P.#',
-'#..........................................#',
-'#..........................................#',
-'#..............P.........P.................#',
-'#####################dd####################',
+'#VVVVVVVVVVVVVVVVVV#',
+'#..HHHHHHHWWWWMWW..#',
+'#LL.LL.LL.LL.LL.LL.#',
+'#LL.LL.LL.LL.LL.LL.#',
+'#.....s.......s....#',
+'#..................#',
+'#...DD...DD...DD...#',
+'#...CC...CC...CC...#',
+'#..................#',
+'#..................#',
+'#...DD...DD...DD...#',
+'#...CC...CC...CC...#',
+'#..................#',
+'#..................#',
+'#...DD...DD...DD...#',
+'#...CC...CC...CC...#',
+'#..................#',
+'#..................#',
+'#.....l.......l....#',
+'#..................#',
+'#..................#',
+'#..................#',
+'#..................#',
+'#########dd#########',
 ];
 
 // Normalizar por si alguna fila quedó corta/larga
 const MAP = MAP_ROWS.map((r) => (r + '#'.repeat(MAP_W)).slice(0, MAP_W));
 
-const SOLID = new Set(['#', '=', 'B', 'S', 'P', 'D', 'T', 'K', 'M', 'W']);
+const SOLID = new Set(['#', 'V', 'H', 'W', 'M', 'D']);
 
 // Zonas (en tiles, inclusivas) → estado automático
 const ZONES = [
-  { name: 'Sala de reuniones', x0: 31, y0: 1, x1: 42, y1: 8, status: 'reunion' },
-  { name: 'Cocina', x0: 32, y0: 17, x1: 42, y1: 26, status: 'cafe' },
+  { name: 'Estación de café (junto a la ventana)', x0: 9, y0: 1, x1: 17, y1: 4, status: 'cafe' },
 ];
 
 const STATUS_INFO = {
@@ -87,22 +83,16 @@ function buildMapCanvas() {
   t.width = TILE; t.height = TILE;
 
   function drawFloorTile(g2, tx, ty) {
-    // Cocina: baldosas ajedrez
-    if (tx >= 32 && ty >= 16 && ty <= 27) {
-      g2.fillStyle = (tx + ty) % 2 ? '#e9e5db' : '#d3cdc0';
-      g2.fillRect(0, 0, 16, 16);
-      g2.fillStyle = 'rgba(0,0,0,0.05)';
-      g2.fillRect(0, 15, 16, 1); g2.fillRect(15, 0, 1, 16);
-      return;
-    }
-    // Alfombra de la oficina
-    g2.fillStyle = '#b7a788';
+    // Porcelanato beige brillante (como la oficina real)
+    g2.fillStyle = '#e6ddca';
     g2.fillRect(0, 0, 16, 16);
-    for (let i = 0; i < 10; i++) {
-      const px = Math.floor(rnd(tx, ty, i) * 16), py = Math.floor(rnd(tx, ty, i + 50) * 16);
-      g2.fillStyle = rnd(tx, ty, i + 99) > 0.5 ? '#ab9b7c' : '#c2b294';
-      g2.fillRect(px, py, 1, 1);
-    }
+    // brillo diagonal sutil
+    g2.fillStyle = 'rgba(255,255,255,0.10)';
+    g2.fillRect(0, 2 + Math.floor(rnd(tx, ty, 3) * 9), 16, 3);
+    // pastillas grandes: juntas cada 2 tiles
+    g2.fillStyle = '#cfc5ae';
+    if (tx % 2 === 0) g2.fillRect(0, 0, 1, 16);
+    if (ty % 2 === 0) g2.fillRect(0, 0, 16, 1);
   }
 
   function tileAt(tx, ty) {
@@ -119,44 +109,60 @@ function buildMapCanvas() {
 
       switch (c) {
         case '#': {
-          g2.fillStyle = '#454f63'; g2.fillRect(0, 0, 16, 16);
-          g2.fillStyle = '#3a4356';
-          for (let r = 0; r < 4; r++) {
-            const off = (r % 2) * 4;
-            g2.fillRect(0, r * 4 + 3, 16, 1);
-            for (let b = 0; b < 3; b++) g2.fillRect((off + b * 8) % 16, r * 4, 1, 4);
-          }
-          g2.fillStyle = '#566178'; g2.fillRect(0, 0, 16, 2);
+          // Pared blanca (como la oficina real)
+          g2.fillStyle = '#f4f2ec'; g2.fillRect(0, 0, 16, 16);
+          g2.fillStyle = '#ffffff'; g2.fillRect(0, 0, 16, 2);
+          g2.fillStyle = '#d9d4c6'; g2.fillRect(0, 14, 16, 2);
+          g2.fillStyle = 'rgba(0,0,0,0.03)';
+          g2.fillRect(Math.floor(rnd(tx, ty, 1) * 16), 4, 1, 8);
           break;
         }
-        case '=': {
-          g2.fillStyle = 'rgba(150, 210, 235, 0.35)'; g2.fillRect(0, 0, 16, 16);
-          g2.fillStyle = '#8b98a8'; g2.fillRect(0, 0, 16, 2); g2.fillRect(0, 14, 16, 2);
-          g2.fillRect(0, 0, 2, 16); g2.fillRect(14, 0, 2, 16);
-          g2.fillStyle = 'rgba(255,255,255,0.4)';
-          g2.fillRect(3, 10, 6, 1); g2.fillRect(5, 8, 6, 1); g2.fillRect(9, 4, 4, 1);
+        case 'V': {
+          // Ventanal con vista a la ciudad
+          g2.fillStyle = '#8ecdf0'; g2.fillRect(0, 0, 16, 16);
+          g2.fillStyle = '#a8dcf6'; g2.fillRect(0, 0, 16, 6);
+          const h = 6 + Math.floor(rnd(tx, 0, 9) * 7);
+          if (rnd(tx, 2, 5) > 0.5) { g2.fillStyle = '#c4c9cf'; g2.fillRect(9, Math.max(0, 16 - h - 3), 7, h + 3); }
+          g2.fillStyle = rnd(tx, 1, 4) > 0.5 ? '#9aa0a8' : '#b07860';
+          g2.fillRect(0, 16 - h, 16, h);
+          g2.fillStyle = 'rgba(255,255,255,0.35)';
+          for (let wy = 16 - h + 2; wy < 13; wy += 3) g2.fillRect(2, wy, 12, 1);
+          // marco blanco + parantes
+          g2.fillStyle = '#ffffff'; g2.fillRect(0, 0, 16, 2); g2.fillRect(0, 13, 16, 3);
+          if (tx % 3 === 0) g2.fillRect(0, 0, 2, 16);
           break;
         }
-        case 'F': {
-          g2.fillStyle = '#a33b3b'; g2.fillRect(0, 0, 16, 16);
-          g2.fillStyle = '#8c2f2f'; g2.fillRect(0, 0, 16, 2); g2.fillRect(0, 14, 16, 2);
-          g2.fillRect(0, 0, 2, 16); g2.fillRect(14, 0, 2, 16);
-          g2.fillStyle = '#c05656'; g2.fillRect(6, 6, 4, 4);
+        case 'H': {
+          // Counter bajo la ventana: estantes de madera abiertos
+          g2.fillStyle = '#a9793f'; g2.fillRect(0, 0, 16, 16);
+          g2.fillStyle = '#c19055'; g2.fillRect(0, 0, 16, 3);
+          g2.fillStyle = '#6b4a24'; g2.fillRect(2, 5, 12, 4); g2.fillRect(2, 11, 12, 4);
+          g2.fillStyle = '#8a6132'; g2.fillRect(2, 9, 12, 1); g2.fillRect(2, 15, 12, 1);
           break;
         }
-        case 'd': {
-          g2.fillStyle = '#3d4451'; g2.fillRect(1, 1, 14, 14);
-          g2.fillStyle = '#4c5566';
-          g2.fillRect(3, 4, 10, 2); g2.fillRect(3, 8, 10, 2); g2.fillRect(3, 12, 10, 2);
+        case 'W': {
+          // Gabinete blanco del counter
+          g2.fillStyle = '#f7f6f2'; g2.fillRect(0, 0, 16, 16);
+          g2.fillStyle = '#e2dfd6'; g2.fillRect(0, 0, 1, 16); g2.fillRect(0, 3, 16, 1);
+          g2.fillStyle = '#b9b5aa'; g2.fillRect(7, 8, 2, 1);
+          break;
+        }
+        case 'M': {
+          // Máquina de café sobre el counter blanco
+          g2.fillStyle = '#f7f6f2'; g2.fillRect(0, 0, 16, 16);
+          g2.fillStyle = '#e2dfd6'; g2.fillRect(0, 3, 16, 1);
+          g2.fillStyle = '#22252b'; g2.fillRect(3, 4, 10, 9);
+          g2.fillStyle = '#3a3f47'; g2.fillRect(4, 5, 8, 3);
+          g2.fillStyle = '#ff5c5c'; g2.fillRect(11, 10, 1, 1);
+          g2.fillStyle = '#f2ede2'; g2.fillRect(6, 10, 4, 3);
+          g2.fillStyle = '#5b3a1e'; g2.fillRect(7, 10, 2, 1);
           break;
         }
         case 'D': {
-          // Escritorio
-          g2.fillStyle = '#8a5a33'; g2.fillRect(0, 2, 16, 10);
-          g2.fillStyle = '#a06c3f'; g2.fillRect(0, 2, 16, 3);
-          g2.fillStyle = '#6f4526'; g2.fillRect(0, 11, 16, 3);
-          g2.fillStyle = '#5c3a20'; g2.fillRect(1, 14, 2, 2); g2.fillRect(13, 14, 2, 2);
-          // Monitor solo en el tile izquierdo del par (con terminal opencode 💚)
+          // Escritorio blanco con canto de madera clara
+          g2.fillStyle = '#fbfaf6'; g2.fillRect(0, 2, 16, 10);
+          g2.fillStyle = '#e8e4da'; g2.fillRect(0, 2, 16, 1);
+          g2.fillStyle = '#b98a52'; g2.fillRect(0, 11, 16, 2);
           if (tileAt(tx - 1, ty) !== 'D') {
             g2.fillStyle = '#23262e'; g2.fillRect(3, 0, 11, 8);
             g2.fillStyle = '#0d1117'; g2.fillRect(4, 1, 9, 6);
@@ -164,92 +170,44 @@ function buildMapCanvas() {
             g2.fillRect(5, 2, 5, 1); g2.fillRect(5, 4, 7, 1); g2.fillRect(5, 5, 3, 1);
             g2.fillStyle = '#23262e'; g2.fillRect(7, 8, 3, 2); g2.fillRect(5, 10, 7, 1);
           } else {
-            g2.fillStyle = '#d8d2c4'; g2.fillRect(4, 5, 6, 4); // papeles
+            g2.fillStyle = '#d8d2c4'; g2.fillRect(4, 5, 6, 4);
             g2.fillStyle = '#b0a894'; g2.fillRect(4, 6, 6, 1);
           }
           break;
         }
         case 'C': {
-          // Silla de oficina
-          g2.fillStyle = '#556070'; g2.fillRect(4, 3, 8, 5);
-          g2.fillStyle = '#66717f'; g2.fillRect(4, 3, 8, 2);
-          g2.fillStyle = '#4a5462'; g2.fillRect(3, 8, 10, 4);
-          g2.fillStyle = '#30363f'; g2.fillRect(7, 12, 2, 3); g2.fillRect(5, 14, 6, 1);
+          // Silla clara moderna
+          g2.fillStyle = '#cfd3d8'; g2.fillRect(4, 3, 8, 5);
+          g2.fillStyle = '#e2e5e9'; g2.fillRect(4, 3, 8, 2);
+          g2.fillStyle = '#b6bbc2'; g2.fillRect(3, 8, 10, 4);
+          g2.fillStyle = '#8d939b'; g2.fillRect(7, 12, 2, 3); g2.fillRect(5, 14, 6, 1);
           break;
         }
-        case 'T': {
-          // Mesa de reuniones
-          g2.fillStyle = '#7a4a2b'; g2.fillRect(0, 0, 16, 16);
-          g2.fillStyle = '#96603c'; g2.fillRect(1, 1, 14, 14);
-          if (tileAt(tx - 1, ty) !== 'T') { g2.fillStyle = '#63391f'; g2.fillRect(0, 0, 2, 16); }
-          if (tileAt(tx + 1, ty) !== 'T') { g2.fillStyle = '#63391f'; g2.fillRect(14, 0, 2, 16); }
-          if (tileAt(tx, ty - 1) !== 'T') { g2.fillStyle = '#63391f'; g2.fillRect(0, 0, 16, 2); }
-          if (tileAt(tx, ty + 1) !== 'T') { g2.fillStyle = '#63391f'; g2.fillRect(0, 14, 16, 2); }
-          // cuaderno en una esquina
-          if (rnd(tx, ty, 7) > 0.6) { g2.fillStyle = '#e8e4da'; g2.fillRect(5, 6, 5, 4); g2.fillStyle = '#c33'; g2.fillRect(5, 6, 5, 1); }
+        case 'L': {
+          // Parche de sol sobre el porcelanato (reflejo del ventanal)
+          g2.fillStyle = 'rgba(255,246,214,0.75)'; g2.fillRect(0, 0, 16, 16);
+          g2.fillStyle = 'rgba(160,215,255,0.25)'; g2.fillRect(0, 0, 16, 6);
           break;
         }
-        case 'K': {
-          // Mesada de cocina
-          g2.fillStyle = '#6b7280'; g2.fillRect(0, 3, 16, 13);
-          g2.fillStyle = '#d6dade'; g2.fillRect(0, 0, 16, 4);
-          g2.fillStyle = '#aab0b8'; g2.fillRect(0, 3, 16, 1);
-          g2.fillStyle = '#4d545f'; g2.fillRect(6, 7, 4, 1);
+        case 'l': {
+          // Lamparita colgante vista desde arriba
+          g2.fillStyle = 'rgba(255,214,140,0.20)'; g2.beginPath(); g2.arc(8, 8, 8, 0, 7); g2.fill();
+          g2.fillStyle = 'rgba(255,232,180,0.35)'; g2.beginPath(); g2.arc(8, 8, 5, 0, 7); g2.fill();
+          g2.fillStyle = '#fff8e6'; g2.beginPath(); g2.arc(8, 8, 2, 0, 7); g2.fill();
+          g2.fillStyle = '#c9c9c9'; g2.fillRect(7, 7, 1, 1);
           break;
         }
-        case 'M': {
-          // Máquina de café sobre mesada
-          g2.fillStyle = '#6b7280'; g2.fillRect(0, 10, 16, 6);
-          g2.fillStyle = '#d6dade'; g2.fillRect(0, 9, 16, 2);
-          g2.fillStyle = '#22252b'; g2.fillRect(3, 1, 10, 8);
-          g2.fillStyle = '#3a3f47'; g2.fillRect(4, 2, 8, 3);
-          g2.fillStyle = '#ff5c5c'; g2.fillRect(11, 6, 1, 1);
-          g2.fillStyle = '#f2ede2'; g2.fillRect(6, 6, 4, 3); // tacita
-          g2.fillStyle = '#5b3a1e'; g2.fillRect(7, 6, 2, 1);
+        case 's': {
+          // Spot embutido en el techo
+          g2.fillStyle = 'rgba(255,240,200,0.18)'; g2.beginPath(); g2.arc(8, 8, 6, 0, 7); g2.fill();
+          g2.fillStyle = '#ffffff'; g2.beginPath(); g2.arc(8, 8, 2, 0, 7); g2.fill();
           break;
         }
-        case 'P': {
-          // Planta
-          g2.fillStyle = '#b4552d'; g2.fillRect(5, 11, 6, 5);
-          g2.fillStyle = '#8f4222'; g2.fillRect(5, 11, 6, 1);
-          g2.fillStyle = '#3e8948';
-          g2.fillRect(4, 5, 8, 6); g2.fillRect(6, 2, 4, 4); g2.fillRect(2, 7, 3, 3); g2.fillRect(11, 7, 3, 3);
-          g2.fillStyle = '#5aa860'; g2.fillRect(5, 4, 3, 2); g2.fillRect(9, 6, 2, 2); g2.fillRect(7, 2, 2, 2);
-          break;
-        }
-        case 'S': {
-          // Sofá
-          g2.fillStyle = '#2f7d74'; g2.fillRect(0, 2, 16, 12);
-          g2.fillStyle = '#3a948a'; g2.fillRect(1, 3, 14, 6);
-          g2.fillStyle = '#256a62'; g2.fillRect(0, 9, 16, 5);
-          g2.fillStyle = '#47a89d'; g2.fillRect(2, 4, 5, 4); g2.fillRect(9, 4, 5, 4);
-          break;
-        }
-        case 'B': {
-          // Biblioteca
-          g2.fillStyle = '#5c4327'; g2.fillRect(0, 0, 16, 16);
-          g2.fillStyle = '#4a3520'; g2.fillRect(0, 5, 16, 1); g2.fillRect(0, 10, 16, 1); g2.fillRect(0, 15, 16, 1);
-          const bookCols = ['#c0392b', '#2980b9', '#27ae60', '#f39c12', '#8e44ad', '#e0e0e0'];
-          for (let shelf = 0; shelf < 3; shelf++) {
-            let bx = 1;
-            for (let b = 0; b < 5; b++) {
-              const w = 2 + Math.floor(rnd(tx, ty, shelf * 10 + b) * 2);
-              g2.fillStyle = bookCols[Math.floor(rnd(tx, ty, shelf * 31 + b * 3) * bookCols.length)];
-              g2.fillRect(bx, shelf * 5 + 1, w, 4);
-              bx += w + 1;
-              if (bx > 14) break;
-            }
-          }
-          break;
-        }
-        case 'W': {
-          // Pizarra
-          g2.fillStyle = '#454f63'; g2.fillRect(0, 0, 16, 16);
-          g2.fillStyle = '#f4f4ee'; g2.fillRect(1, 3, 14, 10);
-          g2.fillStyle = '#c9c9c0'; g2.fillRect(1, 12, 14, 1);
-          g2.fillStyle = '#c23b3b'; g2.fillRect(3, 5, 6, 1); g2.fillRect(3, 7, 9, 1);
-          g2.fillStyle = '#3b6ea5'; g2.fillRect(3, 9, 4, 1); g2.fillRect(9, 9, 3, 1);
-          g2.fillStyle = '#7a7f8a'; g2.fillRect(5, 13, 6, 1);
+        case 'd': {
+          // Entrada con felpudo
+          g2.fillStyle = '#cfc5ae'; g2.fillRect(0, 0, 16, 16);
+          g2.fillStyle = '#8d939b'; g2.fillRect(1, 2, 14, 12);
+          g2.fillStyle = '#a5abb3'; g2.fillRect(3, 4, 10, 2); g2.fillRect(3, 8, 10, 2);
           break;
         }
       }
@@ -666,7 +624,7 @@ function join() {
   state.joined = true;
   const me = {
     id: state.myId || 'me', name, color: selectedColor,
-    x: 21.5 * TILE, y: 27 * TILE, tx: 21.5 * TILE, ty: 27 * TILE,
+    x: 10 * TILE, y: 21 * TILE, tx: 10 * TILE, ty: 21 * TILE,
     dir: 'up', moving: false, status: 'disponible',
     bubble: null, bubbleUntil: 0, emote: null, emoteUntil: 0, wave: false, waveUntil: 0,
   };
