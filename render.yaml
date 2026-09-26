@@ -1,0 +1,11 @@
+# Blueprint de deploy en Render.com (plan gratis)
+# Render lo detecta solo al crear un "Blueprint" desde el repo.
+services:
+  - type: web
+    name: oficina-virtual
+    runtime: node
+    plan: free
+    region: virginia          # más cercano a Sudamérica entre las regiones gratis
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start   # node server.js (lee PORT del entorno)
+    healthCheckPath: /
