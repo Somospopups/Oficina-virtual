@@ -144,7 +144,7 @@ function getSprite(colorIdx, dir, frame) {
 
 // ---------- Personajes sentados: 4 variantes elegibles ----------
 // SIT_VARIANT: 'A' gamer pro | 'B' hoodie de espaldas | 'C' perfil realista | 'D' chibi
-let SIT_VARIANT = 'A';
+let SIT_VARIANT = 'C';
 
 function chairCommon(g, frame) {
   // asiento, base con ruedas y apoyabrazos (común a todas las variantes)
@@ -212,11 +212,15 @@ function sitC(g, shirt, hair, frame) { // Perfil realista: postura inclinada al 
   // torso inclinado
   g.fillStyle = shirt;
   g.fillRect(16, 26, 16, 6); g.fillRect(14, 30, 18, 6); g.fillRect(14, 36, 18, 5);
-  // brazo extendido al teclado
-  g.fillStyle = shirt; g.fillRect(10, 28 + (frame ? 0 : 1), 10, 4);
-  g.fillStyle = '#f0c8a0'; g.fillRect(2, 30 + (frame ? 0 : 1), 9, 3);
-  g.fillStyle = shirt; g.fillRect(12, 33 + (frame ? 1 : 0), 10, 4);
-  g.fillStyle = '#f0c8a0'; g.fillRect(4, 35 + (frame ? 1 : 0), 9, 3);
+  // brazos extendidos: las manos APOYAN sobre el teclado y tipean alternadas
+  g.fillStyle = shirt;
+  g.fillRect(8, 28, 10, 4);    // hombro/brazo 1
+  g.fillRect(4, 30, 8, 3);     // antebrazo 1
+  g.fillRect(10, 32, 10, 4);   // hombro/brazo 2
+  g.fillRect(6, 34, 8, 3);     // antebrazo 2
+  g.fillStyle = '#f0c8a0';
+  g.fillRect(0, 29 + (frame ? 0 : 1), 5, 3);   // mano 1 sobre el teclado
+  g.fillRect(2, 33 + (frame ? 1 : 0), 5, 3);   // mano 2 sobre el teclado
   // cabeza de perfil con nariz y ojo
   g.fillStyle = '#f0c8a0'; g.fillRect(16, 10, 13, 14);
   g.fillRect(14, 16, 2, 3);                                     // nariz
