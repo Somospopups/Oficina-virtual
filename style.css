@@ -338,6 +338,17 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #chatRow #chatInput { flex: 1 1 auto; min-width: 0; border: 2px solid #3b4560 !important; padding: 8px 10px !important; font-size: 10px !important; }
 #micBtn.rec { background: #7a1f1f; border-color: #ff5a5a; animation: recPulse 1s infinite; }
 @keyframes recPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+#micBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
+#sendBtn.hidden, #micBtn.hidden { display: none; }
+
+/* Barra de grabación estilo WhatsApp: reemplaza al input mientras grabás */
+#recBar { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 0 4px; font-size: 8px; color: #cdd5e4; }
+#recBar.hidden { display: none; }
+#recDot { color: #ff5a5a; animation: recPulse 1s infinite; }
+#recTime { color: #ffffff; }
+#recHint { color: #7d87a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; }
+#recTrash.hidden { display: none; }
+#chatRow.recording #chatInput, #chatRow.recording #attBtn, #chatRow.recording #sendBtn { display: none; }
 #attChip { display: flex; align-items: center; gap: 6px; padding: 6px 8px; font-size: 8px; color: #9fb0cc; background: #10141d; }
 #attChip.hidden { display: none; }
 #attChip img { width: 34px; height: 34px; object-fit: cover; border: 1px solid #3b4560; }

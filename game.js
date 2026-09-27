@@ -1230,7 +1230,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v41 · 27/09/2026';
+const VERSION = 'v42 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2125,6 +2125,7 @@ function clearAtt() { pendingAtt = null; updateAttChip(); }
 function updateAttChip() {
   const chip = document.getElementById('attChip');
   if (!chip) return;
+  if (typeof updateSendMic === 'function') updateSendMic();
   if (!pendingAtt) { chip.classList.add('hidden'); chip.innerHTML = ''; return; }
   chip.classList.remove('hidden');
   chip.innerHTML = pendingAtt.kind === 'img'
@@ -2160,7 +2161,53 @@ function pickMime() {
   for (const m of opts) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch { /* siga */ } }
   return '';
 }
-let recSend = false, recT0 = 0;
+let recSend = false, recT0 = 0, recLocked = false, recTimerInt = null;
+// Botón derecho estilo WhatsApp: 🎤 cuando no hay nada que mandar, ➤ cuando hay
+// texto o un adjunto pendiente.
+function updateSendMic() {
+  const sb = document.getElementById('sendBtn'), mb = document.getElementById('micBtn');
+  if (!sb || !mb) return;
+  if (mediaRec && mediaRec.state === 'recording') return; // durante la grabación manda recUI
+  const hasContent = !!((chatInput && chatInput.value.trim()) || pendingAtt);
+  sb.classList.toggle('hidden', !hasContent);
+  mb.classList.toggle('hidden', hasContent);
+}
+function fmtRecTime(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+// Muestra/oculta la barra de grabación (reemplaza el input, como en WhatsApp).
+function recUI(on) {
+  const row = document.getElementById('chatRow'), bar = document.getElementById('recBar');
+  const trash = document.getElementById('recTrash'), hint = document.getElementById('recHint');
+  const mb = document.getElementById('micBtn');
+  if (!row || !bar) return;
+  row.classList.toggle('recording', on);
+  bar.classList.toggle('hidden', !on);
+  if (on) {
+    const t = document.getElementById('recTime');
+    if (t) t.textContent = '0:00';
+    if (recTimerInt) clearInterval(recTimerInt);
+    recTimerInt = setInterval(() => { const tt = document.getElementById('recTime'); if (tt) tt.textContent = fmtRecTime(Date.now() - recT0); }, 200);
+    if (trash) trash.classList.add('hidden');
+    if (hint) hint.textContent = '‹ deslizá para cancelar · ↑ fijar';
+    if (mb) mb.classList.remove('hidden');
+  } else {
+    if (recTimerInt) { clearInterval(recTimerInt); recTimerInt = null; }
+    recLocked = false;
+    if (mb) { mb.textContent = '🎤'; mb.classList.remove('rec'); }
+    updateSendMic();
+  }
+}
+// Deslizar hacia arriba fija la grabación (manos libres): el 🎤 pasa a ser ➤ y
+// aparece el 🗑 para descartar, igual que el candadito de WhatsApp.
+function recLock() {
+  if (recLocked || !mediaRec || mediaRec.state !== 'recording') return;
+  recLocked = true;
+  const trash = document.getElementById('recTrash'), hint = document.getElementById('recHint');
+  const mb = document.getElementById('micBtn');
+  if (trash) trash.classList.remove('hidden');
+  if (hint) hint.textContent = 'grabando… ➤ envía';
+  if (mb) mb.textContent = '➤';
+}
+function cancelRec() { if (mediaRec && mediaRec.state === 'recording') { recSend = false; mediaRec.stop(); } }
 function startRec() {
   if (mediaRec && mediaRec.state === 'recording') return;
   if (!navigator.mediaDevices || !window.MediaRecorder) { toast('⚠️ Tu navegador no soporta grabar audio'); return; }
@@ -2171,8 +2218,7 @@ function startRec() {
     mediaRec.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
     mediaRec.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
-      const mb = document.getElementById('micBtn');
-      if (mb) mb.classList.remove('rec');
+      recUI(false);
       const dur = Date.now() - recT0;
       const blob = new Blob(recChunks, { type: mediaRec.mimeType || 'audio/webm' });
       if (!recSend || dur < 800) { if (recSend) toast('⚠️ Muy corto: mantené 🎤 apretado mientras hablás'); return; }
@@ -2186,10 +2232,10 @@ function startRec() {
       fr.readAsDataURL(blob);
     };
     mediaRec.start();
-    recT0 = Date.now(); recSend = true;
+    recT0 = Date.now(); recSend = true; recLocked = false;
     const mb = document.getElementById('micBtn');
     if (mb) mb.classList.add('rec');
-    toast('🎤 Grabando… soltá para enviar');
+    recUI(true);
     setTimeout(() => { if (mediaRec && mediaRec.state === 'recording') mediaRec.stop(); }, 30000);
   }).catch(() => toast('⚠️ Sin permiso de micrófono'));
 }
@@ -2270,8 +2316,8 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (document.activeElement === chatInput) {
-    if (e.key === 'Enter') { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; chatInput.blur(); e.preventDefault(); }
-    if (e.key === 'Escape') { chatInput.value = ''; chatInput.blur(); e.preventDefault(); }
+    if (e.key === 'Enter') { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; chatInput.blur(); updateSendMic(); e.preventDefault(); }
+    if (e.key === 'Escape') { chatInput.value = ''; chatInput.blur(); updateSendMic(); e.preventDefault(); }
     return; // al escribir en el chat no se mueven el personaje ni la página
   }
   if (!state.joined) return;
@@ -3013,16 +3059,35 @@ function init() {
   }
 
   const sendBtn = document.getElementById('sendBtn');
-  if (sendBtn) sendBtn.onclick = () => { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; };
+  if (sendBtn) sendBtn.onclick = () => { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; updateSendMic(); };
   const attBtn = document.getElementById('attBtn');
   const fileInput = document.getElementById('fileInput');
   if (attBtn && fileInput) { attBtn.onclick = () => fileInput.click(); fileInput.onchange = onFilePicked; }
+  // Mic estilo WhatsApp: mantener apretado graba, soltar envía, deslizar a la
+  // izquierda cancela, deslizar hacia arriba fija la grabación (manos libres).
   const micBtn = document.getElementById('micBtn');
   if (micBtn) {
-    micBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); startRec(); });
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => micBtn.addEventListener(ev, stopRec));
+    let px = 0, py = 0;
+    micBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (recLocked && mediaRec && mediaRec.state === 'recording') { stopRec(); return; } // ➤ del modo fijado
+      px = e.clientX; py = e.clientY;
+      try { micBtn.setPointerCapture(e.pointerId); } catch { /* siga */ }
+      startRec();
+    });
+    micBtn.addEventListener('pointermove', (e) => {
+      if (!mediaRec || mediaRec.state !== 'recording' || recLocked) return;
+      const dx = e.clientX - px, dy = e.clientY - py;
+      if (dx < -60) { cancelRec(); toast('🎤 Grabación cancelada'); return; }
+      if (dy < -50) recLock();
+    });
+    ['pointerup', 'pointercancel'].forEach((ev) => micBtn.addEventListener(ev, () => { if (!recLocked) stopRec(); }));
     micBtn.addEventListener('contextmenu', (e) => e.preventDefault());
   }
+  const recTrash = document.getElementById('recTrash');
+  if (recTrash) recTrash.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); cancelRec(); toast('🎤 Grabación cancelada'); });
+  chatInput.addEventListener('input', updateSendMic);
+  updateSendMic();
 
   // panel de diagnóstico: tocar el reloj lo abre/cierra
   const np = document.getElementById('netPanel');

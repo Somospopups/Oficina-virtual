@@ -50,9 +50,10 @@
     <div id="attChip" class="hidden"></div>
     <div id="chatRow">
       <button id="attBtn" title="Adjuntar imagen">📎</button>
-      <button id="micBtn" title="Mantené apretado para grabar, soltá para enviar (estilo WhatsApp)">🎤</button>
       <input id="chatInput" maxlength="200" placeholder="Escribí acá…  /w nombre msg = privado" autocomplete="off">
-      <button id="sendBtn" title="Enviar">➤</button>
+      <div id="recBar" class="hidden"><span id="recDot">⏺</span><span id="recTime">0:00</span><span id="recHint">‹ deslizá para cancelar · ↑ fijar</span><button id="recTrash" class="hidden" title="Cancelar grabación">🗑</button></div>
+      <button id="sendBtn" class="hidden" title="Enviar">➤</button>
+      <button id="micBtn" title="Mantené apretado para grabar · deslizá ← para cancelar · ↑ para fijar">🎤</button>
     </div>
     <input type="file" id="fileInput" accept="image/*" style="display:none">
   </div>
