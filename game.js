@@ -824,6 +824,14 @@ const joinOverlay = document.getElementById('join');
 const dniInput = document.getElementById('dniInput');
 const colorsBox = document.getElementById('colors');
 const joinBtn = document.getElementById('joinBtn');
+const officePreviewImg = new Image();
+let officePreviewReady = false;
+officePreviewImg.onload = () => {
+  officePreviewReady = true;
+  const preview = document.getElementById('avatarPreview');
+  if (preview && !preview.getAttribute('data-char')) previewChar(null);
+};
+officePreviewImg.src = 'sprites/office-icon.png?v=1.29.3';
 const chatLog = document.getElementById('chatLog');
 const chatInput = document.getElementById('chatInput');
 const playerListBox = document.getElementById('playerList');
@@ -837,7 +845,7 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.29.2 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.29.3 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1680,7 +1688,14 @@ function previewChar(charKey) {
   // decide acá y no en el render de la escena.
   g.imageSmoothingEnabled = !!(charKey && assetsReady && charAssets[charKey] && charAssets[charKey].down);
   g.clearRect(0, 0, pv.width, pv.height);
-  if (!charKey) return;
+  if (!charKey) {
+    if (officePreviewReady) {
+      const x = Math.round((pv.width - officePreviewImg.width) / 2);
+      const y = Math.round((pv.height - officePreviewImg.height) / 2);
+      g.drawImage(officePreviewImg, x, y);
+    }
+    return;
+  }
   const spr = getSprite(charKey, 'down', 0);
   const h = 132, w = h * (spr.width / spr.height);
   g.drawImage(spr, (pv.width - w) / 2, (pv.height - h) / 2, w, h);
