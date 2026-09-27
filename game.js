@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.11.2 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.12.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -578,6 +578,10 @@ window.addEventListener('error', (e) => {
   toast('⚠️ Error JS: ' + String(e.message || '').slice(0, 70));
 });
 window.addEventListener('pagehide', () => { if (state.joined) send({ type: 'bye', id: state.myId, name: state.myName }); });
+// latido independiente de la animación: con la pestaña en segundo plano el navegador
+// congela los cuadros, pero este intervalo sigue avisando "sigo acá" cada 4 s
+setInterval(() => { if (state.joined) sendMoveNow(); }, 4000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && state.joined) sendMoveNow(); });
 
 const seenNonces = new Set();
 function dedupe(msg) {
@@ -1282,7 +1286,8 @@ function update(dt) {
   const zKey = z ? z.name : null;
   if (zKey !== lastZone) {
     lastZone = zKey;
-    if (z) {
+    if (me.status === 'ausente') { /* 🏃 ausente: no resucitar automáticamente */ }
+    else if (z) {
       setStatus(z.status, true);
       if (z.name !== 'tu puesto') toast(`📍 ${z.name} — ${STATUS_INFO[z.status].emoji} ${STATUS_INFO[z.status].label}`);
     } else setStatus('disponible', true);
@@ -1299,7 +1304,7 @@ function update(dt) {
   if (USE_P2P) {
     updateNetLabel();
     for (const p of [...state.players.values()]) {
-      if (p.id !== state.myId && p.seen && now - p.seen > 9000) {
+      if (p.id !== state.myId && p.seen && now - p.seen > 75000) {
         state.players.delete(p.id);
         addChat(null, `${p.name} salió de la oficina`, 'system');
         renderPlayerList();
@@ -1383,6 +1388,7 @@ function render() {
   const list = [...state.players.values()].sort((a, b) => a.y - b.y);
   for (const p of list) {
     if (!p.name) continue;
+    if (p.status === 'ausente') continue; // 🏃 ¡Ya vengo!: el personaje se va de la escena (sigue en la lista y su puesto queda reservado)
     let topY, shR, fs;
     if (p.seated) {
       const ss = sitScale(p.y);
