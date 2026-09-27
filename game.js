@@ -224,17 +224,44 @@ function oscurecer(src) {
   return cv;
 }
 
+function keyMagenta(src) {
+  // saca el fondo magenta de los PNG finos; si las estadísticas no cierran, devuelve null
+  const cv = document.createElement('canvas');
+  cv.width = src.width; cv.height = src.height;
+  const g = cv.getContext('2d');
+  g.drawImage(src, 0, 0);
+  const d = g.getImageData(0, 0, cv.width, cv.height);
+  const p = d.data; let clear = 0;
+  for (let i = 0; i < p.length; i += 4) {
+    if (p[i] > 180 && p[i + 2] > 180 && p[i + 1] < 120) { p[i + 3] = 0; clear++; }
+  }
+  const ratio = clear / (p.length / 4);
+  if (ratio < 0.15 || ratio > 0.95) return null;
+  g.putImageData(d, 0, 0);
+  return cv;
+}
 function loadCharAssets() {
   const keys = Object.keys(CHAR_DEF);
   return Promise.all(keys.map((k) => new Promise((res) => {
-    const im = new Image();
-    im.onload = () => {
-      const r = flipCanvas(im);
-      charAssets[k] = { down: im, left: r, right: r, up: oscurecer(im) };
+    const finish = (src) => {
+      const r = flipCanvas(src);
+      charAssets[k] = { down: src, left: r, right: r, up: oscurecer(src) };
       res();
     };
-    im.onerror = () => res();   // si falta el PNG, se sigue con el sprite por código
-    im.src = `sprites/${k}.png`;
+    const loadLegacy = () => {
+      const im = new Image();
+      im.onload = () => finish(im);
+      im.onerror = () => res();   // si falta el PNG, se sigue con el sprite por código
+      im.src = `sprites/${k}.png`;
+    };
+    const fino = new Image();
+    fino.onload = () => {
+      let keyed = null;
+      try { keyed = keyMagenta(fino); } catch { keyed = null; }
+      if (keyed) finish(keyed); else loadLegacy();
+    };
+    fino.onerror = loadLegacy;
+    fino.src = `sprites/${k}_fino.png`;
   }))).then(() => {
     assetsReady = true;
     const p = document.getElementById('avatarPreview');
@@ -779,7 +806,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.20.1 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.21.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
