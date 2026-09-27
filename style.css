@@ -177,6 +177,7 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
   #clock { font-size: 8px; padding: 7px 9px; }
   #musicBtn { font-size: 12px; padding: 6px 8px; }
   #musicPanel { left: 8px; top: 46px; width: min(240px, calc(100vw - 16px)); }
+#videoPanel { left: 8px; right: 8px; top: 46px; width: auto; }
   #stick { display: block; left: auto; right: 12px; }
   #micBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
 }
@@ -192,9 +193,44 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 .mp-row { display: flex; gap: 6px; align-items: center; font-size: 9px; color: #cdd5e4; }
 .mp-row button { background: #1b2230; border: 1px solid #2c3550; color: #cdd5e4; font-size: 9px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-family: inherit; }
 .mp-row button:hover { background: #26304a; }
+.mp-row button.on { background: #2f3d5e; border-color: #ffd76a; color: #ffd76a; }
 .mp-now { font-size: 8px; color: #7ee787; word-break: break-all; }
 #ytBox { position: fixed; left: -8px; bottom: -8px; width: 2px; height: 2px; opacity: 0.01; pointer-events: none; z-index: 1; }
 #ytBox iframe { width: 2px; height: 2px; border: 0; }
+
+/* Mirar juntos: mismo reproductor, pero con la caja visible */
+#videoPanel {
+  position: fixed; top: 54px; right: 12px; z-index: 45; width: min(360px, calc(100vw - 24px));
+  background: rgba(10,13,19,0.96); border: 2px solid #3b4560; border-radius: 10px;
+  padding: 8px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box;
+}
+#videoPanel.hidden { display: none; }
+.vp-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 8px; color: #7ee787; }
+#videoWho { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#videoClose {
+  background: #1b2230; border: 1px solid #3b4560; color: #cdd5e4; font-size: 9px;
+  padding: 3px 6px; border-radius: 5px; cursor: pointer; font-family: inherit; flex: 0 0 auto;
+}
+#videoClose:hover { background: #26304a; }
+#videoBox {
+  position: relative; width: 100%; aspect-ratio: 16 / 9; background: #05070b;
+  border: 1px solid #2c3550; border-radius: 6px; overflow: hidden;
+}
+#videoBox iframe { width: 100%; height: 100%; border: 0; display: block; }
+.video-tap {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(5,7,11,0.82); color: #ffd76a; font-size: 9px; text-align: center;
+  cursor: pointer; z-index: 2;
+}
+.video-tap.hidden { display: none; }
+.vp-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.vp-note { font-size: 7px; color: #7c8496; line-height: 1.4; flex: 1 1 auto; }
+#videoSync {
+  background: #1b2230; border: 1px solid #3b4560; color: #cdd5e4; font-size: 8px;
+  padding: 5px 7px; border-radius: 5px; cursor: pointer; font-family: inherit; white-space: nowrap;
+}
+#videoSync:hover { background: #26304a; }
+
 
 /* Panel de diagnóstico de red */
 #netPanel {
@@ -268,6 +304,9 @@ body.desktop-rails #musicPanel {
   max-height: calc(100vh - 190px); overflow-y: auto; box-sizing: border-box;
 }
 body.desktop-rails #musicPanel .mp-row { width: 100%; gap: 4px; }
+body.desktop-rails #videoPanel {
+  top: 98px; right: 12px; width: calc(var(--desktop-rail-width) - 24px);
+  }
 body.desktop-rails #musicPanel .mp-row button {
   flex: 1 1 0; min-width: 0; padding: 6px 2px; font-size: 7px;
   white-space: nowrap; line-height: 1.5;
@@ -318,4 +357,5 @@ body.spectator-mode #hint,
 body.spectator-mode #stick,
 body.spectator-mode #musicBtn,
 body.spectator-mode #musicPanel { display: none !important; }
+body.spectator-mode #videoPanel { display: none !important; }
 body.spectator-mode #chatLog { flex: 1 1 auto; }

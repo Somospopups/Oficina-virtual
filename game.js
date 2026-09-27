@@ -823,7 +823,7 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.32.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.33.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1361,37 +1361,118 @@ function doZumbido() {
 
 // ---------- Radio de la oficina (YouTube sincronizado, SIN el script oficial: lo bloquean los navegadores) ----------
 // Controlamos el iframe embed directo por postMessage (protocolo público del player).
-let ytFrame = null, ytCurVid = null, ytPos = 0, ytLoadPromise = null;
-const music = { vid: null, playing: false, amDJ: false };
-function parseVid(url) {
-  const m = (url || '').match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/);
-  return m ? m[1] : null;
+// ---------- Radio y "mirar juntos" ----------
+// El reproductor es UNO solo: el mismo iframe se mueve entre la caja escondida
+// #ytBox (modo audio, 2x2 px, como estaba) y el panel #videoBox (modo video,
+// visible). Nunca hay dos players: con dos, al pegar un link nuevo sonarían los
+// dos a la vez.
+//
+// YouTube: postMessage del widget, el que ya usaba la radio.
+// Vimeo:   su SDK oficial, que se carga la primera vez que alguien pega un link de
+//          Vimeo. Cargarlo al arranque sumaría una petición externa siempre.
+// Drive:   se puede VER pero no tiene ninguna API de control: no hay forma de
+//          pausar, avanzar ni sincronizar, y Google ya no acepta los parámetros
+//          autoplay/t. Por eso el aviso que se lee en el panel.
+let ytFrame = null, ytCurKey = null, ytCurMode = null, ytPos = 0, ytLoadPromise = null;
+let vmPlayer = null, vmLoading = null, wantVideo = false;
+const music = { item: null, mode: 'audio', playing: false, amDJ: false, from: '', djPos: 0, djAt: 0 };
+
+// Reconoce los tres proveedores. Devuelve { kind, id, live } o null.
+function parseLink(url) {
+  const u = (url || '').trim();
+  let m = u.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/|v\/)|youtu\.be\/)([\w-]{11})/);
+  if (m) return { kind: 'yt', id: m[1], live: /youtube\.com\/(?:live\/|v\/)/.test(u) };
+  m = u.match(/vimeo\.com\/(?:video\/|channels\/[\w-]+\/|groups\/[\w-]+\/videos\/)?(\d{6,})/);
+  if (m) return { kind: 'vimeo', id: m[1], live: false };
+  m = u.match(/drive\.google\.com\/file\/d\/([\w-]{10,})/);
+  if (m) return { kind: 'drive', id: m[1], live: false };
+  return null;
+}
+function itemKey(it) { return it ? it.kind + ':' + it.id : ''; }
+function kindLabel(k) { return k === 'yt' ? 'YouTube' : k === 'vimeo' ? 'Vimeo' : 'Drive'; }
+function playerBox() {
+  return music.mode === 'video'
+    ? document.getElementById('videoBox')
+    : document.getElementById('ytBox');
+}
+function dropFrame() {
+  if (ytFrame) ytFrame.remove();
+  ytFrame = null; ytCurKey = null; ytCurMode = null; vmPlayer = null;
 }
 function ytCmd(fn, args) {
   try { if (ytFrame) ytFrame.contentWindow.postMessage(JSON.stringify({ event: 'command', func: fn, args: args || [] }), 'https://www.youtube.com'); } catch { /* iframe ocupado */ }
 }
-function ytEnsure(vid, autoplay, start) {
-  if (ytFrame && ytCurVid === vid) return Promise.resolve(ytFrame);
+function embedUrl(it, start) {
+  if (it.kind === 'yt') return `https://www.youtube.com/embed/${it.id}?enablejsapi=1&controls=1&playsinline=1&disablekb=1&rel=0&autoplay=1${it.live ? '' : '&start=' + Math.floor(start || 0)}`;
+  if (it.kind === 'vimeo') return `https://player.vimeo.com/video/${it.id}?autoplay=1&dnt=1&title=0&byline=0&portrait=0${it.live ? '' : '&t=' + Math.floor(start || 0) + 's'}`;
+  return `https://drive.google.com/file/d/${it.id}/preview`;
+}
+function playerEnsure(it, start) {
+  const key = itemKey(it);
+  if (ytFrame && ytCurKey === key) return Promise.resolve(ytFrame);
   if (ytLoadPromise) return ytLoadPromise;
   ytLoadPromise = new Promise((res) => {
-    const box = document.getElementById('ytBox');
-    if (ytFrame) { ytFrame.remove(); ytFrame = null; ytCurVid = null; }
+    dropFrame();
     const f = document.createElement('iframe');
-    f.setAttribute('allow', 'autoplay; encrypted-media');
-    f.src = `https://www.youtube.com/embed/${vid}?enablejsapi=1&controls=0&playsinline=1&disablekb=1&autoplay=${autoplay ? 1 : 0}${start ? '&start=' + Math.floor(start) : ''}`;
+    f.setAttribute('allow', 'autoplay; encrypted-media; fullscreen; picture-in-picture');
+    f.setAttribute('allowfullscreen', '');
+    f.src = embedUrl(it, start);
     const done = () => {
-      ytFrame = f; ytCurVid = vid; ytLoadPromise = null;
-      const listen = () => ytPost(f, { event: 'listening', id: 'ofv', channel: 'widget' });
-      listen(); setTimeout(listen, 700); setTimeout(listen, 1800); setTimeout(listen, 3500);
-      try { ytPost(f, { event: 'command', func: 'setVolume', args: [60] }); } catch {}
+      ytFrame = f; ytCurKey = key; ytCurMode = music.mode; ytLoadPromise = null;
+      if (it.kind === 'yt') {
+        const listen = () => ytPost(f, { event: 'listening', id: 'ofv', channel: 'widget' });
+        listen(); setTimeout(listen, 700); setTimeout(listen, 1800); setTimeout(listen, 3500);
+        try { ytPost(f, { event: 'command', func: 'setVolume', args: [60] }); } catch {}
+      } else if (it.kind === 'vimeo') {
+        ensureVimeo().then((V) => { if (V && V.Player && !vmPlayer) vmPlayer = new V.Player(f); });
+      }
       res(f);
     };
     f.onload = done;
     f.onerror = () => { ytLoadPromise = null; res(null); };
-    box.appendChild(f);
+    playerBox().appendChild(f);
     setTimeout(() => { if (!ytFrame) done(); }, 7000);
   });
   return ytLoadPromise;
+}
+// Un solo nombre para todo: el resto del código no pregunta qué proveedor es.
+function playerCmd(fn, args) {
+  if (!ytFrame || !ytCurKey) return;
+  const kind = ytCurKey.split(':')[0];
+  if (kind === 'yt') { ytCmd(fn, args); return; }
+  if (kind !== 'vimeo') return;   // Drive no tiene API
+  ensureVimeo().then((V) => {
+    if (!V || !vmPlayer) return;
+    try {
+      if (fn === 'playVideo') vmPlayer.play().catch(() => {});
+      else if (fn === 'pauseVideo') vmPlayer.pause().catch(() => {});
+      else if (fn === 'stopVideo') { vmPlayer.pause().catch(() => {}); vmPlayer.setCurrentTime(0).catch(() => {}); }
+      else if (fn === 'seekTo') vmPlayer.setCurrentTime(+args[0]).catch(() => {});
+      else if (fn === 'setVolume') vmPlayer.setVolume(+args[0] / 100).catch(() => {});
+    } catch { /* el player todavía no está listo */ }
+  });
+}
+function ensureVimeo() {
+  if (window.Vimeo && window.Vimeo.Player) {
+    if (!vmPlayer && ytFrame) vmPlayer = new window.Vimeo.Player(ytFrame);
+    return Promise.resolve(window.Vimeo);
+  }
+  if (!vmLoading) {
+    vmLoading = new Promise((res) => {
+      const s = document.createElement('script');
+      s.src = 'https://player.vimeo.com/api/player.js';
+      s.onload = () => res(window.Vimeo);
+      s.onerror = () => res(null);
+      document.head.appendChild(s);
+    });
+  }
+  return vmLoading.then((V) => {
+    if (V && V.Player && ytFrame && !vmPlayer) {
+      vmPlayer = new V.Player(ytFrame);
+      vmPlayer.on('timeupdate', (d) => { if (d && typeof d.seconds === 'number') ytPos = d.seconds; });
+    }
+    return V;
+  });
 }
 function ytPost(f, obj) { try { f.contentWindow.postMessage(JSON.stringify(obj), 'https://www.youtube.com'); } catch { /* aún no listo */ } }
 window.addEventListener('message', (ev) => {
@@ -1403,58 +1484,127 @@ window.addEventListener('message', (ev) => {
   if (d && d.event === 'infoDelivery' && d.info && typeof d.info.currentTime === 'number') ytPos = d.info.currentTime;
 });
 function musicNowPos() { return ytPos; }
-function sendMusic(act, vid, pos) {
-  music.amDJ = true; music.vid = vid; music.playing = act === 'play';
-  send({ type: 'music', act, vid, pos, at: Date.now(), from: state.myName, nonce: Date.now().toString(36) + Math.random().toString(36).slice(2, 8) });
+// Dónde está el DJ ahora mismo: su última posición conocida más el tiempo que pasó
+// desde que la mandó. Es lo mismo que ya hacía applyMusic, aislado para que el botón
+// Sincronizar pueda consultarlo sin recibir un mensaje nuevo.
+function djTarget() {
+  return (music.djPos || 0) + (music.playing ? Math.max(0, (Date.now() - music.djAt) / 1000) : 0);
+}
+function sendMusic(act, pos) {
+  const it = music.item;
+  if (!it) return;
+  music.amDJ = true; music.playing = act === 'play';
+  music.djPos = pos || 0; music.djAt = Date.now();
+  send({ type: 'music', act, kind: it.kind, id: it.id, live: !!it.live, mode: music.mode,
+         pos: music.djPos, at: music.djAt, from: state.myName,
+         nonce: Date.now().toString(36) + Math.random().toString(36).slice(2, 8) });
   updateMpNow();
 }
 function applyMusic(msg, silent) {
-  const target = msg.pos + Math.max(0, (Date.now() - msg.at) / 1000);
-  music.vid = msg.vid; music.playing = msg.act === 'play';
-  if (msg.act === 'stop') { ytCmd('stopVideo'); updateMpNow(); return; }
-  if (msg.act === 'pause') { ytCmd('pauseVideo'); updateMpNow(); return; }
+  // Tolerancia con un peer que tenga el juego viejo en una pestaña abierta: mandaba
+  // `vid` en vez de kind/id/mode.
+  const it = msg.kind ? { kind: msg.kind, id: msg.id, live: !!msg.live }
+                      : (msg.vid ? { kind: 'yt', id: msg.vid, live: false } : null);
+  if (!it) return;
+  const mode = msg.mode === 'video' ? 'video' : 'audio';
+  // El modo se compara contra el del FRAME, no contra music.mode: mpPlay ya dejó
+  // music.mode en el valor nuevo antes de llegar acá, así que comparar con él
+  // daba siempre igual y el iframe se quedaba escondido en la caja de audio.
+  if (mode !== music.mode) music.mode = mode;
+  if (mode !== ytCurMode) dropFrame();
+  music.item = it; music.playing = msg.act === 'play';
+  if (msg.from) music.from = msg.from;
+  if (msg.act === 'play') { music.djPos = msg.pos || 0; music.djAt = msg.at || Date.now(); }
+  showPanel(it);
+  if (msg.act === 'stop') { playerCmd('stopVideo'); updateMpNow(); return; }
+  if (msg.act === 'pause') { playerCmd('pauseVideo'); updateMpNow(); return; }
+  const target = djTarget();
   (async () => {
-    if (ytCurVid !== msg.vid) {
-      await ytEnsure(msg.vid, true, target);
-    } else {
-      await ytEnsure(msg.vid, true, 0);
-      ytCmd('seekTo', [target, true]);
-      ytCmd('playVideo');
-    }
+    await playerEnsure(it, it.live ? 0 : target);
+    if (!it.live) playerCmd('seekTo', [target, true]);
+    playerCmd('playVideo');
   })();
-  if (!silent && msg.act === 'play' && msg.from) toast(`🎵 ${msg.from} puso música para todos`);
+  if (!silent && msg.act === 'play' && msg.from) {
+    toast(music.mode === 'video' ? `🎬 ${msg.from} puso video para todos` : `🎵 ${msg.from} puso música para todos`);
+  }
   updateMpNow();
 }
+function showPanel(it) {
+  const p = document.getElementById('videoPanel');
+  if (!p) return;
+  if (music.mode !== 'video') { p.classList.add('hidden'); return; }
+  p.classList.remove('hidden');
+  const who = document.getElementById('videoWho');
+  if (who) who.textContent = `🎬 ${music.from || 'alguien'} · ${kindLabel(it.kind)}`;
+  const note = document.getElementById('videoNote');
+  if (note) {
+    note.textContent = it.kind === 'drive'
+      ? 'Google Drive no se puede sincronizar: solo se mira.'
+      : (it.live
+        ? 'Transmisión en vivo: no se puede volver atrás.'
+        : 'Tus controles son locales. ⟲ para volver al DJ.');
+  }
+  // Vimeo en iOS no permite play() programático nunca, y Chrome bloquea el
+  // autoplay con sonido hasta que el usuario hace un gesto. El aviso queda hasta
+  // que toque. Drive ni tiene controles, así que no tiene sentido pedirlo.
+  const tap = document.getElementById('videoTap');
+  if (tap) tap.classList.toggle('hidden', it.kind === 'drive');
+}
+function videoSync() {
+  const it = music.item;
+  if (!it) return;
+  if (it.kind === 'drive') { toast('Drive no se puede sincronizar: solo se mira'); return; }
+  if (it.live) { playerCmd('playVideo'); toast('Es una transmisión en vivo'); return; }
+  playerCmd('seekTo', [djTarget(), true]);
+  playerCmd('playVideo');
+  const tap = document.getElementById('videoTap');
+  if (tap) tap.classList.add('hidden');
+  toast('⟲ Sincronizado con el DJ');
+}
 function maybeMusicForNewcomer() {
-  if (music.amDJ && music.playing && music.vid) sendMusic('play', music.vid, musicNowPos());
+  if (music.amDJ && music.playing && music.item) sendMusic('play', musicNowPos());
 }
 function updateMpNow() {
   const el = document.getElementById('mpNow');
   if (!el) return;
-  el.textContent = music.playing && music.vid ? `Sonando para todos: youtu.be/${music.vid}` : 'Nada sonando';
+  const it = music.item;
+  if (!it) el.textContent = 'Nada sonando';
+  else if (music.playing) el.textContent = `Sonando para todos: ${kindLabel(it.kind)} · ${it.id}`;
+  else el.textContent = `Pausado: ${kindLabel(it.kind)} · ${it.id}`;
 }
 function mpToggle() { const p = document.getElementById('musicPanel'); if (p) p.classList.toggle('hidden'); }
+function setWantVideo(v) {
+  wantVideo = !!v;
+  const a = document.getElementById('mpAudio'), b = document.getElementById('mpView');
+  if (a) a.classList.toggle('on', !wantVideo);
+  if (b) b.classList.toggle('on', wantVideo);
+}
 function mpPlay() {
   const input = document.getElementById('musicUrl');
   const url = input ? input.value.trim() : '';
-  let vid = parseVid(url);
+  let it = parseLink(url);
+  if (it && itemKey(it) !== itemKey(music.item)) music.item = it;
   let pos = 0;
-  if (vid && vid !== music.vid) pos = 0;
-  if (!vid) { vid = music.vid; pos = musicNowPos(); }
-  if (!vid) { toast('🎵 Pegá primero un link de YouTube'); return; }
-  sendMusic('play', vid, pos);
-  applyMusic({ act: 'play', vid, pos, at: Date.now(), from: state.myName }, true);
+  if (!it) { it = music.item; pos = musicNowPos(); }
+  if (!it) { toast('🎵 Pegá un link de YouTube, Vimeo o Google Drive'); return; }
+  music.mode = wantVideo ? 'video' : 'audio';
+  if (pos < 0.5) pos = 0;
+  sendMusic('play', pos);
+  applyMusic({ act: 'play', kind: it.kind, id: it.id, live: it.live, mode: music.mode,
+              pos, at: music.djAt, from: state.myName }, true);
 }
 function mpPause() {
-  if (!music.vid) return;
+  if (!music.item) return;
   const pos = musicNowPos();
-  sendMusic('pause', music.vid, pos);
-  applyMusic({ act: 'pause', vid: music.vid, pos, at: Date.now(), from: state.myName }, true);
+  sendMusic('pause', pos);
+  applyMusic({ act: 'pause', kind: music.item.kind, id: music.item.id, mode: music.mode,
+              pos, at: Date.now(), from: state.myName }, true);
 }
 function mpStop() {
-  if (!music.vid) return;
-  sendMusic('stop', music.vid, 0);
-  applyMusic({ act: 'stop', vid: music.vid, pos: 0, at: Date.now(), from: state.myName }, true);
+  if (!music.item) return;
+  sendMusic('stop', 0);
+  applyMusic({ act: 'stop', kind: music.item.kind, id: music.item.id, mode: music.mode,
+              pos: 0, at: Date.now(), from: state.myName }, true);
 }
 let toastTimer = null;
 function toast(t) {
@@ -2210,7 +2360,19 @@ function init() {
   const bp2 = document.getElementById('mpPause'); if (bp2) bp2.onclick = mpPause;
   const bp3 = document.getElementById('mpStop'); if (bp3) bp3.onclick = mpStop;
   const mv = document.getElementById('mpVol');
-  if (mv) mv.oninput = () => ytCmd('setVolume', [+mv.value]);
+  if (mv) mv.oninput = () => playerCmd('setVolume', [+mv.value]);
+  const bAudio = document.getElementById('mpAudio'); if (bAudio) bAudio.onclick = () => setWantVideo(false);
+  const bView = document.getElementById('mpView'); if (bView) bView.onclick = () => setWantVideo(true);
+  // El panel de "mirar juntos". Todo lo de adentro es local: ni cerrar el panel ni
+  // tocar los controles del player mandan nada por la red, así que cada uno puede
+  // pausar o avanzar sin desarmarle el video a los demás. Para volver al DJ está
+  // el botón Sincronizar.
+  const videoPanel = document.getElementById('videoPanel');
+  const bClose = document.getElementById('videoClose');
+  if (bClose) bClose.onclick = () => { if (videoPanel) videoPanel.classList.add('hidden'); playerCmd('pauseVideo'); };
+  const bSync = document.getElementById('videoSync'); if (bSync) bSync.onclick = videoSync;
+  const bTap = document.getElementById('videoTap');
+  if (bTap) bTap.onclick = () => { bTap.classList.add('hidden'); playerCmd('playVideo'); };
   const attachmentClose = document.getElementById('attachmentClose');
   if (attachmentClose) attachmentClose.onclick = closeAttachmentPreview;
   if (attachmentModal) attachmentModal.addEventListener('click', (e) => { if (e.target === attachmentModal) closeAttachmentPreview(); });

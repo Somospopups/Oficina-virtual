@@ -6,7 +6,7 @@
 <title>Oficina Virtual — Equipo opencode</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1.29.5">
+<link rel="stylesheet" href="style.css?v=1.33.0">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
 </head>
 <body>
@@ -82,7 +82,11 @@
 <!-- Radio de la oficina -->
 <div id="musicPanel" class="hidden">
   <div class="mp-title">🎵 RADIO DE LA OFICINA</div>
-  <input id="musicUrl" type="text" placeholder="Pegá un link de YouTube…" autocomplete="off">
+  <input id="musicUrl" type="text" placeholder="Pegá un link de YouTube, Vimeo o Drive…" autocomplete="off">
+  <div class="mp-row">
+    <button id="mpAudio" class="on">🎧 Audio</button>
+    <button id="mpView">🎬 Ver video</button>
+  </div>
   <div class="mp-row">
     <button id="mpPlay">▶ Sonar</button>
     <button id="mpPause">⏸ Pausa</button>
@@ -93,6 +97,21 @@
   <div class="tips">El que le da play es el DJ: suena sincronizado para todos los que estén en la oficina.</div>
 </div>
 <div id="ytBox"></div>
+
+<!-- Mirar juntos: el mismo reproductor, pero visible -->
+<div id="videoPanel" class="hidden">
+  <div class="vp-head">
+    <span id="videoWho">🎬 Mirando juntos</span>
+    <button id="videoClose" title="Cerrar (dejá de sonar para vos)">✕</button>
+  </div>
+  <div id="videoBox">
+    <div id="videoTap" class="video-tap"><span>▶ Tocar para reproducir</span></div>
+  </div>
+  <div class="vp-foot">
+    <span id="videoNote" class="vp-note"></span>
+    <button id="videoSync" title="Volver a la posición del DJ">⟲ Sincronizar</button>
+  </div>
+</div>
 
 <!-- Vista previa y descarga de adjuntos del chat -->
 <div id="attachmentModal" class="attachment-modal hidden" role="dialog" aria-modal="true" aria-labelledby="attachmentModalTitle">
