@@ -2,6 +2,11 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; background: #10131a; }
 body { font-family: 'Press Start 2P', monospace; color: #e8e6df; }
+html, body {
+  touch-action: manipulation; overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none; -webkit-user-select: none;
+}
 
 #game { position: fixed; inset: 0; display: block; image-rendering: pixelated; }
 
@@ -156,9 +161,9 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
   /* v1.11.2: botones en columna IZQUIERDA, lista de jugadores a la derecha */
   #statusBar {
     width: calc(50vw - 14px); max-width: none; bottom: auto; top: 46px; left: 8px; right: auto; transform: none;
-    display: flex; flex-direction: column; gap: 6px; justify-content: flex-start; align-items: stretch;
+    display: flex; flex-direction: column; gap: 12px; justify-content: flex-start; align-items: stretch;
   }
-  .status-btn { font-size: 8px; padding: 10px 6px; text-align: center; white-space: normal; line-height: 1.5; box-sizing: border-box; }
+  .status-btn { font-size: 8px; padding: 10px 6px; text-align: center; white-space: normal; line-height: 1.5; box-sizing: border-box; box-shadow: 2px 2px 0 rgba(0,0,0,0.5); }
   .status-btn .key { display: none; }
   #chatPanel { left: 8px; right: 118px; width: auto; bottom: 8px; display: flex; flex-direction: column; }
   #chatLog { height: auto; flex: 1 1 auto; min-height: 60px; font-size: 8px; }

@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.12.2 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.13.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1462,9 +1462,9 @@ function drawBubble(g2, text, cx, bottomY, fs) {
 function loop(t) {
   const dt = Math.min(0.05, (t - lastT) / 1000);
   lastT = t;
-  update(dt);
-  render();
-  requestAnimationFrame(loop);
+  requestAnimationFrame(loop); // agendado primero: un error en un cuadro no congela el juego
+  try { update(dt); } catch (err) { /* un tropiezo no frena la oficina */ }
+  try { render(); } catch (err) { /* idem */ }
 }
 
 function init() {
@@ -1499,6 +1499,9 @@ function init() {
     const end = () => { sid = null; state.stick.x = 0; state.stick.y = 0; state.stick.active = false; knobEl.style.transform = ''; };
     stickEl.addEventListener('pointerup', end);
     stickEl.addEventListener('pointercancel', end);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    window.addEventListener('blur', end);
   }
 
   const sendBtn = document.getElementById('sendBtn');
