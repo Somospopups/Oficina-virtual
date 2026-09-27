@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.10.0 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.10.1 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -644,6 +644,12 @@ function handleMsg(msg) {
     case 'profile': { const p = state.players.get(msg.id); if (p) { p.name = msg.name; p.char = msg.char || p.char; p.color = msg.color; } renderPlayerList(); break; }
     case 'auth-fail':
       ejectSelf(msg.reason === 'dup' ? '⚠️ Ese DNI ya está en la oficina (doble sesión).' : '⛔ DNI no autorizado.');
+      break;
+    case 'arealive':
+      if (msg.id === state.myId && state.joined) send({ type: 'imalive', id: state.myId, nonce: msg.nonce, joinTs: state.joinTs });
+      break;
+    case 'imalive':
+      if (pendingProbe && pendingProbe.nonce === msg.nonce) { const cb = pendingProbe.cb; pendingProbe = null; cb(true); }
       break;
   }
 }
