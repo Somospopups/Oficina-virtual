@@ -830,7 +830,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.22.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.23.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1508,31 +1508,42 @@ function zoneAt(x, y) {
 
 window.addEventListener('keydown', (e) => {
   if (document.activeElement === chatInput) {
-    if (e.key === 'Enter') { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; chatInput.blur(); }
-    if (e.key === 'Escape') { chatInput.value = ''; chatInput.blur(); }
-    e.stopPropagation(); return;
+    if (e.key === 'Enter') { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; chatInput.blur(); e.preventDefault(); }
+    if (e.key === 'Escape') { chatInput.value = ''; chatInput.blur(); e.preventDefault(); }
+    return; // al escribir en el chat no se mueven el personaje ni la página
   }
   if (!state.joined) return;
-  keys[e.key.toLowerCase()] = true;
+  const key = e.key.toLowerCase();
+  const code = (e.code || '').toLowerCase();
+  keys[key] = true;
+  if (code) keys[code] = true; // KeyW/KeyA... funciona también con teclados en otra distribución
+  if (['arrowleft','arrowright','arrowup','arrowdown','a','d','w','s','keya','keyd','keyw','keys'].includes(key) ||
+      ['arrowleft','arrowright','arrowup','arrowdown','keya','keyd','keyw','keys'].includes(code)) e.preventDefault();
   if (e.key === 'Enter') { chatInput.focus(); e.preventDefault(); return; }
-  if (e.key.toLowerCase() === 'h') { helpOverlay.classList.toggle('hidden'); return; }
-  if (e.key.toLowerCase() === 'p') { mpToggle(); return; }
+  if (key === 'h') { helpOverlay.classList.toggle('hidden'); return; }
+  if (key === 'p') { mpToggle(); return; }
   if (e.key === 'Escape') { helpOverlay.classList.add('hidden'); return; }
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 3) { setStatus(STATUS_KEYS[n - 1]); return; }
   if (n === 4) { doZumbido(); return; }
   const emoteMap = { z: '👋', x: '😂', c: '🎉', v: '👍', b: '🤔', n: '🔥', m: '☕' };
-  const em = emoteMap[e.key.toLowerCase()];
+  const em = emoteMap[key];
   if (em) { send({ type: 'emote', id: state.myId, emote: em }); const me = state.players.get(state.myId); if (me) { me.emote = em; me.emoteUntil = performance.now() + 3000; } return; }
-  if (e.key.toLowerCase() === 'f') {
+  if (key === 'f') {
     const near = nearestPlayer();
     send({ type: 'wave', id: state.myId, at: near ? near.name : null });
     const me = state.players.get(state.myId);
     if (me) { me.wave = true; me.waveUntil = performance.now() + 1500; }
     if (near) { addChat(null, `Saludaste a ${near.name} 👋`, 'system'); beep(600, 0.06); }
   }
+}, true);
+window.addEventListener('keyup', (e) => {
+  keys[e.key.toLowerCase()] = false;
+  if (e.code) keys[e.code.toLowerCase()] = false;
+}, true);
+window.addEventListener('blur', () => {
+  for (const key of Object.keys(keys)) keys[key] = false;
 });
-window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
 
 function nearestPlayer(maxDist = 220) {
   const me = state.players.get(state.myId); if (!me) return null;
@@ -1595,6 +1606,7 @@ function join() {
   };
   if (state.myId) state.players.set(state.myId, me);
   joinOverlay.classList.add('hidden');
+  try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch {}
   send({ type: 'profile', id: state.myId, name: entry.name, char: entry.char, dni });
   sendMoveNow();
   if (seat) { setStatus('codeando', true); addChat(null, 'Te sentaste en tu puesto 💻 — WASD para levantarte', 'system'); }
@@ -1700,10 +1712,10 @@ function update(dt) {
   if (!me || !state.joined) return;
   let dx = 0, dy = 0;
   if (document.activeElement !== chatInput) {
-    if (keys['arrowleft'] || keys['a']) dx -= 1;
-    if (keys['arrowright'] || keys['d']) dx += 1;
-    if (keys['arrowup'] || keys['w']) dy -= 1;
-    if (keys['arrowdown'] || keys['s']) dy += 1;
+    if (keys['arrowleft'] || keys['a'] || keys['keya']) dx -= 1;
+    if (keys['arrowright'] || keys['d'] || keys['keyd']) dx += 1;
+    if (keys['arrowup'] || keys['w'] || keys['keyw']) dy -= 1;
+    if (keys['arrowdown'] || keys['s'] || keys['keys']) dy += 1;
   }
   if (state.stick && state.stick.active) {
     if (Math.abs(state.stick.x) > 0.12) dx += state.stick.x;
