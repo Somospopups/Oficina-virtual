@@ -193,10 +193,13 @@ function detailStand(g, c, dir, frame) {
   g.globalAlpha = 1;
 }
 // ---------- Sprites de referencia (PNG) ----------
-// Los 3 personajes vienen recortados de la foto de referencia del equipo. Son
-// digital painting, no pixel art: reescalan mejor con smoothing que con
-// nearest-neighbor, así que NO pasan por la grilla de 4x.
-const charAssets = {};   // charKey -> { down, left, right, up }
+// Los 3 personajes vienen de las referencias del equipo como pixel art de alta
+// resolución. Al reducirse en pantalla usan smoothing; el fallback por código sí
+// conserva la grilla y el nearest-neighbor.
+const charAssets = {};   // charKey -> { down, left, right, up, sit }
+// Las poses sentadas de referencia nacen en estas orientaciones; se espejan
+// automáticamente cuando alguien ocupa un puesto del lado opuesto.
+const SIT_BASE_FACE = { ger: 'left', facu: 'right', ovni: 'right' };
 let assetsReady = false;
 
 function flipCanvas(src) {
@@ -248,13 +251,15 @@ function loadCharAssets() {
       sit.onload = () => {
         if (!charAssets[k]) charAssets[k] = {};
         charAssets[k].sit = sit;
+        delete sitFlipCache[`sit_${k}_left`];
+        delete sitFlipCache[`sit_${k}_right`];
         for (const cacheKey of Object.keys(sitCache)) {
           if (cacheKey.startsWith(`vD_k${k}_`)) delete sitCache[cacheKey];
         }
         res();
       };
       sit.onerror = () => res(); // el sentado anterior queda como fallback
-      sit.src = `sprites/${k}_sit.png?v=1.22.0`;
+      sit.src = `sprites/${k}_sit.png?v=1.24.0`;
     };
     const finish = (src) => {
       const r = flipCanvas(src);
@@ -739,44 +744,40 @@ function sitC(g, c, frame) {
 }
 
 const sitCache = {};
+const sitFlipCache = {};
 function getSitSprite(charKey, face, occupied, frame = 0) {
+  const seated = charAssets[charKey] && charAssets[charKey].sit;
+  if (occupied && seated) {
+    // El PNG incluye la silla gamer completa, tal como la referencia del equipo;
+    // por eso no se le superpone el escenario genérico silla/monitor anterior.
+    const baseFace = SIT_BASE_FACE[charKey] || 'right';
+    if (face === baseFace) return seated;
+    const flipKey = `sit_${charKey}_${face}`;
+    if (!sitFlipCache[flipKey]) sitFlipCache[flipKey] = flipCanvas(seated);
+    return sitFlipCache[flipKey];
+  }
+
+  // Fallback seguro: el personaje procedimental y su estación anterior se usan
+  // solo si falta el PNG sentado de ese DNI.
   const key = `vD_k${charKey}_${face}_${occupied ? 1 : 0}_${frame}`;
   if (sitCache[key]) return sitCache[key];
-
   const out = document.createElement('canvas');
   out.width = SIT_W; out.height = SIT_H;
   const o = out.getContext('2d');
-
-  // Escenario (silla + monitor) aparte: no lleva borde, es parte del lugar.
   const bg = document.createElement('canvas');
   bg.width = SIT_W; bg.height = SIT_H;
-  sitEscenario(bg.getContext('2d'));
+  const bgCtx = bg.getContext('2d');
+  if (face === 'left') { bgCtx.translate(SIT_W, 0); bgCtx.scale(-1, 1); }
+  sitEscenario(bgCtx);
   o.drawImage(bg, 0, 0);
-
   if (occupied) {
     const fig = document.createElement('canvas');
     fig.width = SIT_W; fig.height = SIT_H;
     const g = fig.getContext('2d');
-    const seated = charAssets[charKey] && charAssets[charKey].sit;
-    if (seated) {
-      // Usa la misma identidad/ropa del sprite parado. La pose fue dibujada
-      // para esta estación: manos abajo, a la altura del teclado (y≈288).
-      const y = 26 + (frame ? 1 : 0); // micro-bob que conserva el tipeo animado
-      if (face === 'left') {
-        g.drawImage(seated, 48, y, 220, 286);
-      } else {
-        g.translate(SIT_W, 0); g.scale(-1, 1);
-        g.drawImage(seated, 48, y, 220, 286);
-      }
-    } else if (face === 'left') {
-      sitC(g, charOf(charKey), frame);
-    } else {
-      g.translate(SIT_W, 0); g.scale(-1, 1);
-      sitC(g, charOf(charKey), frame);
-    }
+    if (face === 'right') sitC(g, charOf(charKey), frame);
+    else { g.translate(SIT_W, 0); g.scale(-1, 1); sitC(g, charOf(charKey), frame); }
     o.drawImage(fig, 0, 0);
   }
-
   sitCache[key] = out;
   return out;
 }
@@ -830,7 +831,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.23.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.24.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1880,12 +1881,12 @@ function render() {
       const ss = sitScale(p.y);
       const sframe = Math.floor(now / 280) % 2;
       const spr = getSitSprite(p.char || 'ger', p.x < VW / 2 ? 'left' : 'right', true, sframe);
-      // Igual que en el de pie: la altura en pantalla no cambia, el ancho sale de
-      // la proporción real del lienzo (ya no es la grilla 4x, son 300x352).
+      // Conserva la proporción natural de cada conjunto personaje + silla gamer.
       const h = 48 * ss, w = h * (spr.width / spr.height);
-      ctx.imageSmoothingEnabled = true;              // ver nota arriba del setTransform
+      ctx.imageSmoothingEnabled = true;              // sprites sentados de alta resolución
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
+      const bob = charAssets[p.char || 'ger'] && charAssets[p.char || 'ger'].sit ? (sframe ? h / SIT_H * 2 : 0) : 0;
+      ctx.drawImage(spr, p.x - w / 2, p.y - h + bob, w, h);
       topY = p.y - h; shR = 15 * ss; fs = Math.round(3.1 * ss);
     } else {
       const s = depthScale(p.y);
