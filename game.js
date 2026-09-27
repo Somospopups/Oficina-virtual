@@ -29,7 +29,7 @@ const ZONES = [
 ];
 
 const SPEED = 320;
-const SEND_MS = 70;
+const SEND_MS = 140;
 
 const STATUS_INFO = {
   codeando:   { emoji: '💻', label: 'Codeando' },
@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.8.0 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.9.0 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -425,46 +425,79 @@ function connectWS() {
   ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } handleMsg(m); };
 }
 
-// TURN público: sin esto, las redes 4G/LTE (NAT simétrica) no dejan que dos
-// navegadores se conecten directo. El TURN hace de relevo cuando hace falta.
-const RTC_CFG = {
-  iceServers: [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-    {
-      urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'],
-      username: 'openrelayproject', credential: 'openrelayproject',
-    },
-  ],
-};
-const P2P_STRATS = ['nostr', 'mqtt'];
-const p2pRooms = [];
+// ---------- P2P SIN WebRTC: bus de relays Nostr ----------
+// Conexión 100% saliente (wss): atraviesa cualquier NAT, 4G, firewall o Brave.
+// Los relays hacen de "canal de radio público": nadie llama a nadie directo.
+const BUS_RELAYS = ['relay.damus.io', 'nos.lol', 'relay.primal.net', 'relay.nostr.band', 'nostr.mom', 'relay.snort.social'];
+const BUS_ROOM = 'oficina-somospopups-v1';
+let busSockets = [];
+const busSub = 's' + Math.random().toString(36).slice(2, 8);
+let myPub = '', mySec = null, nobleSchnorr = null, nobleSha = null;
 let p2pPeerCount = 0;
+const seenEvents = new Set();
+
+function bytesHex(b) { return [...b].map((x) => x.toString(16).padStart(2, '0')).join(''); }
 function updateNetLabel() {
-  p2pPeerCount = p2pRooms.reduce((n, r) => { try { return n + r.getPeers().length; } catch { return n; } }, 0);
+  const now = performance.now();
+  p2pPeerCount = [...state.players.values()].filter((p) => p.id !== state.myId && p.seen && now - p.seen < 9000).length;
 }
-function p2pSend(o) { for (const r of p2pRooms) { try { if (r._sendG) r._sendG(o); } catch { /* room caído */ } } }
 async function connectP2P() {
-  toast('🌐 Modo sin servidor: conectando P2P...');
-  for (const s of P2P_STRATS) joinStrategy(s, 0);
-}
-async function joinStrategy(strat, attempt) {
+  toast('🌐 Conectando oficina P2P...');
   try {
-    const mod = await import(`https://esm.run/trystero/${strat}`);
-    const room = mod.joinRoom({ appId: 'oficina-virtual-somospopups-v1', rtcConfig: RTC_CFG }, 'oficina-principal');
-    p2pRooms.push(room);
-    const [sendG, recvG] = room.makeAction('g');
-    room._sendG = sendG;
-    if (!sendFn) sendFn = p2pSend;
-    recvG((m, peerId) => { if (m && m.type) { m._pid = strat + ':' + peerId; handleMsg(m); } });
-    room.onPeerJoin(() => { sendMoveNow(); maybeMusicForNewcomer(); updateNetLabel(); });
-    room.onPeerLeave(() => { updateNetLabel(); }); // el podado por silencio despide con cartel
-    updateNetLabel();
-    toast(`✅ Conectado P2P (${strat})`);
-    if (state.joined) { send({ type: 'profile', id: state.myId, name: state.myName, color: state.myColor }); sendMoveNow(); }
+    const [cur, ha] = await Promise.all([
+      import('https://esm.run/@noble/curves@1.6.0/secp256k1'),
+      import('https://esm.run/@noble/hashes@1.5.0/sha256'),
+    ]);
+    nobleSchnorr = cur.schnorr; nobleSha = ha.sha256;
+    mySec = nobleSchnorr.utils.randomPrivateKey();
+    myPub = bytesHex(await nobleSchnorr.getPublicKey(mySec));
   } catch (e) {
-    if (attempt < 4) setTimeout(() => joinStrategy(strat, attempt + 1), 4000);
+    toast('⚠️ No se pudo cargar el cifrado P2P, reintentando...');
+    setTimeout(connectP2P, 8000);
+    return;
   }
+  sendFn = busSend;
+  for (const host of BUS_RELAYS) openRelay(host);
+  setTimeout(() => {
+    if (busSockets.length) toast(`✅ P2P conectado (${busSockets.length} relays)`);
+    else { toast('⚠️ Sin relays a la vista, reintentando...'); setTimeout(connectP2P, 8000); }
+  }, 3500);
 }
+function openRelay(host) {
+  let ws;
+  try { ws = new WebSocket('wss://' + host); } catch { return; }
+  const alive = { ws, host };
+  ws.onopen = () => {
+    busSockets.push(alive);
+    ws.send(JSON.stringify(['REQ', busSub, { kinds: [20001], '#o': [BUS_ROOM], since: Math.floor(Date.now() / 1000) - 60 }]));
+    if (state.joined) sendMoveNow();
+  };
+  ws.onmessage = (ev) => {
+    let m; try { m = JSON.parse(ev.data); } catch { return; }
+    if (m[0] !== 'EVENT' || !m[2]) return;
+    const e = m[2];
+    if (e.pubkey === myPub || seenEvents.has(e.id)) return;
+    seenEvents.add(e.id); if (seenEvents.size > 800) seenEvents.clear();
+    let payload; try { payload = JSON.parse(e.content); } catch { return; }
+    if (!payload || !payload.type) return;
+    payload._pid = e.pubkey;
+    handleMsg(payload);
+  };
+  ws.onclose = () => { busSockets = busSockets.filter((s) => s !== alive); setTimeout(() => openRelay(host), 5000); };
+  ws.onerror = () => { try { ws.close(); } catch { /* ya muerto */ } };
+}
+function busSend(o) {
+  if (!nobleSchnorr || !busSockets.length) return;
+  const content = JSON.stringify(o);
+  const created = Math.floor(Date.now() / 1000);
+  const tags = [['o', BUS_ROOM]];
+  const id = bytesHex(nobleSha(JSON.stringify([0, myPub, created, 20001, tags, content])));
+  nobleSchnorr.sign(id, mySec).then((sig) => {
+    const evt = JSON.stringify(['EVENT', { id, pubkey: myPub, created_at: created, kind: 20001, tags, content, sig: bytesHex(sig) }]);
+    for (const s of busSockets) { try { if (s.ws.readyState === 1) s.ws.send(evt); } catch { /* relay caído */ } }
+  }).catch(() => { /* sin firma no hay mensaje */ });
+}
+window.addEventListener('pagehide', () => { if (state.joined) send({ type: 'bye', id: state.myId, name: state.myName }); });
 
 const seenNonces = new Set();
 function dedupe(msg) {
@@ -505,6 +538,11 @@ function handleMsg(msg) {
       addChat(null, `${msg.name} salió de la oficina`, 'system');
       renderPlayerList();
       break;
+    case 'bye': {
+      const p = state.players.get(msg.id);
+      if (p) { state.players.delete(msg.id); addChat(null, `${p.name} salió de la oficina`, 'system'); renderPlayerList(); }
+      break;
+    }
     case 'system': addChat(null, msg.text, 'system'); break;
     case 'chat': {
       if (dedupe(msg)) break;
@@ -535,7 +573,7 @@ function upsertRemote(p, snap) {
   if (!cur) {
     cur = { ...p, tx: p.x, ty: p.y };
     state.players.set(p.id, cur);
-    if (state.joined && p.id !== state.myId) { addChat(null, `${p.name} entró a la oficina`, 'system'); beep(660, 0.08); }
+    if (state.joined && p.id !== state.myId) { addChat(null, `${p.name} entró a la oficina`, 'system'); beep(660, 0.08); if (USE_P2P) maybeMusicForNewcomer(); }
   }
   cur.pid = p._pid || cur.pid;
   cur.seen = performance.now();
@@ -976,7 +1014,7 @@ function update(dt) {
 
   const now = performance.now();
   if (me.moving && now - lastSend > SEND_MS) { lastSend = now; sendMoveNow(); }
-  else if (!me.moving && now - lastSend > 400) { lastSend = now; sendMoveNow(); }
+  else if (!me.moving && now - lastSend > 600) { lastSend = now; sendMoveNow(); }
 
   const z = me.seated ? { name: 'tu puesto', status: 'codeando' } : zoneAt(me.x, me.y);
   const zKey = z ? z.name : null;
@@ -995,8 +1033,9 @@ function update(dt) {
     p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k;
   }
 
-  // P2P: podar compañeros silenciosos
+  // P2P: podar compañeros silenciosos y refrescar el 📡
   if (USE_P2P) {
+    updateNetLabel();
     for (const p of [...state.players.values()]) {
       if (p.id !== state.myId && p.seen && now - p.seen > 9000) {
         state.players.delete(p.id);
