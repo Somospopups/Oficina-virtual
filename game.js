@@ -461,18 +461,40 @@ function rtcVisto(msg) {
   return false;
 }
 
+// El boton de "tocá para escucharlos" se deriva del estado real de los <audio>, y
+// no de una bandera. Con la bandera pasaba esto: si el navegador rechazaba el play y
+// al rato se iba el unico companero, el boton se quedaba visible para siempre y ya
+// no habia ningun audio que recuperar, asi que el click no hacia nada. Con esto solo
+// aparece si hay de verdad algun <audio> en pausa.
+function rtcRefrescarBloqueo() {
+  let hayPausado = false;
+  for (const v of rtcVivo.values()) { if (v.audio.paused) { hayPausado = true; break; } }
+  if (hayPausado === rtcBloqueado) return;
+  rtcBloqueado = hayPausado;
+  renderCallUI();
+}
+function rtcReintentar(audio) {
+  audio.muted = false;
+  audio.volume = rtcVolumen();
+  return audio.play().then(() => true).catch(() => false);
+}
+
 function rtcConectarAudio(peer, stream) {
   let v = rtcVivo.get(peer);
-  if (v) { v.audio.srcObject = stream; }
+  if (v) {
+    v.audio.srcObject = stream;
+    // El companero puede renegociar el stream. Si el <audio> quedo en pausa por el
+    // bloqueo del navegador, hay que volver a pedir el play: si no, este audio se
+    // queda mudo para siempre.
+    if (v.audio.paused) rtcReintentar(v.audio).then(() => rtcRefrescarBloqueo());
+  }
   else {
     const a = document.createElement('audio');
     a.autoplay = true; a.playsInline = true;
     a.srcObject = stream;
-    a.play().then(() => { rtcBloqueado = false; renderCallUI(); }).catch(() => {
-      // Chrome bloquea el audio si la pagina no tuvo gesto. Como estos <audio>
-      // aparecen despues de entrar, a veces hay que pedir un click.
-      rtcBloqueado = true; renderCallUI();
-    });
+    // Chrome bloquea el audio si la pagina no tuvo gesto. Como estos <audio>
+    // aparecen despues de entrar, a veces hay que pedir un click.
+    a.play().then(() => rtcRefrescarBloqueo()).catch(() => rtcRefrescarBloqueo());
     document.body.appendChild(a);
     v = { audio: a, analyser: null, data: null, buf: null };
     rtcVivo.set(peer, v);
@@ -539,6 +561,7 @@ function rtcCerrar() {
   rtcMesh.clear();
   for (const v of rtcVivo.values()) { try { v.audio.remove(); } catch { /* ya no está */ } }
   rtcVivo.clear(); rtcNivel.clear();
+  rtcRefrescarBloqueo();
   renderCallUI();
 }
 function rtcToggle() { if (rtcOn) rtcCerrar(); else rtcAbrir(); }
@@ -548,6 +571,7 @@ function rtcSalirDePeer(peer) {
   if (p) { try { p.pc.close(); } catch { /* ya cerrado */ } rtcMesh.delete(peer); }
   const v = rtcVivo.get(peer);
   if (v) { try { v.audio.remove(); } catch { /* ya no está */ } rtcVivo.delete(peer); }
+  rtcRefrescarBloqueo();
   const partia = rtcComparte.delete(peer);
   rtcMic.delete(peer); rtcNivel.delete(peer);
   // Si se va el que compartía, se cae la ventana: si no queda clavada mostrando la
@@ -1204,7 +1228,7 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.38.1 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.38.2 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2869,8 +2893,23 @@ function init() {
   const bShare = document.getElementById('shareBtn'); if (bShare) bShare.onclick = rtcCompartir;
   const bListen = document.getElementById('callListen');
   if (bListen) bListen.onclick = () => {
-    for (const v of rtcVivo.values()) { const a = v.audio; a.muted = false; a.volume = rtcVolumen(); a.play().catch(() => {}); }
-    rtcBloqueado = false; renderCallUI();
+    // Si no hay ningun <audio> con vida, el boton quedo pegado: salir sin ruido.
+    if (!rtcVivo.size) { rtcBloqueado = false; renderCallUI(); return; }
+    // El AudioContext tambien puede estar suspendido: sin esto el volumen queda
+    // mudo aunque el <audio> si suene.
+    try {
+      const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+      if (ctx.state === 'suspended') ctx.resume();
+    } catch { /* medir el nivel es opcional */}
+    const vivos = [...rtcVivo.values()].map((v) => rtcReintentar(v.audio));
+    Promise.allSettled(vivos).then((rs) => {
+      const colaron = rs.filter((r) => r.status === 'fulfilled' && r.value).length;
+      rtcRefrescarBloqueo();
+      // Antes el .catch era mudo: el boton desaparecia y no se entendia nada. Ahora
+      // si el navegador sigue rechazando, se dice por que y el boton se queda a la vista.
+      if (!colaron) toast('🔇 El navegador sigue sin dejar sonar el audio. Revisá el candado de la barra de direcciones o probá con auriculares.');
+      else if (colaron < rs.length) toast('🔇 Escuchás a algunos; los demas siguen bloqueados por el navegador.');
+    });
   };
   const cVol = document.getElementById('callVol');
   if (cVol) cVol.oninput = rtcCallVolumen;
