@@ -169,7 +169,8 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 
 /* Radio de la oficina */
 #musicBtn { font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
-#musicBtn:hover { background: #1f2736; }
+#musicBtn:hover, #netBtn:hover { background: #1f2736; }
+#netBtn { font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
 #musicPanel { position: fixed; top: 54px; left: 12px; z-index: 40; background: rgba(16,20,29,0.95); border: 2px solid #2c3550; border-radius: 10px; padding: 12px; width: 240px; display: flex; flex-direction: column; gap: 8px; }
 #musicPanel.hidden { display: none; }
 .mp-title { font-size: 9px; color: #ffd76a; letter-spacing: 1px; }

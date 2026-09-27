@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.9.1 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.9.2 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -432,10 +432,64 @@ const BUS_RELAYS = ['relay.damus.io', 'nos.lol', 'relay.primal.net', 'relay.nost
 const BUS_ROOM = 'oficina-somospopups-v1';
 let busSockets = [];
 const busSub = 's' + Math.random().toString(36).slice(2, 8);
-let myPub = '', mySec = null, nobleSchnorr = null, nobleSha = null;
+let myPub = '', busKey = null, busErr = '';
 let p2pPeerCount = 0;
 let busSent = 0, busRecv = 0;
 const seenEvents = new Set();
+
+// ---------- Firma BIP340 propia (sin CDNs ni dependencias; probada contra relays reales) ----------
+const B_P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2Fn;
+const B_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;
+const B_G = { x: 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n, y: 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8n };
+const bMod = (a, b = B_P) => { const r = a % b; return r >= 0n ? r : b + r; };
+function bInv(a, b = B_P) {
+  let [old_r, r] = [bMod(a, b), b], [old_x, x] = [1n, 0n];
+  while (r !== 0n) { const q = old_r / r; [old_r, r] = [r, old_r - q * r]; [old_x, x] = [x, old_x - q * x]; }
+  return bMod(old_x, b);
+}
+function bAdd(p, q) {
+  if (!p) return q; if (!q) return p;
+  if (p.x === q.x && bMod(p.y + q.y) === 0n) return null;
+  const l = (p.x === q.x && p.y === q.y) ? bMod(3n * p.x * p.x * bInv(2n * p.y)) : bMod((q.y - p.y) * bInv(bMod(q.x - p.x)));
+  const x = bMod(l * l - p.x - q.x);
+  return { x, y: bMod(l * (p.x - x) - p.y) };
+}
+function bMul(k, p = B_G) { let r = null; while (k > 0n) { if (k & 1n) r = bAdd(r, p); p = bAdd(p, p); k >>= 1n; } return r; }
+const bHex = (b) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+const bUnhex = (h) => new Uint8Array(h.match(/../g).map((x) => parseInt(x, 16)));
+const b2i = (b) => BigInt('0x' + (bHex(b) || '0'));
+const bI2b32 = (n) => bUnhex(n.toString(16).padStart(64, '0'));
+async function bSha(bytes) { const d = await crypto.subtle.digest('SHA-256', bytes); return new Uint8Array(d); }
+async function bTagged(tag, ...chunks) {
+  const t = await bSha(new TextEncoder().encode(tag));
+  const all = new Uint8Array(64 + chunks.reduce((n, c) => n + c.length, 0));
+  all.set(t, 0); all.set(t, 32);
+  let o = 64; for (const c of chunks) { all.set(c, o); o += c.length; }
+  return bSha(all);
+}
+async function makeBusKeys() {
+  const sec = crypto.getRandomValues(new Uint8Array(32));
+  const d = bMod(b2i(sec), B_N);
+  const Pp = bMul(d);
+  return { pub: bHex(bI2b32(Pp.x)), d, even: Pp.y % 2n === 0n };
+}
+async function busSign(msgHex, key) {
+  const msg = bUnhex(msgHex);
+  const dF = key.even ? key.d : B_N - key.d;
+  const px = bI2b32(bMul(key.d).x);
+  const rand = crypto.getRandomValues(new Uint8Array(32));
+  let k = bMod(b2i(rand), B_N); if (k === 0n) k = 1n;
+  const R = bMul(k);
+  const kF = R.y % 2n === 0n ? k : B_N - k;
+  const rx = bI2b32(R.x);
+  const e = bMod(b2i(await bTagged('BIP0340/challenge', rx, px, msg)), B_N);
+  const s = bMod(kF + e * dF, B_N);
+  return bHex(rx) + bHex(bI2b32(s));
+}
+async function busEventId(pub, created, kind, tags, content) {
+  const ser = JSON.stringify([0, pub, created, kind, tags, content]);
+  return bHex(await bSha(new TextEncoder().encode(ser)));
+}
 
 function bytesHex(b) { return [...b].map((x) => x.toString(16).padStart(2, '0')).join(''); }
 function updateNetLabel() {
@@ -445,15 +499,11 @@ function updateNetLabel() {
 async function connectP2P() {
   toast('🌐 Conectando oficina P2P...');
   try {
-    const [cur, ha] = await Promise.all([
-      import('https://esm.run/@noble/curves@1.6.0/secp256k1'),
-      import('https://esm.run/@noble/hashes@1.5.0/sha256'),
-    ]);
-    nobleSchnorr = cur.schnorr; nobleSha = ha.sha256;
-    mySec = nobleSchnorr.utils.randomPrivateKey();
-    myPub = bytesHex(await nobleSchnorr.getPublicKey(mySec));
+    busKey = await makeBusKeys();
+    myPub = busKey.pub;
   } catch (e) {
-    toast('⚠️ No se pudo cargar el cifrado P2P, reintentando...');
+    busErr = String((e && e.message) || e);
+    toast('⚠️ No se pudo generar la clave P2P, reintentando...');
     setTimeout(connectP2P, 8000);
     return;
   }
@@ -490,16 +540,19 @@ function openRelay(host) {
   ws.onerror = () => { alive.st = 'error'; try { ws.close(); } catch { /* ya muerto */ } };
 }
 function busSend(o) {
-  if (!nobleSchnorr || !busSockets.length) return;
+  if (!busKey || !busSockets.length) return;
   const content = JSON.stringify(o);
   const created = Math.floor(Date.now() / 1000);
   const tags = [['o', BUS_ROOM]];
-  const id = bytesHex(nobleSha(JSON.stringify([0, myPub, created, 20001, tags, content])));
-  nobleSchnorr.sign(id, mySec).then((sig) => {
-    const evt = JSON.stringify(['EVENT', { id, pubkey: myPub, created_at: created, kind: 20001, tags, content, sig: bytesHex(sig) }]);
-    busSent++;
-    for (const s of busSockets.slice(0, 3)) { try { if (s.ws.readyState === 1) s.ws.send(evt); } catch { /* relay caído */ } }
-  }).catch(() => { /* sin firma no hay mensaje */ });
+  (async () => {
+    try {
+      const id = await busEventId(myPub, created, 20001, tags, content);
+      const sig = await busSign(id, busKey);
+      busSent++;
+      const evt = JSON.stringify(['EVENT', { id, pubkey: myPub, created_at: created, kind: 20001, tags, content, sig }]);
+      for (const s of busSockets.slice(0, 3)) { try { if (s.ws.readyState === 1) s.ws.send(evt); } catch { /* relay caído */ } }
+    } catch (e) { busErr = String((e && e.message) || e); }
+  })();
 }
 function renderNetPanel() {
   const el = document.getElementById('netPanel');
@@ -510,9 +563,20 @@ function renderNetPanel() {
     return `${h}: ${st}`;
   }).join('<br>');
   el.innerHTML = `<div class="np-title">🛰 RED P2P (tocá el reloj para cerrar)</div>${relays}<br>` +
-    `enviados: ${busSent} · recibidos: ${busRecv}<br>peers: ${p2pPeerCount} · firma: ${nobleSchnorr ? '<span class="ok">ok</span>' : '<span class="bad">no</span>'}<br>` +
+    `enviados: ${busSent} · recibidos: ${busRecv}<br>peers: ${p2pPeerCount} · firma: ${busKey ? '<span class="ok">ok</span>' : '<span class="bad">no</span>'}<br>` +
+    (busErr ? `<span class="bad">error: ${busErr.slice(0, 60)}</span><br>` : '') +
     `versión: ${VERSION}`;
 }
+function netToggle() {
+  const el = document.getElementById('netPanel');
+  if (el) { el.classList.toggle('hidden'); renderNetPanel(); }
+}
+let globalErrShown = false;
+window.addEventListener('error', (e) => {
+  if (globalErrShown) return;
+  globalErrShown = true;
+  toast('⚠️ Error JS: ' + String(e.message || '').slice(0, 70));
+});
 window.addEventListener('pagehide', () => { if (state.joined) send({ type: 'bye', id: state.myId, name: state.myName }); });
 
 const seenNonces = new Set();
