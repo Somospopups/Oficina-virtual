@@ -1230,7 +1230,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v45 · 27/09/2026';
+const VERSION = 'v46 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1281,16 +1281,24 @@ function sendMoveNow() { const p = myPublic(); if (p) send(Object.assign({ type:
 function layoutDesktopAudio() {
   const button = document.getElementById('musicBtn');
   const panel = document.getElementById('musicPanel');
+  const call = document.getElementById('callBar');
   if (!button || !panel) return;
   if (!document.body.classList.contains('desktop-rails')) {
     button.style.top = ''; button.style.right = ''; button.style.left = '';
     panel.style.top = ''; panel.style.right = ''; panel.style.left = '';
+    if (call) { call.style.top = ''; call.style.right = ''; call.style.bottom = ''; }
     return;
   }
   const list = document.getElementById('playerList');
   const top = Math.ceil((list ? list.getBoundingClientRect().bottom : 100) + 10);
   button.style.top = top + 'px'; button.style.right = '12px'; button.style.left = 'auto';
   const buttonH = button.getBoundingClientRect().height || 36;
+  // La barra de llamada va en la misma fila, a la izquierda de la radio 🎵
+  if (call) {
+    const buttonW = Math.ceil(button.getBoundingClientRect().width || 38);
+    call.style.top = top + 'px'; call.style.bottom = 'auto';
+    call.style.right = (12 + buttonW + 6) + 'px';
+  }
   panel.style.top = (top + buttonH + 8) + 'px'; panel.style.right = '12px'; panel.style.left = 'auto';
 }
 

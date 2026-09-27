@@ -511,3 +511,7 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
   font-size: 14px !important; line-height: 1;
 }
 #callVolBox { box-sizing: border-box; height: 38px; }
+
+/* En desktop-rails la barra de llamada va arriba a la derecha, en fila,
+   justo debajo del panel de jugadores (top/right los pone layoutDesktopAudio). */
+body.desktop-rails #callBar { flex-direction: row; align-items: center; gap: 6px; }
