@@ -25,7 +25,7 @@ const SEATS = [
 
 // Zona café: frente al gabinete blanco bajo la ventana
 const ZONES = [
-  { name: 'Estación de café (junto a la ventana)', x0: 510, y0: 400, x1: 720, y1: 520, status: 'cafe' },
+  { name: 'Estación de café (junto a la ventana)', x0: 515, y0: 462, x1: 715, y1: 560, status: 'cafe' },
 ];
 
 const SPEED = 320;
@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.10.3 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.10.4 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1027,6 +1027,7 @@ function freeSeat() {
   }
   return null;
 }
+function nearAnySeat(x, y) { return SEATS.some((s) => Math.hypot(s.x - x, s.y - y) < 55); }
 function zoneAt(x, y) {
   for (const z of ZONES) if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) return z;
   return null;
@@ -1248,7 +1249,7 @@ function update(dt) {
   if (me.moving && now - lastSend > SEND_MS) { lastSend = now; sendMoveNow(); }
   else if (!me.moving && now - lastSend > 1000) { lastSend = now; sendMoveNow(); }
 
-  const z = me.seated ? { name: 'tu puesto', status: 'codeando' } : zoneAt(me.x, me.y);
+  const z = me.seated ? { name: 'tu puesto', status: 'codeando' } : (nearAnySeat(me.x, me.y) ? null : zoneAt(me.x, me.y));
   const zKey = z ? z.name : null;
   if (zKey !== lastZone) {
     lastZone = zKey;
@@ -1303,6 +1304,20 @@ function render() {
 
   if (bgReady) ctx.drawImage(bgCv, 0, 0, VW, VH);
   else { ctx.fillStyle = '#20242e'; ctx.fillRect(0, 0, VW, VH); }
+
+  // Marca visible de la zona café (decal en el piso)
+  {
+    const z = ZONES[0];
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,215,106,0.30)'; ctx.fillStyle = 'rgba(255,190,80,0.07)';
+    ctx.setLineDash([6, 5]); ctx.lineWidth = 2;
+    ctx.fillRect(z.x0, z.y0, z.x1 - z.x0, z.y1 - z.y0);
+    ctx.strokeRect(z.x0, z.y0, z.x1 - z.x0, z.y1 - z.y0);
+    ctx.setLineDash([]);
+    ctx.font = '18px serif'; ctx.textAlign = 'center';
+    ctx.fillText('☕', (z.x0 + z.x1) / 2, z.y0 + 24 + Math.sin(now / 400) * 3);
+    ctx.restore();
+  }
 
   drawSky(now, hf, sky);
   ctx.drawImage(skyCv, WIN.x, WIN.y);
