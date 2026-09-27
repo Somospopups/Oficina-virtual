@@ -208,9 +208,14 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 .vp-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 8px; color: #7ee787; }
 #videoWho { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #videoClose {
-  background: #1b2230; border: 1px solid #3b4560; color: #cdd5e4; font-size: 9px;
-  padding: 3px 6px; border-radius: 5px; cursor: pointer; font-family: inherit; flex: 0 0 auto;
+  background: #1b2230; border: 1px solid #3b4560; color: #cdd5e4; font-size: 11px;
+  padding: 2px 6px; border-radius: 5px; cursor: pointer; font-family: inherit; flex: 0 0 auto;
 }
+#videoBig {
+  background: #1b2230; border: 1px solid #3b4560; color: #cdd5e4; font-size: 11px;
+  padding: 2px 6px; border-radius: 5px; cursor: pointer; font-family: inherit; flex: 0 0 auto;
+}
+#videoBig:hover { background: #26304a; }
 #videoClose:hover { background: #26304a; }
 #videoBox {
   position: relative; width: 100%; aspect-ratio: 16 / 9; background: #05070b;
@@ -230,6 +235,26 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
   padding: 5px 7px; border-radius: 5px; cursor: pointer; font-family: inherit; white-space: nowrap;
 }
 #videoSync:hover { background: #26304a; }
+/* Botón de ventana flotante (se agrega desde el JS al encabezado) */
+#videoFloat {
+  background: #1b2230; border: 1px solid #3b4560; color: #cdd5e4; font-size: 11px;
+  padding: 2px 6px; border-radius: 5px; cursor: pointer; font-family: inherit; flex: 0 0 auto;
+}
+#videoFloat:hover { background: #26304a; }
+#videoFloat.on { background: #2f3d5e; border-color: #ffd76a; color: #ffd76a; }
+.vp-head { cursor: grab; }
+.vp-head-btns { display: flex; gap: 4px; flex: 0 0 auto; }
+#videoPanel.dragging .vp-head { cursor: grabbing; }
+
+/* Ventana flotante: se despega del rincón y va al centro, arrastrable por el
+   encabezado. Es lo que se usa en la TV del local, que mira en espectador. */
+#videoPanel.float {
+  left: 50%; top: 50%; right: auto; width: min(660px, 92vw);
+  transform: translate(-50%, -50%); z-index: 50;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.6);
+}
+#videoPanel.float.big { width: min(1180px, 96vw); }
+
 
 
 /* Panel de diagnóstico de red */
@@ -357,5 +382,8 @@ body.spectator-mode #hint,
 body.spectator-mode #stick,
 body.spectator-mode #musicBtn,
 body.spectator-mode #musicPanel { display: none !important; }
-body.spectator-mode #videoPanel { display: none !important; }
+body.spectator-mode #musicPanel { display: none !important; }
+/* El panel de video SÍ se ve en modo espectador: es justo para el caso de la TV
+   del local, que mira la oficina en espectador y tiene que ver lo que pone el DJ.
+   Lo que no tiene sentido es la radio, porque el espectador no puede ser DJ. */
 body.spectator-mode #chatLog { flex: 1 1 auto; }

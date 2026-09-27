@@ -823,7 +823,7 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.33.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.34.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1549,6 +1549,29 @@ function showPanel(it) {
   // que toque. Drive ni tiene controles, así que no tiene sentido pedirlo.
   const tap = document.getElementById('videoTap');
   if (tap) tap.classList.toggle('hidden', it.kind === 'drive');
+  aplicarFloat();
+}
+// Estado de la ventana: flotante y grande. Son COSAS LOCALES a propósito, no se
+// difunden por la red. La oficina 2D no es una pantalla compartida: cada uno la ve
+// en su monitor, así que cada uno la agranda como le sirva. En la TV del local
+// sirve para ponerla grande, y en la PC del DJ queda en el rincón.
+let videoFloat = false, videoBig = false;
+function aplicarFloat() {
+  const p = document.getElementById('videoPanel');
+  if (!p) return;
+  p.classList.toggle('float', videoFloat);
+  p.classList.toggle('big', videoFloat && videoBig);
+  const bf = document.getElementById('videoFloat');
+  if (bf) {
+    bf.classList.toggle('on', videoFloat);
+    bf.title = videoFloat ? 'Volver a la esquina' : 'Ventana flotante para que la vea toda la oficina';
+  }
+}
+function setVideoFloat(v) {
+  videoFloat = !!v;
+  if (!videoFloat) videoBig = false;
+  aplicarFloat();
+  if (videoFloat) toast('🪟 Ventana flotante · arrastrala por la barra de arriba');
 }
 function videoSync() {
   const it = music.item;
@@ -2373,6 +2396,45 @@ function init() {
   const bSync = document.getElementById('videoSync'); if (bSync) bSync.onclick = videoSync;
   const bTap = document.getElementById('videoTap');
   if (bTap) bTap.onclick = () => { bTap.classList.add('hidden'); playerCmd('playVideo'); };
+  const bFloat = document.getElementById('videoFloat'); if (bFloat) bFloat.onclick = () => setVideoFloat(!videoFloat);
+  const bBig = document.getElementById('videoBig');
+  if (bBig) bBig.onclick = () => { if (!videoFloat) setVideoFloat(true); else { videoBig = !videoBig; aplicarFloat(); } };
+  // Arrastre de la ventana flotante. Recién se separa del centro en el primer
+  // movimiento, porque hasta entonces la coloca el transform translate(-50%,-50%)
+  // y si se le fixara left/top de entrada quedaría corrida.
+  const vHead = videoPanel ? videoPanel.querySelector('.vp-head') : null;
+  if (vHead) {
+    let drag = null;
+    vHead.addEventListener('pointerdown', (e) => {
+      if (!videoPanel.classList.contains('float')) return;
+      if (e.target.closest('button')) return;
+      const r = videoPanel.getBoundingClientRect();
+      videoPanel.style.left = r.left + 'px';
+      videoPanel.style.top = r.top + 'px';
+      videoPanel.style.right = 'auto';
+      videoPanel.style.transform = 'none';
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+      videoPanel.classList.add('dragging');
+      try { vHead.setPointerCapture(e.pointerId); } catch { /* sin capture */ }
+      e.preventDefault();
+    });
+    vHead.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const w = videoPanel.offsetWidth, h = videoPanel.offsetHeight;
+      const x = Math.max(0, Math.min(window.innerWidth - w, e.clientX - drag.dx));
+      const y = Math.max(0, Math.min(window.innerHeight - h, e.clientY - drag.dy));
+      videoPanel.style.left = x + 'px';
+      videoPanel.style.top = y + 'px';
+    });
+    const fin = (e) => {
+      if (!drag) return;
+      drag = null;
+      videoPanel.classList.remove('dragging');
+      try { vHead.releasePointerCapture(e.pointerId); } catch { /* ya liberado */ }
+    };
+    vHead.addEventListener('pointerup', fin);
+    vHead.addEventListener('pointercancel', fin);
+  }
   const attachmentClose = document.getElementById('attachmentClose');
   if (attachmentClose) attachmentClose.onclick = closeAttachmentPreview;
   if (attachmentModal) attachmentModal.addEventListener('click', (e) => { if (e.target === attachmentModal) closeAttachmentPreview(); });
