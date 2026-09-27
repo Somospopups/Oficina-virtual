@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.10.4 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.11.0 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -703,9 +703,9 @@ function sendChat(raw, att) {
   if (att && att.data && att.data.length > 200000) { toast('⚠️ Adjunto demasiado pesado para el bus P2P'); return; }
   const nonce = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const w = text.match(/^\/w\s+(\S+)\s+([\s\S]+)$/i);
-  if (w) send({ type: 'chat', id: state.myId, from: state.myName, text: w[2], to: w[1], nonce, att });
+  if (w) { send({ type: 'chat', id: state.myId, from: state.myName, text: w[2], to: w[1], nonce, att }); addChat(state.myName, w[2], 'whisper', w[1], att); }
   else if (text.startsWith('/')) addChat(null, 'Comando desconocido. Usá /w nombre mensaje', 'system');
-  else send({ type: 'chat', id: state.myId, from: state.myName, text, nonce, att });
+  else { send({ type: 'chat', id: state.myId, from: state.myName, text, nonce, att }); addChat(state.myName, text, 'normal', null, att); }
 }
 let myStatus = 'disponible';
 let shakeUntil = 0, zumbCd = 0;
@@ -945,9 +945,9 @@ function pickMime() {
   for (const m of opts) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch { /* siga */ } }
   return '';
 }
-function micToggle() {
-  const micBtn = document.getElementById('micBtn');
-  if (mediaRec && mediaRec.state === 'recording') { mediaRec.stop(); return; }
+let recSend = false, recT0 = 0;
+function startRec() {
+  if (mediaRec && mediaRec.state === 'recording') return;
   if (!navigator.mediaDevices || !window.MediaRecorder) { toast('⚠️ Tu navegador no soporta grabar audio'); return; }
   navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
     recChunks = [];
@@ -956,23 +956,29 @@ function micToggle() {
     mediaRec.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
     mediaRec.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
-      if (micBtn) micBtn.classList.remove('rec');
+      const mb = document.getElementById('micBtn');
+      if (mb) mb.classList.remove('rec');
+      const dur = Date.now() - recT0;
       const blob = new Blob(recChunks, { type: mediaRec.mimeType || 'audio/webm' });
+      if (!recSend || dur < 800) { if (recSend) toast('⚠️ Muy corto: mantené 🎤 apretado mientras hablás'); return; }
       if (blob.size > 150 * 1024) { toast('⚠️ Audio demasiado largo (máx ~30 s)'); return; }
       const fr = new FileReader();
       fr.onload = () => {
-        pendingAtt = { kind: 'audio', mime: blob.type || 'audio/webm', data: String(fr.result).split(',')[1] };
-        updateAttChip();
-        toast('🎤 Audio listo: tocá ➤ para enviar');
+        const att = { kind: 'audio', mime: blob.type || 'audio/webm', data: String(fr.result).split(',')[1] };
+        sendChat('', att);
+        toast('🎤 Audio enviado');
       };
       fr.readAsDataURL(blob);
     };
     mediaRec.start();
-    if (micBtn) micBtn.classList.add('rec');
-    toast('🎤 Grabando… tocá 🎤 de nuevo para cortar');
+    recT0 = Date.now(); recSend = true;
+    const mb = document.getElementById('micBtn');
+    if (mb) mb.classList.add('rec');
+    toast('🎤 Grabando… soltá para enviar');
     setTimeout(() => { if (mediaRec && mediaRec.state === 'recording') mediaRec.stop(); }, 30000);
   }).catch(() => toast('⚠️ Sin permiso de micrófono'));
 }
+function stopRec() { if (mediaRec && mediaRec.state === 'recording') mediaRec.stop(); }
 function renderPlayerList() {
   const list = [...state.players.values()];
   playerListBox.innerHTML = '<div class="pl-title">👥 En la oficina (' + list.length + ')</div>' +
@@ -1138,6 +1144,29 @@ function resize() {
   viewOX = (canvas.width - VW * viewScale) / 2;
   viewOY = (canvas.height - VH * viewScale) / 2;
   ctx.imageSmoothingEnabled = false;
+  layoutMobile();
+}
+function layoutMobile() {
+  const mob = window.matchMedia('(max-width: 900px)').matches;
+  const stickEl = document.getElementById('stick');
+  const chatEl = document.getElementById('chatPanel');
+  if (!mob) {
+    if (stickEl) stickEl.style.bottom = '';
+    if (chatEl) { chatEl.style.top = ''; chatEl.style.bottom = ''; }
+    return;
+  }
+  viewOY = 0; // escena pegada arriba: el chat y el stick viven en la franja de abajo
+  const sceneH = VH * viewScale;
+  const h = canvas.height;
+  const stickH = 92;
+  const band = h - sceneH;
+  const stickBottom = Math.max(10, (band - stickH) / 2);
+  const stickTop = h - stickBottom - stickH;
+  if (stickEl) stickEl.style.bottom = stickBottom + 'px';
+  if (chatEl) {
+    chatEl.style.top = (sceneH + 6) + 'px';
+    chatEl.style.bottom = Math.max(4, h - stickTop + 6) + 'px';
+  }
 }
 window.addEventListener('resize', resize);
 
@@ -1472,7 +1501,11 @@ function init() {
   const fileInput = document.getElementById('fileInput');
   if (attBtn && fileInput) { attBtn.onclick = () => fileInput.click(); fileInput.onchange = onFilePicked; }
   const micBtn = document.getElementById('micBtn');
-  if (micBtn) micBtn.onclick = micToggle;
+  if (micBtn) {
+    micBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); startRec(); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => micBtn.addEventListener(ev, stopRec));
+    micBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
 
   // panel de diagnóstico: tocar el reloj lo abre/cierra
   const np = document.getElementById('netPanel');

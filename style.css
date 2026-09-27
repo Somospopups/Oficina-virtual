@@ -154,19 +154,25 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 
 @media (max-width: 900px) {
   #statusBar {
-    max-width: none; bottom: auto; top: 54px; left: 50%; right: auto; transform: translateX(-50%);
-    display: grid; grid-template-columns: auto auto; gap: 7px; justify-content: center;
+    max-width: 99vw; bottom: auto; top: 46px; left: 50%; right: auto; transform: translateX(-50%);
+    display: flex; flex-direction: row; flex-wrap: nowrap; gap: 5px; justify-content: center;
   }
-  .status-btn { font-size: 8px; padding: 11px 13px; }
+  .status-btn { font-size: 7px; padding: 7px 6px; width: 86px; white-space: normal; line-height: 1.45; text-align: center; border-radius: 9px; }
   .status-btn .key { display: none; }
-  #chatPanel { left: 8px; right: 8px; width: auto; bottom: 8px; }
-  #chatLog { height: 72px; font-size: 8px; }
-  #playerList { display: none; }
+  #chatPanel { left: 8px; right: 8px; width: auto; bottom: 8px; display: flex; flex-direction: column; }
+  #chatLog { height: auto; flex: 1 1 auto; min-height: 60px; font-size: 8px; }
+  #playerList {
+    display: block; top: 92px; right: 6px; width: min(47vw, 190px);
+    padding: 6px 8px; font-size: 7px; max-height: 150px;
+  }
+  .pl-title { font-size: 7px; margin-bottom: 4px; }
+  .pl-row { padding: 3px 0; gap: 4px; }
   #hint { display: none !important; }
   #clock { font-size: 8px; padding: 7px 9px; }
   #musicBtn { font-size: 12px; padding: 6px 8px; }
   #musicPanel { left: 8px; top: 46px; width: min(240px, calc(100vw - 16px)); }
   #stick { display: block; left: auto; right: 12px; }
+  #micBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
 }
 
 
