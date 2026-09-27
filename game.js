@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.9.4 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.10.0 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -628,7 +628,7 @@ function handleMsg(msg) {
       if (dedupe(msg)) break;
       const mine = msg.from === state.myName, isW = !!msg.to;
       if (isW && !mine && msg.to !== state.myName) break;
-      addChat(msg.from, msg.text, isW ? 'whisper' : 'normal', msg.to);
+      addChat(msg.from, msg.text, isW ? 'whisper' : 'normal', msg.to, msg.att);
       if (!mine && (!isW || msg.to === state.myName)) beep(isW ? 880 : 520, 0.07);
       break;
     }
@@ -668,22 +668,38 @@ function upsertRemote(p, snap) {
 
 // ---------- UI ----------
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-function addChat(from, text, cls, to) {
+function addChat(from, text, cls, to, att) {
   const div = document.createElement('div');
   div.className = 'chat-msg ' + cls;
   if (cls === 'system') div.textContent = '· ' + text;
   else if (cls === 'whisper') div.innerHTML = `<b>${esc(from === state.myName ? 'vos' : from)}</b> ${esc(text)} <i>(privado${from === state.myName ? ' a ' + esc(to) : ''})</i>`;
   else div.innerHTML = `<b>${esc(from)}</b> ${esc(text)}`;
+  if (att && att.data) {
+    if (att.kind === 'img') {
+      const img = document.createElement('img');
+      img.className = 'chat-att';
+      img.src = `data:${att.mime || 'image/jpeg'};base64,${att.data}`;
+      img.onclick = () => window.open(img.src, '_blank');
+      div.appendChild(img);
+    } else if (att.kind === 'audio') {
+      const au = document.createElement('audio');
+      au.controls = true; au.className = 'chat-att-a';
+      au.src = `data:${att.mime || 'audio/webm'};base64,${att.data}`;
+      div.appendChild(au);
+    }
+  }
   chatLog.appendChild(div); chatLog.scrollTop = chatLog.scrollHeight;
   while (chatLog.children.length > 120) chatLog.removeChild(chatLog.firstChild);
 }
-function sendChat(raw) {
-  const text = raw.trim(); if (!text) return;
+function sendChat(raw, att) {
+  const text = raw.trim();
+  if (!text && !att) return;
+  if (att && att.data && att.data.length > 200000) { toast('⚠️ Adjunto demasiado pesado para el bus P2P'); return; }
   const nonce = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const w = text.match(/^\/w\s+(\S+)\s+([\s\S]+)$/i);
-  if (w) send({ type: 'chat', id: state.myId, from: state.myName, text: w[2], to: w[1], nonce });
+  if (w) send({ type: 'chat', id: state.myId, from: state.myName, text: w[2], to: w[1], nonce, att });
   else if (text.startsWith('/')) addChat(null, 'Comando desconocido. Usá /w nombre mensaje', 'system');
-  else send({ type: 'chat', id: state.myId, from: state.myName, text, nonce });
+  else send({ type: 'chat', id: state.myId, from: state.myName, text, nonce, att });
 }
 let myStatus = 'disponible';
 let shakeUntil = 0, zumbCd = 0;
@@ -880,6 +896,77 @@ function mpStop() {
 }
 let toastTimer = null;
 function toast(t) { toastBox.textContent = t; toastBox.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastBox.classList.remove('show'), 2600); }
+
+// ---------- Adjuntos: imágenes y audios de voz ----------
+let pendingAtt = null, mediaRec = null, recChunks = [];
+function takeAtt() { const a = pendingAtt; pendingAtt = null; updateAttChip(); return a; }
+function clearAtt() { pendingAtt = null; updateAttChip(); }
+function updateAttChip() {
+  const chip = document.getElementById('attChip');
+  if (!chip) return;
+  if (!pendingAtt) { chip.classList.add('hidden'); chip.innerHTML = ''; return; }
+  chip.classList.remove('hidden');
+  chip.innerHTML = pendingAtt.kind === 'img'
+    ? `<img src="data:${pendingAtt.mime};base64,${pendingAtt.data}"> 🖼️ imagen lista <button onclick="clearAtt()">✕</button>`
+    : `🎤 audio listo (~${Math.max(1, Math.round(pendingAtt.data.length * 0.75 / 1024))} KB) <button onclick="clearAtt()">✕</button>`;
+}
+function onFilePicked(e) {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  if (!f.type.startsWith('image/')) { toast('📎 Por ahora solo imágenes 🖼️'); return; }
+  const url = URL.createObjectURL(f);
+  const im = new Image();
+  im.onload = () => {
+    const max = 360;
+    const sc = Math.min(1, max / Math.max(im.width, im.height));
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(im.width * sc));
+    cv.height = Math.max(1, Math.round(im.height * sc));
+    cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+    const dataUrl = cv.toDataURL('image/jpeg', 0.65);
+    pendingAtt = { kind: 'img', mime: 'image/jpeg', data: dataUrl.split(',')[1] };
+    URL.revokeObjectURL(url);
+    updateAttChip();
+    toast('🖼️ Imagen lista: tocá ➤ para enviar');
+  };
+  im.onerror = () => toast('⚠️ No pude leer esa imagen');
+  im.src = url;
+}
+function pickMime() {
+  const opts = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+  if (!window.MediaRecorder) return '';
+  for (const m of opts) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch { /* siga */ } }
+  return '';
+}
+function micToggle() {
+  const micBtn = document.getElementById('micBtn');
+  if (mediaRec && mediaRec.state === 'recording') { mediaRec.stop(); return; }
+  if (!navigator.mediaDevices || !window.MediaRecorder) { toast('⚠️ Tu navegador no soporta grabar audio'); return; }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+    recChunks = [];
+    const mime = pickMime();
+    mediaRec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 16000 } : { audioBitsPerSecond: 16000 });
+    mediaRec.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
+    mediaRec.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      if (micBtn) micBtn.classList.remove('rec');
+      const blob = new Blob(recChunks, { type: mediaRec.mimeType || 'audio/webm' });
+      if (blob.size > 150 * 1024) { toast('⚠️ Audio demasiado largo (máx ~30 s)'); return; }
+      const fr = new FileReader();
+      fr.onload = () => {
+        pendingAtt = { kind: 'audio', mime: blob.type || 'audio/webm', data: String(fr.result).split(',')[1] };
+        updateAttChip();
+        toast('🎤 Audio listo: tocá ➤ para enviar');
+      };
+      fr.readAsDataURL(blob);
+    };
+    mediaRec.start();
+    if (micBtn) micBtn.classList.add('rec');
+    toast('🎤 Grabando… tocá 🎤 de nuevo para cortar');
+    setTimeout(() => { if (mediaRec && mediaRec.state === 'recording') mediaRec.stop(); }, 30000);
+  }).catch(() => toast('⚠️ Sin permiso de micrófono'));
+}
 function renderPlayerList() {
   const list = [...state.players.values()];
   playerListBox.innerHTML = '<div class="pl-title">👥 En la oficina (' + list.length + ')</div>' +
@@ -941,7 +1028,7 @@ function zoneAt(x, y) {
 
 window.addEventListener('keydown', (e) => {
   if (document.activeElement === chatInput) {
-    if (e.key === 'Enter') { sendChat(chatInput.value); chatInput.value = ''; chatInput.blur(); }
+    if (e.key === 'Enter') { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; chatInput.blur(); }
     if (e.key === 'Escape') { chatInput.value = ''; chatInput.blur(); }
     e.stopPropagation(); return;
   }
@@ -1357,6 +1444,14 @@ function init() {
     stickEl.addEventListener('pointerup', end);
     stickEl.addEventListener('pointercancel', end);
   }
+
+  const sendBtn = document.getElementById('sendBtn');
+  if (sendBtn) sendBtn.onclick = () => { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; };
+  const attBtn = document.getElementById('attBtn');
+  const fileInput = document.getElementById('fileInput');
+  if (attBtn && fileInput) { attBtn.onclick = () => fileInput.click(); fileInput.onchange = onFilePicked; }
+  const micBtn = document.getElementById('micBtn');
+  if (micBtn) micBtn.onclick = micToggle;
 
   // panel de diagnóstico: tocar el reloj lo abre/cierra
   const np = document.getElementById('netPanel');

@@ -39,7 +39,14 @@
   </div>
   <div id="chatPanel">
     <div id="chatLog"></div>
-    <input id="chatInput" maxlength="200" placeholder="Enter para hablar…  /w nombre msg = privado" autocomplete="off">
+    <div id="attChip" class="hidden"></div>
+    <div id="chatRow">
+      <button id="attBtn" title="Adjuntar imagen">📎</button>
+      <button id="micBtn" title="Grabar audio: tocá una vez para grabar, de nuevo para cortar">🎤</button>
+      <input id="chatInput" maxlength="200" placeholder="Escribí acá…  /w nombre msg = privado" autocomplete="off">
+      <button id="sendBtn" title="Enviar">➤</button>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" style="display:none">
   </div>
   <div id="playerList"></div>
   <div id="statusBar"></div>

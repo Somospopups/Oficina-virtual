@@ -194,3 +194,17 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #netPanel .ok { color: #7ee787; }
 #netPanel .bad { color: #ff8a8a; }
 #clock { cursor: pointer; }
+
+/* Fila de chat con botones */
+#chatRow { display: flex; gap: 4px; align-items: center; padding: 6px; border-top: 2px solid #232b3d; }
+#chatRow button { background: #1b2230; border: 2px solid #2c3550; border-radius: 6px; color: #cdd5e4; font-size: 12px; padding: 8px 9px; cursor: pointer; flex: 0 0 auto; }
+#chatRow button:hover { background: #26304a; }
+#chatRow #chatInput { flex: 1 1 auto; min-width: 0; border: 2px solid #3b4560 !important; padding: 8px 10px !important; font-size: 10px !important; }
+#micBtn.rec { background: #7a1f1f; border-color: #ff5a5a; animation: recPulse 1s infinite; }
+@keyframes recPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+#attChip { display: flex; align-items: center; gap: 6px; padding: 6px 8px; font-size: 8px; color: #9fb0cc; background: #10141d; }
+#attChip.hidden { display: none; }
+#attChip img { width: 34px; height: 34px; object-fit: cover; border: 1px solid #3b4560; }
+#attChip button { background: #33251a; border: 1px solid #8a5a2b; color: #e8c39a; border-radius: 4px; font-size: 8px; padding: 2px 6px; cursor: pointer; }
+.chat-att { display: block; max-width: 190px; max-height: 140px; margin-top: 5px; border: 2px solid #3b4560; border-radius: 6px; cursor: pointer; }
+.chat-att-a { display: block; width: 190px; height: 34px; margin-top: 5px; }
