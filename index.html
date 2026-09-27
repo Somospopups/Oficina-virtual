@@ -6,7 +6,7 @@
 <title>🏢 Oficina Virtual — Equipo opencode</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1.27.0">
+<link rel="stylesheet" href="style.css?v=1.28.0">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
 </head>
 <body>
@@ -94,6 +94,20 @@
   <div class="tips">El que le da play es el DJ: suena sincronizado para todos los que estén en la oficina.</div>
 </div>
 <div id="ytBox"></div>
+
+<!-- Vista previa y descarga de adjuntos del chat -->
+<div id="attachmentModal" class="attachment-modal hidden" role="dialog" aria-modal="true" aria-labelledby="attachmentModalTitle">
+  <div class="attachment-modal-card">
+    <div class="attachment-modal-head">
+      <div id="attachmentModalTitle">Vista previa</div>
+      <div class="attachment-modal-actions">
+        <a id="attachmentDownload" class="attachment-download" href="#" download>⬇ Descargar</a>
+        <button id="attachmentClose" type="button" aria-label="Cerrar vista previa">✕</button>
+      </div>
+    </div>
+    <div id="attachmentPreview" class="attachment-preview"></div>
+  </div>
+</div>
 
 <div id="toast"></div>
 <script>document.write('<script src="game.js?t=' + Date.now() + '"><\/script>');</script>

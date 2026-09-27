@@ -248,7 +248,10 @@ body.desktop-rails #clock {
   width: 100%; padding: 8px 6px; font-size: 8px; letter-spacing: 0;
   white-space: nowrap; overflow: hidden;
 }
-body.desktop-rails #musicBtn { align-self: flex-start; padding: 6px 9px; font-size: 13px; }
+body.desktop-rails #musicBtn {
+  position: fixed; z-index: 45; right: 12px; left: auto; align-self: auto;
+  padding: 6px 9px; font-size: 13px;
+}
 body.desktop-rails #playerList {
   width: calc(var(--desktop-rail-width) - 24px);
   padding: 9px; background: rgba(12, 16, 25, 0.96);
@@ -261,5 +264,48 @@ body.desktop-rails #netPanel {
   max-height: calc(100vh - 112px); overflow-y: auto;
 }
 body.desktop-rails #musicPanel {
-  top: 98px; width: calc(var(--desktop-rail-width) - 24px);
+  top: 98px; left: auto; right: 12px; width: calc(var(--desktop-rail-width) - 24px);
+  max-height: calc(100vh - 190px); overflow-y: auto; box-sizing: border-box;
 }
+body.desktop-rails #musicPanel .mp-row { width: 100%; gap: 4px; }
+body.desktop-rails #musicPanel .mp-row button {
+  flex: 1 1 0; min-width: 0; padding: 6px 2px; font-size: 7px;
+  white-space: nowrap; line-height: 1.5;
+}
+body.desktop-rails #musicPanel #mpVol { flex: 1 1 auto; min-width: 0; width: 100%; }
+
+/* Adjuntos: miniatura clickeable y modal con previsualización/descarga */
+.chat-att-open, .chat-audio-open {
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  margin-top: 5px; padding: 6px 8px; border: 2px solid #3b4560; border-radius: 6px;
+  background: #111723; color: #cdd5e4; box-shadow: 2px 2px 0 rgba(0,0,0,0.35);
+  font-family: inherit; font-size: 8px; line-height: 1.6; text-align: left;
+}
+.chat-att-open:hover, .chat-audio-open:hover { filter: brightness(1.15); }
+.chat-att-open .chat-att { margin-top: 0; }
+.chat-att-label { color: #9fb0cc; }
+.attachment-modal {
+  position: fixed; inset: 0; z-index: 998; display: flex; align-items: center; justify-content: center;
+  padding: 12px; background: rgba(4,6,10,0.84); backdrop-filter: blur(4px);
+}
+.attachment-modal.hidden { display: none; }
+.attachment-modal-card {
+  width: min(960px, calc(100vw - 24px)); height: min(760px, calc(100vh - 24px));
+  display: flex; flex-direction: column; gap: 10px; padding: 12px;
+  background: #151b28; border: 3px solid #3b4560; box-shadow: 0 0 0 2px rgba(255,215,106,0.3), 8px 8px 0 rgba(0,0,0,0.55);
+}
+.attachment-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #ffd76a; font-size: 10px; }
+.attachment-modal-actions { display: flex; align-items: center; gap: 8px; }
+.attachment-download, #attachmentClose {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 34px;
+  padding: 7px 10px; border: 2px solid #3b4560; background: #222b3e; color: #e8e6df;
+  font: inherit; font-size: 8px; text-decoration: none; cursor: pointer;
+}
+.attachment-download:hover, #attachmentClose:hover { background: #303c55; }
+#attachmentClose { border-color: #8a5a5a; background: #392126; }
+.attachment-preview {
+  flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; align-items: center; justify-content: center;
+  padding: 8px; background: #090d13; border: 2px solid #2c3550;
+}
+.attachment-preview img { display: block; max-width: 100%; max-height: calc(88vh - 110px); object-fit: contain; }
+.attachment-preview audio { width: min(720px, 94%); }

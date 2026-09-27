@@ -834,7 +834,12 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.27.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const attachmentModal = document.getElementById('attachmentModal');
+const attachmentModalTitle = document.getElementById('attachmentModalTitle');
+const attachmentPreviewBox = document.getElementById('attachmentPreview');
+const attachmentDownload = document.getElementById('attachmentDownload');
+let activeAttachmentUrl = null;
+const VERSION = 'v1.28.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -868,6 +873,22 @@ function myPublic() {
   };
 }
 function sendMoveNow() { const p = myPublic(); if (p) send(Object.assign({ type: 'move' }, p)); }
+
+function layoutDesktopAudio() {
+  const button = document.getElementById('musicBtn');
+  const panel = document.getElementById('musicPanel');
+  if (!button || !panel) return;
+  if (!document.body.classList.contains('desktop-rails')) {
+    button.style.top = ''; button.style.right = ''; button.style.left = '';
+    panel.style.top = ''; panel.style.right = ''; panel.style.left = '';
+    return;
+  }
+  const list = document.getElementById('playerList');
+  const top = Math.ceil((list ? list.getBoundingClientRect().bottom : 100) + 10);
+  button.style.top = top + 'px'; button.style.right = '12px'; button.style.left = 'auto';
+  const buttonH = button.getBoundingClientRect().height || 36;
+  panel.style.top = (top + buttonH + 8) + 'px'; panel.style.right = '12px'; panel.style.left = 'auto';
+}
 
 function connect() {
   if (!USE_P2P) { connectWS(); return; }
@@ -1161,22 +1182,82 @@ function addChat(from, text, cls, to, att) {
   else if (cls === 'whisper') div.innerHTML = `<b>${esc(from === state.myName ? 'vos' : from)}</b> ${esc(text)} <i>(privado${from === state.myName ? ' a ' + esc(to) : ''})</i>`;
   else div.innerHTML = `<b>${esc(from)}</b> ${esc(text)}`;
   if (att && att.data) {
+    const owner = from || 'equipo';
     if (att.kind === 'img') {
+      const open = document.createElement('button');
+      open.type = 'button'; open.className = 'chat-att-open';
+      open.title = 'Abrir vista previa y descargar';
       const img = document.createElement('img');
       img.className = 'chat-att';
       img.src = `data:${att.mime || 'image/jpeg'};base64,${att.data}`;
-      img.onclick = () => window.open(img.src, '_blank');
-      div.appendChild(img);
+      img.alt = 'Imagen adjunta de ' + owner;
+      const label = document.createElement('span');
+      label.className = 'chat-att-label'; label.textContent = '🔎 Previsualizar / descargar';
+      open.append(img, label);
+      open.onclick = () => openAttachmentPreview(att, owner);
+      div.appendChild(open);
     } else if (att.kind === 'audio') {
       const au = document.createElement('audio');
       au.controls = true; au.className = 'chat-att-a';
       au.src = `data:${att.mime || 'audio/webm'};base64,${att.data}`;
-      div.appendChild(au);
+      const open = document.createElement('button');
+      open.type = 'button'; open.className = 'chat-audio-open';
+      open.textContent = '🔎 Abrir / descargar audio';
+      open.onclick = () => openAttachmentPreview(att, owner);
+      div.append(au, open);
     }
   }
   chatLog.appendChild(div); chatLog.scrollTop = chatLog.scrollHeight;
   while (chatLog.children.length > 120) chatLog.removeChild(chatLog.firstChild);
 }
+function attachmentMime(att) {
+  return String(att.mime || (att.kind === 'img' ? 'image/jpeg' : 'audio/webm')).split(';')[0].trim().toLowerCase();
+}
+function attachmentExtension(mime) {
+  return ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp',
+    'audio/webm': '.webm', 'audio/ogg': '.ogg', 'audio/mp4': '.m4a', 'audio/mpeg': '.mp3', 'audio/wav': '.wav' })[mime] || '.bin';
+}
+function openAttachmentPreview(att, owner) {
+  if (!attachmentModal || !attachmentPreviewBox || !attachmentDownload || !att || !att.data) return;
+  try {
+    const oldAudio = attachmentPreviewBox.querySelector('audio');
+    if (oldAudio) oldAudio.pause();
+    attachmentPreviewBox.innerHTML = '';
+    if (activeAttachmentUrl) URL.revokeObjectURL(activeAttachmentUrl);
+    const binary = atob(att.data), bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const mime = attachmentMime(att);
+    activeAttachmentUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+    if (att.kind === 'img') {
+      const img = document.createElement('img');
+      img.src = activeAttachmentUrl; img.alt = 'Imagen enviada por ' + (owner || 'el equipo');
+      attachmentPreviewBox.appendChild(img);
+    } else if (att.kind === 'audio') {
+      const audio = document.createElement('audio');
+      audio.controls = true; audio.preload = 'metadata'; audio.src = activeAttachmentUrl;
+      attachmentPreviewBox.appendChild(audio);
+    } else return;
+    if (attachmentModalTitle) attachmentModalTitle.textContent = (att.kind === 'img' ? 'Vista previa de imagen' : 'Vista previa de audio') + ' · ' + (owner || 'equipo');
+    attachmentDownload.href = activeAttachmentUrl;
+    attachmentDownload.download = 'oficina-' + (att.kind === 'img' ? 'imagen' : 'audio') + '-' + Date.now() + attachmentExtension(mime);
+    attachmentModal.classList.remove('hidden');
+  } catch (e) {
+    toast('⚠️ No se pudo abrir el adjunto');
+  }
+}
+function closeAttachmentPreview() {
+  if (attachmentModal) attachmentModal.classList.add('hidden');
+  if (attachmentPreviewBox) {
+    const audio = attachmentPreviewBox.querySelector('audio');
+    if (audio) audio.pause();
+    attachmentPreviewBox.innerHTML = '';
+  }
+  if (activeAttachmentUrl) {
+    const oldUrl = activeAttachmentUrl; activeAttachmentUrl = null;
+    setTimeout(() => URL.revokeObjectURL(oldUrl), 30000);
+  }
+}
+
 function sendChat(raw, att) {
   const text = raw.trim();
   if (!text && !att) return;
@@ -1472,6 +1553,7 @@ function renderPlayerList() {
       const isMe = p.id === state.myId;
       return `<div class="pl-row${isMe ? ' me' : ''}"><span class="dot" style="background:${(CHAR_DEF[p.char] || CHAR_DEF.ger).dot}"></span>${esc(p.name)}${isMe ? ' (vos)' : ''}${p.seated ? ' 🪑' : ''} <span class="pl-status">${st.emoji} ${st.label}</span></div>`;
     }).join('');
+  layoutDesktopAudio();
 }
 
 // ---------- Movimiento en perspectiva ----------
@@ -1525,6 +1607,10 @@ function zoneAt(x, y) {
 }
 
 window.addEventListener('keydown', (e) => {
+  if (attachmentModal && !attachmentModal.classList.contains('hidden')) {
+    if (e.key === 'Escape') { closeAttachmentPreview(); e.preventDefault(); }
+    return;
+  }
   if (document.activeElement === chatInput) {
     if (e.key === 'Enter') { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; chatInput.blur(); e.preventDefault(); }
     if (e.key === 'Escape') { chatInput.value = ''; chatInput.blur(); e.preventDefault(); }
@@ -1672,6 +1758,7 @@ function resize() {
   viewOY = (canvas.height - VH * viewScale) / 2;
   document.documentElement.style.setProperty('--desktop-rail-width', Math.max(0, Math.round(viewOX)) + 'px');
   document.body.classList.toggle('desktop-rails', canvas.width > 900 && viewOX >= 220);
+  layoutDesktopAudio();
   ctx.imageSmoothingEnabled = false;
   layoutMobile();
 }
@@ -2064,6 +2151,9 @@ function init() {
   const bp3 = document.getElementById('mpStop'); if (bp3) bp3.onclick = mpStop;
   const mv = document.getElementById('mpVol');
   if (mv) mv.oninput = () => ytCmd('setVolume', [+mv.value]);
+  const attachmentClose = document.getElementById('attachmentClose');
+  if (attachmentClose) attachmentClose.onclick = closeAttachmentPreview;
+  if (attachmentModal) attachmentModal.addEventListener('click', (e) => { if (e.target === attachmentModal) closeAttachmentPreview(); });
 
   // stick táctil (móvil)
   state.stick = { x: 0, y: 0, active: false };
