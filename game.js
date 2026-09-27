@@ -478,6 +478,19 @@ function rtcReintentar(audio) {
   audio.volume = rtcVolumen();
   return audio.play().then(() => true).catch(() => false);
 }
+// Antes habia un boton 🔇 "tocá para escucharlos" cuando el navegador bloqueaba
+// el autoplay. Ya no hace falta: cualquier click o tecla del usuario es un gesto
+// válido, así que se reintenta solo y el audio se destraba sin que nadie lo note.
+function rtcDesbloquearPorGesto() {
+  if (!rtcBloqueado || !rtcVivo.size) return;
+  try {
+    const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+    if (ctx.state === 'suspended') ctx.resume();
+  } catch { /* medir el nivel es opcional */ }
+  Promise.allSettled([...rtcVivo.values()].map((v) => rtcReintentar(v.audio))).then(() => rtcRefrescarBloqueo());
+}
+window.addEventListener('pointerdown', rtcDesbloquearPorGesto, true);
+window.addEventListener('keydown', rtcDesbloquearPorGesto, true);
 
 function rtcConectarAudio(peer, stream) {
   let v = rtcVivo.get(peer);
@@ -620,8 +633,6 @@ function renderCallUI() {
   }
   const vb = document.getElementById('callVolBox');
   if (vb) vb.classList.toggle('hidden', !rtcOn && !rtcVivo.size);
-  const lb = document.getElementById('callListen');
-  if (lb) lb.classList.toggle('hidden', !rtcBloqueado);
   const pl = document.getElementById('playerList');
   if (pl) pl.classList.toggle('mic-off', !rtcOn && !rtcVivo.size);
 }
@@ -1230,7 +1241,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v46 · 27/09/2026';
+const VERSION = 'v47 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2948,26 +2959,6 @@ function init() {
   // Llamada de la oficina: micro, pantalla y volumen
   const bMic = document.getElementById('micCallBtn'); if (bMic) bMic.onclick = rtcToggle;
   const bShare = document.getElementById('shareBtn'); if (bShare) bShare.onclick = rtcCompartir;
-  const bListen = document.getElementById('callListen');
-  if (bListen) bListen.onclick = () => {
-    // Si no hay ningun <audio> con vida, el boton quedo pegado: salir sin ruido.
-    if (!rtcVivo.size) { rtcBloqueado = false; renderCallUI(); return; }
-    // El AudioContext tambien puede estar suspendido: sin esto el volumen queda
-    // mudo aunque el <audio> si suene.
-    try {
-      const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
-      if (ctx.state === 'suspended') ctx.resume();
-    } catch { /* medir el nivel es opcional */}
-    const vivos = [...rtcVivo.values()].map((v) => rtcReintentar(v.audio));
-    Promise.allSettled(vivos).then((rs) => {
-      const colaron = rs.filter((r) => r.status === 'fulfilled' && r.value).length;
-      rtcRefrescarBloqueo();
-      // Antes el .catch era mudo: el boton desaparecia y no se entendia nada. Ahora
-      // si el navegador sigue rechazando, se dice por que y el boton se queda a la vista.
-      if (!colaron) toast('🔇 El navegador sigue sin dejar sonar el audio. Revisá el candado de la barra de direcciones o probá con auriculares.');
-      else if (colaron < rs.length) toast('🔇 Escuchás a algunos; los demas siguen bloqueados por el navegador.');
-    });
-  };
   const cVol = document.getElementById('callVol');
   if (cVol) cVol.oninput = rtcCallVolumen;
   const bFloat = document.getElementById('videoFloat'); if (bFloat) bFloat.onclick = () => setVideoFloat(!videoFloat);

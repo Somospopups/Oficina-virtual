@@ -210,8 +210,6 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #shareBtn:hover { background: #1f2736; }
 #shareBtn.on { background: #14261a; border-color: #7ee787; color: #7ee787; }
 #shareBtn:disabled { opacity: 0.35; cursor: not-allowed; }
-#callListen { font-size: 13px; background: #3a1414; border: 2px solid #e05252; border-radius: 8px; padding: 8px 9px; cursor: pointer; animation: callpulse 1.2s ease-in-out infinite; }
-@keyframes callpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 #callVolBox { display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px; color: #cdd5e4;
   background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 6px 9px; }
 #callVolBox.hidden { display: none; }
@@ -491,8 +489,7 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
     left: auto; right: 8px; top: 12px; bottom: auto;
     flex-direction: row; align-items: center;
   }
-  #callBar #micCallBtn, #callBar #shareBtn, #callBar #callListen { padding: 7px 9px; }
-  #callListen.hidden { display: none; }
+  #callBar #micCallBtn, #callBar #shareBtn { padding: 7px 9px; }
   /* A la misma altura que el reloj, que es lo unico libre: el joystick se lleva la
      esquina inferior derecha, el chat la inferior izquierda, y arriba a la
      izquierda van el reloj y la pila de estados. La lista de companeros arranca
@@ -505,7 +502,7 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
    Va al final del archivo a propósito: pisa los paddings sueltos que cada botón
    traía (y los de las media queries), así la columna queda pareja. */
 #callBar { align-items: flex-end; }
-#micCallBtn, #shareBtn, #callListen, #musicBtn {
+#micCallBtn, #shareBtn, #musicBtn {
   box-sizing: border-box; width: 38px; height: 38px; padding: 0 !important;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 14px !important; line-height: 1;
