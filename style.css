@@ -163,7 +163,7 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
   #chatPanel { left: 8px; right: 118px; width: auto; bottom: 8px; display: flex; flex-direction: column; }
   #chatLog { height: auto; flex: 1 1 auto; min-height: 60px; font-size: 8px; }
   #playerList {
-    display: block; top: 46px; right: 6px; width: calc(50vw - 14px);
+    display: block; top: 62px; right: 6px; width: calc(50vw - 14px);
     padding: 6px 8px; font-size: 7px; max-height: 42vh; box-sizing: border-box;
   }
   .pl-title { font-size: 7px; margin-bottom: 4px; }
