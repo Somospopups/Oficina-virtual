@@ -302,7 +302,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.6.2 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.7.0 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -353,6 +353,17 @@ function connectWS() {
   ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } handleMsg(m); };
 }
 
+// TURN público: sin esto, las redes 4G/LTE (NAT simétrica) no dejan que dos
+// navegadores se conecten directo. El TURN hace de relevo cuando hace falta.
+const RTC_CFG = {
+  iceServers: [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    {
+      urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'],
+      username: 'openrelayproject', credential: 'openrelayproject',
+    },
+  ],
+};
 const P2P_STRATS = ['nostr', 'mqtt'];
 const p2pRooms = [];
 let p2pPeerCount = 0;
@@ -367,7 +378,7 @@ async function connectP2P() {
 async function joinStrategy(strat, attempt) {
   try {
     const mod = await import(`https://esm.run/trystero/${strat}`);
-    const room = mod.joinRoom({ appId: 'oficina-virtual-somospopups-v1' }, 'oficina-principal');
+    const room = mod.joinRoom({ appId: 'oficina-virtual-somospopups-v1', rtcConfig: RTC_CFG }, 'oficina-principal');
     p2pRooms.push(room);
     const [sendG, recvG] = room.makeAction('g');
     room._sendG = sendG;
@@ -828,6 +839,10 @@ function update(dt) {
     if (keys['arrowup'] || keys['w']) dy -= 1;
     if (keys['arrowdown'] || keys['s']) dy += 1;
   }
+  if (state.stick && state.stick.active) {
+    if (Math.abs(state.stick.x) > 0.12) dx += state.stick.x;
+    if (Math.abs(state.stick.y) > 0.12) dy += state.stick.y;
+  }
   const want = dx !== 0 || dy !== 0;
 
   if (me.seated && want) {
@@ -1045,6 +1060,28 @@ function init() {
   const bp3 = document.getElementById('mpStop'); if (bp3) bp3.onclick = mpStop;
   const mv = document.getElementById('mpVol');
   if (mv) mv.oninput = () => { try { if (ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(+mv.value); } catch {} };
+
+  // stick táctil (móvil)
+  state.stick = { x: 0, y: 0, active: false };
+  const stickEl = document.getElementById('stick'), knobEl = document.getElementById('stickKnob');
+  if (stickEl && knobEl) {
+    let sid = null;
+    const setFrom = (e) => {
+      const r = stickEl.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      let vx = e.clientX - cx, vy = e.clientY - cy;
+      const max = r.width / 2 - 12;
+      const dd = Math.hypot(vx, vy) || 1;
+      if (dd > max) { vx = vx / dd * max; vy = vy / dd * max; }
+      knobEl.style.transform = `translate(${vx}px, ${vy}px)`;
+      state.stick.x = vx / max; state.stick.y = vy / max; state.stick.active = true;
+    };
+    stickEl.addEventListener('pointerdown', (e) => { sid = e.pointerId; try { stickEl.setPointerCapture(sid); } catch {} setFrom(e); e.preventDefault(); });
+    stickEl.addEventListener('pointermove', (e) => { if (sid === e.pointerId) setFrom(e); });
+    const end = () => { sid = null; state.stick.x = 0; state.stick.y = 0; state.stick.active = false; knobEl.style.transform = ''; };
+    stickEl.addEventListener('pointerup', end);
+    stickEl.addEventListener('pointercancel', end);
+  }
   const q = new URLSearchParams(location.search);
   if (q.get('name')) nameInput.value = q.get('name');
   joinBtn.onclick = join;

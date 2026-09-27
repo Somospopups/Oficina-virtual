@@ -32,7 +32,10 @@
 
 <!-- HUD -->
 <div id="hud">
-  <div id="clock">🌙 --:--</div>
+  <div id="topbar">
+    <div id="clock">🌙 --:--</div>
+    <button id="musicBtn" title="Radio de la oficina (tecla P)">🎵</button>
+  </div>
   <div id="chatPanel">
     <div id="chatLog"></div>
     <input id="chatInput" maxlength="200" placeholder="Enter para hablar…  /w nombre msg = privado" autocomplete="off">
@@ -42,6 +45,9 @@
   <div id="hint"></div>
   <div id="toast"></div>
 </div>
+
+<!-- Stick táctil (solo móvil) -->
+<div id="stick"><div id="stickKnob"></div></div>
 
 <!-- Ayuda -->
 <div id="help" class="overlay hidden">
@@ -65,7 +71,6 @@
 </div>
 
 <!-- Radio de la oficina -->
-<button id="musicBtn" title="Radio de la oficina (tecla P)">🎵</button>
 <div id="musicPanel" class="hidden">
   <div class="mp-title">🎵 RADIO DE LA OFICINA</div>
   <input id="musicUrl" type="text" placeholder="Pegá un link de YouTube…" autocomplete="off">
