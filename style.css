@@ -177,7 +177,10 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
   #clock { font-size: 8px; padding: 7px 9px; }
   #musicBtn { font-size: 12px; padding: 6px 8px; }
   #musicPanel { left: 8px; top: 46px; width: min(240px, calc(100vw - 16px)); }
-#videoPanel { left: 8px; right: 8px; top: 46px; width: auto; }
+  /* Anclado, no flotante. El :not(.float) importa: body.desktop-rails le gana en
+     especificidad a #videoPanel.float, y sin esto el panel flotante terminaba
+     arriba a la derecha con top:98px en vez de centrado. */
+  #videoPanel:not(.float) { left: 8px; right: 8px; top: 46px; width: auto; }
   #stick { display: block; left: auto; right: 12px; }
   #micBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
 }
@@ -242,7 +245,9 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 }
 #videoFloat:hover { background: #26304a; }
 #videoFloat.on { background: #2f3d5e; border-color: #ffd76a; color: #ffd76a; }
-.vp-head { cursor: grab; }
+/* touch-action: none para que el dedo arrastre la ventana en vez de hacer scroll
+   en la pagina, que es lo que pasaba en la TV. */
+.vp-head { cursor: grab; touch-action: none; }
 .vp-head-btns { display: flex; gap: 4px; flex: 0 0 auto; }
 #videoPanel.dragging .vp-head { cursor: grabbing; }
 
@@ -262,7 +267,7 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 
 /* Tiradores de tamaño. Solo existen flotando: en el rincón el tamaño lo manda el
    CSS, así que no hay nada que arrastrar. */
-.vp-grip, .vp-grip-r, .vp-grip-b { position: absolute; z-index: 3; }
+.vp-grip, .vp-grip-r, .vp-grip-b { position: absolute; z-index: 3; touch-action: none; }
 #videoPanel:not(.float) .vp-grip,
 #videoPanel:not(.float) .vp-grip-r,
 #videoPanel:not(.float) .vp-grip-b { display: none; }
@@ -349,7 +354,11 @@ body.desktop-rails #musicPanel {
   max-height: calc(100vh - 190px); overflow-y: auto; box-sizing: border-box;
 }
 body.desktop-rails #musicPanel .mp-row { width: 100%; gap: 4px; }
-body.desktop-rails #videoPanel {
+/* Solo aplica al panel ANCLADO. Sin el :not(.float) esta regla le gana en
+   especificidad (1,2,1 contra 1,1,0) a #videoPanel.float y le imponia top:98px y
+   right:12px: la ventana flotante quedaba pegada arriba a la derecha y sin
+   poder moverse. */
+body.desktop-rails #videoPanel:not(.float) {
   top: 98px; right: 12px; width: calc(var(--desktop-rail-width) - 24px);
   }
 body.desktop-rails #musicPanel .mp-row button {
