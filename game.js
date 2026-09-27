@@ -831,7 +831,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.24.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.25.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -866,7 +866,14 @@ function myPublic() {
 }
 function sendMoveNow() { const p = myPublic(); if (p) send(Object.assign({ type: 'move' }, p)); }
 
-function connect() { if (USE_P2P) connectP2P(); else connectWS(); }
+function connect() {
+  if (!USE_P2P) { connectWS(); return; }
+  connectP2P().catch((e) => {
+    busErr = String((e && e.message) || e || 'falló el inicio P2P');
+    toast('⚠️ Falló el inicio de la oficina compartida; reintentando…');
+    setTimeout(connect, 8000);
+  });
+}
 
 function connectWS() {
   ws = new WebSocket(wsUrl());
@@ -954,21 +961,23 @@ function updateNetLabel() {
   p2pPeerCount = [...state.players.values()].filter((p) => p.id !== state.myId && p.seen && now - p.seen < 9000).length;
 }
 async function connectP2P() {
-  toast('🌐 Conectando oficina P2P...');
   try {
-    busKey = await makeBusKeys();
-    myPub = busKey.pub;
+    // toast() no puede interrumpir la conexión si el DOM todavía está cargando.
+    toast('🌐 Conectando oficina P2P...');
+    // En los reintentos se conserva la misma identidad; solo se abre de nuevo la red.
+    if (!busKey) { busKey = await makeBusKeys(); myPub = busKey.pub; }
+    busErr = '';
   } catch (e) {
-    busErr = String((e && e.message) || e);
-    toast('⚠️ No se pudo generar la clave P2P, reintentando...');
-    setTimeout(connectP2P, 8000);
+    busErr = String((e && e.message) || e || 'no se pudo crear la firma');
+    toast('⚠️ No se pudo iniciar P2P; reintentando...');
+    setTimeout(connect, 8000);
     return;
   }
   sendFn = busSend;
   for (const host of BUS_RELAYS) openRelay(host);
   setTimeout(() => {
     if (busSockets.length) toast(`✅ P2P conectado (${busSockets.length} relays)`);
-    else { toast('⚠️ Sin relays a la vista, reintentando...'); setTimeout(connectP2P, 8000); }
+    else { toast('⚠️ Sin relays a la vista, reintentando...'); setTimeout(connect, 8000); }
   }, 3500);
 }
 function openRelay(host) {
@@ -1369,7 +1378,12 @@ function mpStop() {
   applyMusic({ act: 'stop', vid: music.vid, pos: 0, at: Date.now(), from: state.myName }, true);
 }
 let toastTimer = null;
-function toast(t) { toastBox.textContent = t; toastBox.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastBox.classList.remove('show'), 2600); }
+function toast(t) {
+  const el = toastBox || document.getElementById('toast');
+  if (!el) return; // no impedir que la red arranque si el HTML aún está parseándose
+  el.textContent = t; el.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
 
 // ---------- Adjuntos: imágenes y audios de voz ----------
 let pendingAtt = null, mediaRec = null, recChunks = [];
