@@ -16,13 +16,13 @@
 <div id="join" class="overlay">
   <div class="join-card">
     <h1>🏢 Oficina Virtual</h1>
-    <p class="sub">El espacio 2D de tu equipo · estilo pixel art</p>
+    <p class="sub">El espacio 2D del equipo · estilo pixel art</p>
     <canvas id="avatarPreview" width="120" height="120"></canvas>
-    <input id="nameInput" maxlength="16" placeholder="Tu nombre" autocomplete="off">
-    <div class="lbl">Elegí tu color:</div>
-    <div id="colors"></div>
+    <div class="lbl">Ingresá tu DNI:</div>
+    <input id="dniInput" inputmode="numeric" maxlength="8" placeholder="Solo números, sin puntos" autocomplete="off">
+    <div id="dniError" class="dni-error"></div>
     <button id="joinBtn">▶ Entrar a la oficina</button>
-    <p class="tips">WASD/flechas para moverte · Enter para hablar · H para ayuda</p>
+    <p class="tips">Oficina privada: entrás con tu DNI y tu personaje · WASD/flechas · Enter chat · H ayuda</p>
     <div id="versionTag" style="margin-top:12px;font-size:8px;color:#7c8496;letter-spacing:1px"></div>
   </div>
 </div>

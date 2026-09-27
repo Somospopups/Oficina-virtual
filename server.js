@@ -54,9 +54,16 @@ function broadcast(obj, exceptWs = null) {
   });
 }
 
+// Roster del equipo: solo se entra con DNI registrado
+const ROSTER = [
+  { dni: '33245911', name: 'Ger',  char: 'ger' },
+  { dni: '31923010', name: 'Facu', char: 'facu' },
+  { dni: '34186736', name: 'Ovni', char: 'ovni' },
+];
+
 function publicState() {
-  return [...players.values()].map((p) => ({
-    id: p.id, name: p.name, color: p.color,
+  return [...players.values()].filter((p) => p.authed).map((p) => ({
+    id: p.id, name: p.name, char: p.char, color: p.color,
     x: p.x, y: p.y, dir: p.dir, moving: p.moving, seated: !!p.seated,
     status: p.status, bubble: p.bubble, bubbleUntil: p.bubbleUntil,
     emote: p.emote, emoteUntil: p.emoteUntil, wave: p.wave, waveUntil: p.waveUntil,
@@ -72,7 +79,7 @@ wss.on('connection', (ws) => {
 
   // Nuevo jugador aparece en la entrada (spawn)
   const player = {
-    id, name: 'Anónimo', color: 0,
+    id, name: 'Anónimo', char: null, authed: false, color: 0,
     x: 597, y: 820, // spawn: centro del pasillo, coords virtuales del fondo
     dir: 'down', moving: false, seated: false,
     status: 'disponible',
@@ -83,9 +90,8 @@ wss.on('connection', (ws) => {
   };
   players.set(id, player);
 
+  // entra como "fantasma" hasta autenticarse con DNI
   ws.send(JSON.stringify({ type: 'welcome', id, players: publicState() }));
-  broadcast({ type: 'joined', player: publicState().find((p) => p.id === id) }, ws);
-  broadcast({ type: 'system', text: `${player.name} entró a la oficina` });
 
   // Broadcast periódico de estado (20 Hz) — posiciones suaves para todos
   setInterval(() => {
@@ -102,13 +108,14 @@ wss.on('connection', (ws) => {
 
     switch (msg.type) {
       case 'profile': {
-        if (typeof msg.name === 'string' && msg.name.trim()) {
-          const old = p.name;
-          p.name = msg.name.trim().slice(0, 16);
-          p.color = Number.isInteger(msg.color) ? ((msg.color % 8) + 8) % 8 : 0;
-          broadcast({ type: 'system', text: `${old === 'Anónimo' ? '' : old + ' ahora se llama '}${p.name} 💼` });
-          broadcast({ type: 'profile', id, name: p.name, color: p.color });
-        }
+        const entry = ROSTER.find((r) => r.dni === String(msg.dni || '').replace(/\D/g, ''));
+        if (!entry) { ws.send(JSON.stringify({ type: 'auth-fail', reason: 'dni' })); return; }
+        const dup = [...players.values()].some((q) => q.authed && q.char === entry.char && q.id !== id);
+        if (dup) { ws.send(JSON.stringify({ type: 'auth-fail', reason: 'dup' })); return; }
+        p.authed = true; p.name = entry.name; p.char = entry.char;
+        broadcast({ type: 'joined', player: publicState().find((q) => q.id === id) }, ws);
+        broadcast({ type: 'system', text: `${p.name} entró a la oficina` });
+        broadcast({ type: 'profile', id, name: p.name, char: p.char, color: p.color });
         break;
       }
       case 'move': {
@@ -162,7 +169,7 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     const p = players.get(id);
     players.delete(id);
-    if (p) broadcast({ type: 'left', id, name: p.name });
+    if (p && p.authed) broadcast({ type: 'left', id, name: p.name });
   });
 });
 

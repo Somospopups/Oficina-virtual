@@ -23,14 +23,16 @@ body { font-family: 'Press Start 2P', monospace; color: #e8e6df; }
 .join-card .sub { font-size: 9px; color: #9aa4bd; margin-bottom: 16px; line-height: 1.7; }
 #avatarPreview { image-rendering: pixelated; background: #12161f; border: 2px solid #2c3550; margin-bottom: 14px; }
 
-#nameInput, #chatInput {
+#dniInput, #chatInput {
   font-family: inherit; font-size: 11px; color: #fff;
   background: #10141d; border: 3px solid #3b4560; outline: none;
   padding: 10px 12px; width: 100%;
 }
-#nameInput:focus, #chatInput:focus { border-color: #ffd76a; }
+#dniInput:focus, #chatInput:focus { border-color: #ffd76a; }
 
 .lbl { font-size: 9px; color: #9aa4bd; margin: 14px 0 8px; }
+.dni-error { display: none; font-size: 8px; color: #ff8a8a; line-height: 1.7; margin-top: 8px; }
+.dni-error.show { display: block; }
 #colors { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
 .color-btn {
   width: 26px; height: 26px; border: 3px solid #0c0f16; cursor: pointer;

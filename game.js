@@ -97,44 +97,94 @@ const BUILDINGS = [];
   }
 })();
 
+// ---------- Roster del equipo (ingreso por DNI) ----------
+const ROSTER = [
+  { dni: '33245911', name: 'Ger',  char: 'ger',  seat: 1 },
+  { dni: '31923010', name: 'Facu', char: 'facu', seat: 2 },
+  { dni: '34186736', name: 'Ovni', char: 'ovni', seat: 3 },
+];
+const CHAR_DEF = {
+  ger:  { skin: '#f0c8a0', skinD: '#d9a878', hair: '#5a3a24', beard: '#7a5a3a', beardStyle: 'goatee', shirt: '#1a1a1e', pants: '#4a6a94', shoe: '#22262e', sole: '#e8e8e8', wide: false, hairStyle: 'spiky', dot: '#8a6a4a' },
+  facu: { skin: '#eebf96', skinD: '#d09a6a', hair: '#1c1c22', beard: '#17171c', beardStyle: 'full',  shirt: '#3f6fa8', pants: '#4a6a94', shoe: '#6b4a2b', sole: null,      wide: true,  hairStyle: 'full',  dot: '#3f6fa8' },
+  ovni: { skin: '#f0c8a0', skinD: '#d9a878', hair: '#3a2c20', beard: '#2a2a30', beardStyle: 'goatee', shirt: '#e8a020', pants: '#22262e', shoe: '#e8e8e8', sole: '#9aa2ae', wide: false, hairStyle: 'cap',   dot: '#e8a020', jacket: true },
+};
+function charOf(key) { return CHAR_DEF[key] || CHAR_DEF.ger; }
+
 // ---------- Sprites de pie (32x44) ----------
 const spriteCache = {};
-function getSprite(colorIdx, dir, frame) {
-  const key = `s${colorIdx}_${dir}_${frame}`;
+function getSprite(charKey, dir, frame) {
+  const key = `s${charKey}_${dir}_${frame}`;
   if (spriteCache[key]) return spriteCache[key];
+  const c = charOf(charKey);
   const cv = document.createElement('canvas');
   cv.width = 32; cv.height = 44;
   const g = cv.getContext('2d');
-  const shirt = SHIRT_COLORS[colorIdx % 8], hair = HAIR_COLORS[colorIdx % 8];
-  const skin = '#f0c8a0', skinD = '#d9a878', pants = '#39424e', shoe = '#22262e';
   const step = frame === 1;
-  g.fillStyle = pants;
+  const bx = c.wide ? 7 : 8, bw = c.wide ? 18 : 16; // torso
+  // piernas y zapatos
+  g.fillStyle = c.pants;
   if (step) { g.fillRect(8, 32, 6, 8); g.fillRect(18, 32, 6, 8); }
   else { g.fillRect(10, 32, 6, 8); g.fillRect(16, 32, 6, 8); }
-  g.fillStyle = shoe;
+  g.fillStyle = c.shoe;
   if (step) { g.fillRect(8, 40, 6, 2); g.fillRect(18, 40, 6, 2); }
   else { g.fillRect(10, 40, 6, 2); g.fillRect(16, 40, 6, 2); }
-  g.fillStyle = shirt; g.fillRect(8, 18, 16, 14);
-  g.fillStyle = 'rgba(0,0,0,0.15)'; g.fillRect(8, 28, 16, 4);
-  g.fillStyle = shirt; g.fillRect(6, 20, 2, 10); g.fillRect(24, 20, 2, 10);
-  g.fillStyle = skin; g.fillRect(6, 30, 2, 2); g.fillRect(24, 30, 2, 2);
-  g.fillStyle = skin; g.fillRect(10, 6, 12, 12);
-  g.fillStyle = skinD; g.fillRect(10, 16, 12, 2);
-  g.fillStyle = hair;
-  if (dir === 'up') {
-    g.fillRect(10, 4, 12, 12);
-    g.fillStyle = skin; g.fillRect(12, 14, 8, 2);
-  } else if (dir === 'down') {
-    g.fillRect(10, 4, 12, 4); g.fillRect(10, 6, 2, 6); g.fillRect(20, 6, 2, 6);
-    g.fillStyle = '#26221e'; g.fillRect(12, 10, 2, 4); g.fillRect(18, 10, 2, 4);
-    g.fillStyle = '#b06a4a'; g.fillRect(14, 14, 4, 2);
-  } else if (dir === 'left') {
-    g.fillRect(10, 4, 12, 4); g.fillRect(16, 6, 6, 8);
-    g.fillStyle = '#26221e'; g.fillRect(12, 10, 2, 4);
-  } else {
-    g.fillRect(10, 4, 12, 4); g.fillRect(10, 6, 6, 8);
-    g.fillStyle = '#26221e'; g.fillRect(18, 10, 2, 4);
+  if (c.sole) { g.fillStyle = c.sole; if (step) { g.fillRect(8, 41, 6, 1); g.fillRect(18, 41, 6, 1); } else { g.fillRect(10, 41, 6, 1); g.fillRect(16, 41, 6, 1); } }
+  // torso
+  g.fillStyle = c.shirt; g.fillRect(bx, 18, bw, 14);
+  g.fillStyle = 'rgba(0,0,0,0.15)'; g.fillRect(bx, 28, bw, 4);
+  if (c.jacket) { // campera amarilla abierta sobre hoodie gris
+    g.fillStyle = '#8a94a2'; g.fillRect(13, 18, 6, 14);
+    g.fillStyle = '#6a7482'; g.fillRect(15, 18, 2, 14);
+    g.fillStyle = '#d8dce2'; g.fillRect(14, 20, 1, 4); g.fillRect(17, 20, 1, 4);
+    g.fillStyle = '#c88a10'; g.fillRect(bx, 18, 2, 14); g.fillRect(bx + bw - 2, 18, 2, 14);
   }
+  // brazos + manos
+  g.fillStyle = c.shirt; g.fillRect(bx - 2, 20, 2, 10); g.fillRect(bx + bw, 20, 2, 10);
+  if (c.jacket) { g.fillStyle = '#d8dce2'; g.fillRect(bx - 2, 28, 2, 2); g.fillRect(bx + bw, 28, 2, 2); }
+  g.fillStyle = c.skin; g.fillRect(bx - 2, 30, 2, 2); g.fillRect(bx + bw, 30, 2, 2);
+  // cabeza
+  g.fillStyle = c.skin; g.fillRect(10, 6, 12, 12);
+  g.fillStyle = c.skinD; g.fillRect(10, 16, 12, 2);
+  // pelo / gorra
+  g.fillStyle = c.hair;
+  if (c.hairStyle === 'spiky') {
+    if (dir === 'up') { g.fillRect(10, 4, 12, 12); g.fillStyle = c.skin; g.fillRect(12, 14, 8, 2); }
+    else if (dir === 'down') {
+      g.fillRect(10, 4, 12, 4); g.fillRect(10, 6, 2, 6); g.fillRect(20, 6, 2, 6);
+      g.fillRect(11, 2, 2, 3); g.fillRect(15, 1, 2, 4); g.fillRect(19, 2, 2, 3);
+    } else if (dir === 'left') { g.fillRect(10, 4, 12, 4); g.fillRect(16, 4, 6, 9); g.fillRect(12, 2, 3, 3); g.fillRect(17, 1, 3, 3); }
+    else { g.fillRect(10, 4, 12, 4); g.fillRect(10, 4, 6, 9); g.fillRect(12, 2, 3, 3); g.fillRect(17, 1, 3, 3); }
+  } else if (c.hairStyle === 'full') {
+    if (dir === 'up') { g.fillRect(10, 4, 12, 12); g.fillStyle = c.skin; g.fillRect(12, 14, 8, 2); }
+    else if (dir === 'down') { g.fillRect(10, 3, 12, 5); g.fillRect(9, 5, 3, 8); g.fillRect(20, 5, 3, 8); g.fillRect(12, 2, 8, 2); }
+    else if (dir === 'left') { g.fillRect(10, 3, 12, 5); g.fillRect(15, 3, 7, 10); }
+    else { g.fillRect(10, 3, 12, 5); g.fillRect(10, 3, 7, 10); }
+  } else { // gorra al revés
+    g.fillStyle = '#5a6470';
+    if (dir === 'up') { g.fillRect(9, 3, 14, 7); g.fillStyle = '#454e5a'; g.fillRect(9, 9, 14, 2); g.fillStyle = '#3a424c'; g.fillRect(10, 11, 12, 3); }
+    else if (dir === 'down') { g.fillRect(9, 3, 14, 6); g.fillStyle = '#454e5a'; g.fillRect(9, 8, 14, 2); g.fillStyle = c.hair; g.fillRect(10, 10, 2, 4); g.fillRect(20, 10, 2, 4); }
+    else if (dir === 'left') { g.fillRect(9, 3, 14, 6); g.fillStyle = '#454e5a'; g.fillRect(9, 8, 14, 2); g.fillStyle = '#3a424c'; g.fillRect(21, 6, 5, 3); g.fillStyle = c.hair; g.fillRect(20, 10, 2, 4); }
+    else { g.fillRect(9, 3, 14, 6); g.fillStyle = '#454e5a'; g.fillRect(9, 8, 14, 2); g.fillStyle = '#3a424c'; g.fillRect(6, 6, 5, 3); g.fillStyle = c.hair; g.fillRect(10, 10, 2, 4); }
+  }
+  // barba
+  if (c.beardStyle === 'full') {
+    g.fillStyle = c.beard;
+    if (dir === 'down') { g.fillRect(10, 12, 12, 7); g.fillRect(12, 19, 8, 2); g.fillStyle = '#26221e'; g.fillRect(14, 14, 4, 2); }
+    else if (dir === 'left') { g.fillRect(10, 10, 8, 9); g.fillRect(10, 19, 6, 2); }
+    else if (dir === 'right') { g.fillRect(14, 10, 8, 9); g.fillRect(16, 19, 6, 2); }
+  } else if (dir !== 'up') {
+    g.fillStyle = c.beard;
+    if (dir === 'down') { g.fillRect(13, 14, 6, 1); g.fillRect(14, 16, 4, 3); }
+    else if (dir === 'left') { g.fillRect(10, 14, 3, 4); g.fillRect(10, 13, 4, 1); }
+    else { g.fillRect(19, 14, 3, 4); g.fillRect(18, 13, 4, 1); }
+  }
+  // cara
+  if (dir === 'down') {
+    g.fillStyle = '#26221e'; g.fillRect(12, 10, 2, 3); g.fillRect(18, 10, 2, 3);
+    if (c.beardStyle === 'full') { g.fillRect(12, 8, 2, 1); g.fillRect(18, 8, 2, 1); }
+    if (c.beardStyle !== 'full') { g.fillStyle = '#b06a4a'; g.fillRect(14, 14, 4, 1); }
+  } else if (dir === 'left') { g.fillStyle = '#26221e'; g.fillRect(12, 10, 2, 3); }
+  else if (dir === 'right') { g.fillStyle = '#26221e'; g.fillRect(18, 10, 2, 3); }
   spriteCache[key] = cv;
   return cv;
 }
@@ -186,26 +236,51 @@ function sitB(g, shirt, hair, frame) {
   g.fillStyle = '#14161c'; g.fillRect(16, 6 + sway, 16, 3); g.fillRect(13, 12 + sway, 4, 7); g.fillRect(31, 12 + sway, 4, 7);
   chairCommon(g);
 }
-function sitC(g, shirt, hair, frame) { // OFICIAL: perfil realista, manos SOBRE el teclado
+function sitC(g, c, frame) { // OFICIAL: perfil realista, manos SOBRE el teclado
   g.fillStyle = '#1d2126'; g.fillRect(32, 4, 10, 6);
   g.fillStyle = '#2b3038'; g.fillRect(32, 10, 8, 28);
   g.fillStyle = '#14171b'; for (let y = 12; y < 36; y += 4) g.fillRect(33, y, 6, 1);
-  g.fillStyle = '#39424e'; g.fillRect(10, 40, 16, 6); // muslos (los pies van bajo el escritorio: no se dibujan)
-  g.fillStyle = shirt;
+  g.fillStyle = '#39424e'; g.fillRect(10, 40, 16, 6); // muslos (los pies van bajo el escritorio)
+  g.fillStyle = c.shirt;
   g.fillRect(16, 26, 16, 6); g.fillRect(14, 30, 18, 6); g.fillRect(14, 36, 18, 5);
-  g.fillStyle = shirt;
+  if (c.jacket) {
+    g.fillStyle = '#8a94a2'; g.fillRect(14, 30, 5, 11);
+    g.fillStyle = '#d8dce2'; g.fillRect(16, 31, 1, 4);
+  }
+  g.fillStyle = c.shirt;
   g.fillRect(8, 28, 10, 4);
   g.fillRect(4, 30, 8, 3);
   g.fillRect(10, 32, 10, 4);
   g.fillRect(6, 34, 8, 3);
-  g.fillStyle = '#f0c8a0';
+  if (c.jacket) { g.fillStyle = '#d8dce2'; g.fillRect(4, 32, 2, 1); g.fillRect(6, 36, 2, 1); }
+  g.fillStyle = c.skin;
   g.fillRect(0, 29 + (frame ? 0 : 1), 5, 3);
   g.fillRect(2, 33 + (frame ? 1 : 0), 5, 3);
-  g.fillStyle = '#f0c8a0'; g.fillRect(16, 10, 13, 14);
+  g.fillStyle = c.skin; g.fillRect(16, 10, 13, 14);
   g.fillRect(14, 16, 2, 3);
-  g.fillStyle = hair; g.fillRect(18, 8, 12, 4); g.fillRect(26, 10, 4, 9);
+  // pelo / gorra según personaje
+  if (c.hairStyle === 'spiky') {
+    g.fillStyle = c.hair;
+    g.fillRect(18, 8, 12, 4); g.fillRect(26, 10, 4, 9);
+    g.fillRect(20, 6, 2, 3); g.fillRect(24, 5, 2, 4); g.fillRect(28, 6, 2, 3);
+  } else if (c.hairStyle === 'full') {
+    g.fillStyle = c.hair;
+    g.fillRect(18, 7, 12, 5); g.fillRect(26, 9, 4, 11); g.fillRect(24, 12, 3, 6);
+  } else {
+    g.fillStyle = '#5a6470'; g.fillRect(17, 6, 14, 6);
+    g.fillStyle = '#454e5a'; g.fillRect(17, 11, 14, 2);
+    g.fillStyle = '#3a424c'; g.fillRect(29, 8, 4, 3);
+    g.fillStyle = c.hair; g.fillRect(26, 12, 3, 6);
+  }
+  // barba
+  if (c.beardStyle === 'full') {
+    g.fillStyle = c.beard;
+    g.fillRect(15, 16, 9, 8); g.fillRect(14, 20, 4, 5);
+  } else {
+    g.fillStyle = '#b06a4a'; g.fillRect(16, 20, 3, 1);
+    g.fillStyle = c.beard; g.fillRect(16, 22, 5, 3); g.fillRect(15, 19, 4, 1);
+  }
   g.fillStyle = '#26221e'; g.fillRect(18, 15, 2, 2);
-  g.fillStyle = '#b06a4a'; g.fillRect(16, 21, 3, 1);
   chairCommon(g);
 }
 function sitD(g, shirt, hair, frame) {
@@ -226,13 +301,13 @@ function sitD(g, shirt, hair, frame) {
 }
 
 const sitCache = {};
-function getSitSprite(colorIdx, face, occupied, frame = 0) {
-  const key = `v${SIT_VARIANT}_c${colorIdx}_${face}_${occupied ? 1 : 0}_${frame}`;
+function getSitSprite(charKey, face, occupied, frame = 0) {
+  const key = `vC_k${charKey}_${face}_${occupied ? 1 : 0}_${frame}`;
   if (sitCache[key]) return sitCache[key];
   const cv = document.createElement('canvas');
   cv.width = 48; cv.height = 56;
   const g = cv.getContext('2d');
-  const shirt = SHIRT_COLORS[colorIdx % 8], hair = HAIR_COLORS[colorIdx % 8];
+  const c = charOf(charKey);
   const draw = (gg) => {
     if (!occupied) {
       gg.fillStyle = '#1d2126'; gg.fillRect(30, 6, 14, 34);
@@ -242,10 +317,7 @@ function getSitSprite(colorIdx, face, occupied, frame = 0) {
       chairCommon(gg);
       return;
     }
-    if (SIT_VARIANT === 'B') sitB(gg, shirt, hair, frame);
-    else if (SIT_VARIANT === 'C') sitC(gg, shirt, hair, frame);
-    else if (SIT_VARIANT === 'D') sitD(gg, shirt, hair, frame);
-    else sitA(gg, shirt, hair, frame);
+    sitC(gg, c, frame);
   };
   if (face === 'left') draw(g);
   else { g.translate(48, 0); g.scale(-1, 1); draw(g); }
@@ -291,7 +363,7 @@ bgImg.src = 'bg_deep2.png';
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const joinOverlay = document.getElementById('join');
-const nameInput = document.getElementById('nameInput');
+const dniInput = document.getElementById('dniInput');
 const colorsBox = document.getElementById('colors');
 const joinBtn = document.getElementById('joinBtn');
 const chatLog = document.getElementById('chatLog');
@@ -302,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.7.0 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.8.0 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -329,8 +401,8 @@ function myPublic() {
   const me = state.players.get(state.myId);
   if (!me) return null;
   return {
-    id: me.id, name: me.name, color: me.color, x: me.x, y: me.y, dir: me.dir,
-    moving: me.moving, seated: me.seated, status: me.status,
+    id: me.id, name: me.name, char: me.char, color: me.color, x: me.x, y: me.y, dir: me.dir,
+    moving: me.moving, seated: me.seated, status: me.status, joinTs: state.joinTs || 0,
     bubble: me.bubble, bubbleUntil: me.bubbleUntil, emote: me.emote, emoteUntil: me.emoteUntil,
     wave: me.wave, waveUntil: me.waveUntil,
   };
@@ -405,7 +477,14 @@ function dedupe(msg) {
 function handleMsg(msg) {
   switch (msg.type) {
     case 'move':
-      if (msg.id && msg.id !== state.myId) upsertRemote(msg, false);
+      if (msg.id && msg.id === state.myId) {
+        // doble sesión del mismo DNI (P2P): el que entró último se va
+        if (msg.joinTs && state.joinTs && msg.joinTs !== state.joinTs && state.joinTs > msg.joinTs) {
+          ejectSelf('⚠️ Tu DNI se abrió en otro dispositivo. Cerrá una de las dos pestañas.');
+        }
+        break;
+      }
+      if (msg.id) upsertRemote(msg, false);
       break;
     case 'welcome':
       state.myId = msg.id;
@@ -444,7 +523,10 @@ function handleMsg(msg) {
       if (msg.at && msg.at === state.myName) { addChat(null, `${p ? p.name : 'Alguien'} te saludó 👋`, 'system'); beep(740, 0.09); }
       break;
     }
-    case 'profile': { const p = state.players.get(msg.id); if (p) { p.name = msg.name; p.color = msg.color; } renderPlayerList(); break; }
+    case 'profile': { const p = state.players.get(msg.id); if (p) { p.name = msg.name; p.char = msg.char || p.char; p.color = msg.color; } renderPlayerList(); break; }
+    case 'auth-fail':
+      ejectSelf(msg.reason === 'dup' ? '⚠️ Ese DNI ya está en la oficina (doble sesión).' : '⛔ DNI no autorizado.');
+      break;
   }
 }
 
@@ -457,7 +539,7 @@ function upsertRemote(p, snap) {
   }
   cur.pid = p._pid || cur.pid;
   cur.seen = performance.now();
-  cur.name = p.name; cur.color = p.color; cur.dir = p.dir;
+  cur.name = p.name; cur.char = p.char || cur.char; cur.color = p.color; cur.dir = p.dir;
   cur.moving = p.moving; cur.status = p.status; cur.seated = !!p.seated;
   cur.tx = p.x; cur.ty = p.y;
   if (snap || p.seated) { cur.x = p.x; cur.y = p.y; }
@@ -656,7 +738,7 @@ function renderPlayerList() {
     list.map((p) => {
       const st = STATUS_INFO[p.status] || STATUS_INFO.disponible;
       const isMe = p.id === state.myId;
-      return `<div class="pl-row${isMe ? ' me' : ''}"><span class="dot" style="background:${SHIRT_COLORS[p.color % 8]}"></span>${esc(p.name)}${isMe ? ' (vos)' : ''}${p.seated ? ' 🪑' : ''} <span class="pl-status">${st.emoji} ${st.label}</span></div>`;
+      return `<div class="pl-row${isMe ? ' me' : ''}"><span class="dot" style="background:${(CHAR_DEF[p.char] || CHAR_DEF.ger).dot}"></span>${esc(p.name)}${isMe ? ' (vos)' : ''}${p.seated ? ' 🪑' : ''} <span class="pl-status">${st.emoji} ${st.label}</span></div>`;
     }).join('');
 }
 
@@ -725,33 +807,42 @@ function nearestPlayer(maxDist = 220) {
   return best;
 }
 
-// ---------- Join ----------
-let selectedColor = 0;
-function buildColorPicker() {
-  colorsBox.innerHTML = '';
-  SHIRT_COLORS.forEach((c, i) => {
-    const b = document.createElement('button');
-    b.className = 'color-btn' + (i === 0 ? ' sel' : '');
-    b.style.background = c;
-    b.onclick = () => { selectedColor = i; document.querySelectorAll('.color-btn').forEach((x) => x.classList.remove('sel')); b.classList.add('sel'); previewAvatar(i); };
-    colorsBox.appendChild(b);
-  });
-  previewAvatar(0);
-}
-function previewAvatar(i) {
+// ---------- Join (autenticación por DNI) ----------
+function previewChar(charKey) {
   const pv = document.getElementById('avatarPreview');
+  if (!pv) return;
   const g = pv.getContext('2d');
   g.imageSmoothingEnabled = false;
   g.clearRect(0, 0, pv.width, pv.height);
-  g.drawImage(getSitSprite(i, 'left', true, 0), 0, 0, 48, 56, (pv.width - 96) / 2, (pv.height - 112) / 2, 96, 112);
+  if (!charKey) return;
+  g.drawImage(getSprite(charKey, 'down', 0), 0, 0, 32, 44, (pv.width - 96) / 2, (pv.height - 132) / 2, 96, 132);
+}
+function dniError(msg) {
+  const e = document.getElementById('dniError');
+  if (!e) return;
+  e.textContent = msg || '';
+  e.classList.toggle('show', !!msg);
+}
+function seatFor(entry) {
+  const pref = SEATS[entry.seat];
+  const taken = (s) => { for (const p of state.players.values()) if (p.id !== state.myId && Math.hypot(p.x - s.x, p.y - s.y) < 80) return true; return false; };
+  if (pref && !taken(pref)) return pref;
+  for (const s of SEATS) if (!taken(s)) return s;
+  return null;
 }
 function join() {
-  const name = (nameInput.value || '').trim() || ('Invitado' + Math.floor(Math.random() * 99));
-  state.myName = name; state.myColor = selectedColor; state.joined = true;
-  const seat = freeSeat();
+  const dni = (dniInput.value || '').replace(/\D/g, '');
+  const entry = ROSTER.find((r) => r.dni === dni);
+  if (!entry) { dniError('⛔ DNI no autorizado: la oficina es privada del equipo.'); return; }
+  const dup = [...state.players.values()].find((p) => p.char === entry.char && p.id !== state.myId && performance.now() - (p.seen || 0) < 9000);
+  if (dup) { dniError(`⚠️ ${entry.name} ya está en la oficina desde otro dispositivo.`); return; }
+  dniError('');
+  state.myChar = entry.char; state.myName = entry.name; state.joined = true; state.joinTs = state.joinTs || Date.now();
+  if (USE_P2P) state.myId = entry.char;
+  const seat = seatFor(entry);
   const sx = seat ? seat.x : VW / 2, sy = seat ? seat.y : 820;
   const me = {
-    id: state.myId || 'me', name, color: selectedColor,
+    id: state.myId || 'me', name: entry.name, char: entry.char, color: 0,
     x: sx, y: sy, tx: sx, ty: sy,
     dir: seat ? seat.face : 'up', moving: false, seated: !!seat,
     status: seat ? 'codeando' : 'disponible',
@@ -759,12 +850,19 @@ function join() {
   };
   if (state.myId) state.players.set(state.myId, me);
   joinOverlay.classList.add('hidden');
-  send({ type: 'profile', id: state.myId, name, color: selectedColor });
+  send({ type: 'profile', id: state.myId, name: entry.name, char: entry.char, dni });
   sendMoveNow();
   if (seat) { setStatus('codeando', true); addChat(null, 'Te sentaste en tu puesto 💻 — WASD para levantarte', 'system'); }
-  addChat(null, `¡Bienvenido/a a la oficina, ${name}! Presioná H para la ayuda.`, 'system');
+  addChat(null, `¡Bienvenido/a a la oficina, ${entry.name}! Presioná H para la ayuda.`, 'system');
   beep(523, 0.09); setTimeout(() => beep(784, 0.12), 100);
   renderPlayerList();
+}
+function ejectSelf(reason) {
+  state.joined = false;
+  state.players.delete(state.myId);
+  sendFn = null;
+  joinOverlay.classList.remove('hidden');
+  dniError(reason);
 }
 
 // ---------- Bucle ----------
@@ -974,14 +1072,14 @@ function render() {
     if (p.seated) {
       const ss = sitScale(p.y);
       const sframe = Math.floor(now / 280) % 2;
-      const spr = getSitSprite(p.color || 0, p.x < VW / 2 ? 'left' : 'right', true, sframe);
+      const spr = getSitSprite(p.char || 'ger', p.x < VW / 2 ? 'left' : 'right', true, sframe);
       const w = 41 * ss, h = 48 * ss;
       ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
       topY = p.y - h; shR = 15 * ss; fs = Math.round(3.1 * ss);
     } else {
       const s = depthScale(p.y);
       const f = p.id === state.myId ? (p.moving ? frame : 0) : (p.moving ? Math.floor(now / 160) % 2 : 0);
-      const spr = getSprite(p.color || 0, p.dir || 'down', f);
+      const spr = getSprite(p.char || 'ger', p.dir || 'down', f);
       const w = 32 * s, h = 44 * s;
       ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
       if (p.wave && now < p.waveUntil) {
@@ -1052,7 +1150,6 @@ function init() {
   if (USE_P2P) state.myId = 'me' + Math.random().toString(36).slice(2, 8);
   resize();
   buildStatusBar();
-  buildColorPicker();
   renderPlayerList();
   const mb = document.getElementById('musicBtn'); if (mb) mb.onclick = mpToggle;
   const bp1 = document.getElementById('mpPlay'); if (bp1) bp1.onclick = mpPlay;
@@ -1083,9 +1180,14 @@ function init() {
     stickEl.addEventListener('pointercancel', end);
   }
   const q = new URLSearchParams(location.search);
-  if (q.get('name')) nameInput.value = q.get('name');
+  if (q.get('dni')) dniInput.value = q.get('dni');
   joinBtn.onclick = join;
-  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+  dniInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+  dniInput.addEventListener('input', () => {
+    const entry = ROSTER.find((r) => r.dni === dniInput.value.replace(/\D/g, ''));
+    previewChar(entry ? entry.char : null);
+    dniError('');
+  });
   connect();
   requestAnimationFrame(loop);
 }
