@@ -161,7 +161,7 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
   /* v1.11.2: botones en columna IZQUIERDA, lista de jugadores a la derecha */
   #statusBar {
     width: calc(50vw - 14px); max-width: none; bottom: auto; top: 46px; left: 8px; right: auto; transform: none;
-    display: flex; flex-direction: column; gap: 12px; justify-content: flex-start; align-items: stretch;
+    display: flex; flex-direction: column; gap: 8px; justify-content: flex-start; align-items: stretch;
   }
   .status-btn { font-size: 8px; padding: 10px 6px; text-align: center; white-space: normal; line-height: 1.5; box-sizing: border-box; box-shadow: 2px 2px 0 rgba(0,0,0,0.5); }
   .status-btn .key { display: none; }
