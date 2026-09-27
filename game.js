@@ -779,7 +779,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.18.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.19.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1560,7 +1560,7 @@ function ejectSelf(reason) {
 }
 
 // ---------- Bucle ----------
-let lastT = performance.now(), animT = 0;
+let lastT = performance.now();
 function resize() {
   canvas.width = window.innerWidth; canvas.height = window.innerHeight;
   viewScale = Math.min(canvas.width / VW, canvas.height / VH);
@@ -1677,7 +1677,7 @@ function update(dt) {
     if (walkable(nx, me.y)) me.x = nx;
     if (walkable(me.x, ny)) me.y = ny;
     me.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
-    me.moving = true; animT += dt * 1000;
+    me.moving = true;
   } else {
     me.moving = false;
     if (!me.seated) {
@@ -1808,7 +1808,6 @@ function render() {
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  const frame = Math.floor(animT / 160) % 2;
   const list = [...state.players.values()].sort((a, b) => a.y - b.y);
   for (const p of list) {
     if (!p.name) continue;
@@ -1827,8 +1826,7 @@ function render() {
       topY = p.y - h; shR = 15 * ss; fs = Math.round(3.1 * ss);
     } else {
       const s = depthScale(p.y);
-      const f = p.id === state.myId ? (p.moving ? frame : 0) : (p.moving ? Math.floor(now / 160) % 2 : 0);
-      const spr = getSprite(p.char || 'ger', p.dir || 'down', f);
+      const spr = getSprite(p.char || 'ger', p.dir || 'down', 0);
       // La altura en pantalla no cambia respecto al sprite por código (44*s), pero
       // el ancho sale de la proporción real del sprite: los PNG de referencia son
       // mucho más esbeltos que el chibi de la grilla de 4x.
@@ -1836,7 +1834,25 @@ function render() {
       const conAsset = assetsReady && !!charAssets[p.char || 'ger'];
       ctx.imageSmoothingEnabled = conAsset;              // ver nota arriba del setTransform
       if (conAsset) ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
+
+      // Caminata: la foto de referencia es una pose única, así que no hay pasos que
+      // recortar (intentar separar las piernas por capas deja artefactos: la IA
+      // pintó la sombra entre ellas como tono opaco y no hay frontera limpia). Lo
+      // que sí da lectura de movimiento es el rebote, el balanceo y el squash: cada
+      // cuadro la figura se comprime y se estira un poco alrededor de los pies.
+      if (p.moving) {
+        const ph = Math.floor(now / 150) % 2;
+        const dy = ph ? -s * 0.42 : s * 0.12;
+        const dx = ph ? s * 0.3 : -s * 0.3;
+        const sx = ph ? 0.985 : 1.025, sy = ph ? 1.02 : 0.975;
+        ctx.save();
+        ctx.translate(p.x + dx, p.y + dy);
+        ctx.scale(sx, sy);
+        ctx.drawImage(spr, -w / 2, -h, w, h);
+        ctx.restore();
+      } else {
+        ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
+      }
       if (p.wave && now < p.waveUntil) {
         ctx.save(); ctx.translate(p.x - w / 2, p.y - h); ctx.scale(w / 32, h / 44);
         drawWaveArm(ctx, p.color || 0, now);
