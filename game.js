@@ -155,8 +155,7 @@ function sitA(g, shirt, hair, frame) {
   g.fillStyle = '#14171b'; g.fillRect(32, 10, 10, 2); g.fillRect(32, 16, 10, 2);
   g.fillStyle = '#e8e8e8'; g.fillRect(35, 12, 4, 3);
   const bob = frame ? 1 : 0;
-  g.fillStyle = '#39424e'; g.fillRect(12, 40, 14, 6); g.fillRect(8, 44, 6, 8);
-  g.fillStyle = '#22262e'; g.fillRect(4, 50, 8, 3);
+  g.fillStyle = '#39424e'; g.fillRect(12, 40, 14, 6); // muslos (los pies van bajo el escritorio: no se dibujan)
   g.fillStyle = shirt; g.fillRect(14, 26 + bob, 18, 15);
   g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(14, 36 + bob, 18, 5);
   g.fillStyle = shirt;
@@ -191,8 +190,7 @@ function sitC(g, shirt, hair, frame) { // OFICIAL: perfil realista, manos SOBRE 
   g.fillStyle = '#1d2126'; g.fillRect(32, 4, 10, 6);
   g.fillStyle = '#2b3038'; g.fillRect(32, 10, 8, 28);
   g.fillStyle = '#14171b'; for (let y = 12; y < 36; y += 4) g.fillRect(33, y, 6, 1);
-  g.fillStyle = '#39424e'; g.fillRect(10, 40, 16, 6); g.fillRect(6, 44, 6, 9);
-  g.fillStyle = '#22262e'; g.fillRect(2, 51, 9, 3);
+  g.fillStyle = '#39424e'; g.fillRect(10, 40, 16, 6); // muslos (los pies van bajo el escritorio: no se dibujan)
   g.fillStyle = shirt;
   g.fillRect(16, 26, 16, 6); g.fillRect(14, 30, 18, 6); g.fillRect(14, 36, 18, 5);
   g.fillStyle = shirt;
