@@ -63,7 +63,7 @@ const ROSTER = [
 
 function publicState() {
   return [...players.values()].filter((p) => p.authed).map((p) => ({
-    id: p.id, name: p.name, char: p.char, color: p.color,
+    id: p.id, name: p.name, char: p.char, color: p.color, joinTs: p.joinTs,
     x: p.x, y: p.y, dir: p.dir, moving: p.moving, seated: !!p.seated,
     status: p.status, bubble: p.bubble, bubbleUntil: p.bubbleUntil,
     emote: p.emote, emoteUntil: p.emoteUntil, wave: p.wave, waveUntil: p.waveUntil,
@@ -79,7 +79,7 @@ wss.on('connection', (ws) => {
 
   // Nuevo jugador aparece en la entrada (spawn)
   const player = {
-    id, name: 'Anónimo', char: null, authed: false, color: 0,
+    id, name: 'Anónimo', char: null, authed: false, color: 0, joinTs: Date.now(),
     x: 597, y: 820, // spawn: centro del pasillo, coords virtuales del fondo
     dir: 'down', moving: false, seated: false,
     status: 'disponible',

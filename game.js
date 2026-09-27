@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.9.2 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.9.3 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -657,11 +657,13 @@ function upsertRemote(p, snap) {
   }
   cur.pid = p._pid || cur.pid;
   cur.seen = performance.now();
+  cur.joinTs = p.joinTs || cur.joinTs;
   cur.name = p.name; cur.char = p.char || cur.char; cur.color = p.color; cur.dir = p.dir;
   cur.moving = p.moving; cur.status = p.status; cur.seated = !!p.seated;
   cur.tx = p.x; cur.ty = p.y;
   if (snap || p.seated) { cur.x = p.x; cur.y = p.y; }
   if (p.bubble && cur.bubble !== p.bubble) { cur.bubble = p.bubble; cur.bubbleUntil = performance.now() + 5000; }
+  resolveSeatConflict();
 }
 
 // ---------- UI ----------
@@ -872,6 +874,29 @@ function seatNear(x, y, r = 110) {
   let best = null, bd = r;
   for (const s of SEATS) { const d = Math.hypot(s.x - x, s.y - y); if (d < bd) { bd = d; best = s; } }
   return best;
+}
+function seatOwner(s, exceptId) {
+  for (const p of state.players.values()) {
+    if (p.id !== exceptId && p.seated && Math.hypot(p.x - s.x, p.y - s.y) < 50) return p;
+  }
+  return null;
+}
+function resolveSeatConflict() {
+  const me = state.players.get(state.myId);
+  if (!me || !me.seated || !state.joined) return;
+  const myS = SEATS.find((s) => Math.hypot(me.x - s.x, me.y - s.y) < 50);
+  if (!myS) return;
+  for (const p of state.players.values()) {
+    if (p.id === state.myId || !p.seated) continue;
+    if (Math.hypot(p.x - myS.x, p.y - myS.y) < 50 && (p.joinTs || 0) && (state.joinTs || 0) && p.joinTs < state.joinTs) {
+      me.seated = false;
+      me.x = myS.x + (myS.x < VW / 2 ? 90 : -90);
+      me.y = myS.y + 40;
+      toast(`😅 ${p.name} llegó antes a ese puesto`);
+      sendMoveNow();
+      return;
+    }
+  }
 }
 function freeSeat() {
   for (const s of SEATS) {
@@ -1084,9 +1109,15 @@ function update(dt) {
     if (!me.seated) {
       const seat = seatNear(me.x, me.y);
       if (seat) {
-        me.seated = true; me.dir = seat.face; me.x = seat.x; me.y = seat.y;
-        sendMoveNow();
-        lastSend = performance.now();
+        const occ = seatOwner(seat, state.myId);
+        if (occ) {
+          const t = performance.now();
+          if (!me.seatWarn || t - me.seatWarn > 4000) { me.seatWarn = t; toast(`🪑 Ese puesto es de ${occ.name}`); }
+        } else {
+          me.seated = true; me.dir = seat.face; me.x = seat.x; me.y = seat.y;
+          sendMoveNow();
+          lastSend = performance.now();
+        }
       }
     }
   }
