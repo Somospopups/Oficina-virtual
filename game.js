@@ -361,7 +361,7 @@ async function connectP2P() {
     const [sendG, recvG] = room.makeAction('g');
     sendFn = (o) => sendG(o);
     recvG((m, peerId) => { if (m && m.type) { m._pid = peerId; handleMsg(m); } });
-    room.onPeerJoin(() => { sendMoveNow(); });
+    room.onPeerJoin(() => { sendMoveNow(); maybeMusicForNewcomer(); });
     room.onPeerLeave((pid) => {
       const p = [...state.players.values()].find((q) => q.pid === pid);
       if (p) { state.players.delete(p.id); addChat(null, `${p.name} salió de la oficina`, 'system'); renderPlayerList(); }
@@ -390,7 +390,8 @@ function handleMsg(msg) {
       renderPlayerList();
       break;
     }
-    case 'joined': upsertRemote(msg.player, true); renderPlayerList(); break;
+    case 'joined': upsertRemote(msg.player, true); renderPlayerList(); maybeMusicForNewcomer(); break;
+    case 'music': applyMusic(msg); break;
     case 'left':
       state.players.delete(msg.id);
       addChat(null, `${msg.name} salió de la oficina`, 'system');
@@ -481,39 +482,62 @@ function setStatus(k, silent) {
 function fartSound() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const t = audioCtx.currentTime, dur = 0.55;
-    // ruido soplado con filtro que cae (el "pffft")
-    const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * dur), audioCtx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    const src = audioCtx.createBufferSource(); src.buffer = buf;
-    const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass';
-    lp.frequency.setValueAtTime(420, t);
-    lp.frequency.exponentialRampToValueAtTime(70, t + dur);
-    const g = audioCtx.createGain();
-    g.gain.setValueAtTime(0.5, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    src.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
-    src.start(t); src.stop(t + dur);
-    // serrucho grave con temblor (el "brrrr")
+    const t = audioCtx.currentTime;
+    const R = Math.random;
+    const dur = 0.55 + R() * 0.35;               // cada pedo sale distinto
+    const base = 75 + R() * 55;                  // tono grave base
+    // 1) cuerpo: serrucho grave que cae, con temblor irregular (el "brrrr")
     const o = audioCtx.createOscillator(); o.type = 'sawtooth';
-    o.frequency.setValueAtTime(130, t);
-    o.frequency.exponentialRampToValueAtTime(34, t + 0.45);
-    const g2 = audioCtx.createGain();
-    g2.gain.setValueAtTime(0.32, t);
-    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
-    const lfo = audioCtx.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 27;
-    const lg = audioCtx.createGain(); lg.gain.value = 0.12;
-    lfo.connect(lg); lg.connect(g2.gain);
-    o.connect(g2); g2.connect(audioCtx.destination);
-    o.start(t); o.stop(t + 0.5); lfo.start(t); lfo.stop(t + 0.5);
+    o.frequency.setValueAtTime(base, t);
+    o.frequency.exponentialRampToValueAtTime(base * 0.32, t + dur);
+    const wob = audioCtx.createOscillator(); wob.type = 'square';
+    wob.frequency.value = 17 + R() * 12;         // rateo del temblor
+    const wobG = audioCtx.createGain(); wobG.gain.value = base * 0.22;
+    wob.connect(wobG); wobG.connect(o.frequency);
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.42, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    // salpicadura: modulá la amplitud para el "tret-tret"
+    const spl = audioCtx.createOscillator(); spl.type = 'square';
+    spl.frequency.value = 21 + R() * 10;
+    const splG = audioCtx.createGain(); splG.gain.value = 0.16;
+    spl.connect(splG); splG.connect(g.gain);
+    o.connect(g); g.connect(audioCtx.destination);
+    // 2) aire: ruido pasado por banda estrecha que se abre y se cierra
+    const nb = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * dur), audioCtx.sampleRate);
+    const d = nb.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = R() * 2 - 1;
+    const ns = audioCtx.createBufferSource(); ns.buffer = nb;
+    const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 2.2;
+    bp.frequency.setValueAtTime(base * 3, t);
+    bp.frequency.exponentialRampToValueAtTime(base * 1.1, t + dur);
+    const ng = audioCtx.createGain();
+    ng.gain.setValueAtTime(0.30, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.9);
+    ns.connect(bp); bp.connect(ng); ng.connect(audioCtx.destination);
+    // 3) colita final: el "pfft" agudo del cierre
+    const tail = audioCtx.createBufferSource();
+    const tb = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * 0.09), audioCtx.sampleRate);
+    const td = tb.getChannelData(0);
+    for (let i = 0; i < td.length; i++) td[i] = (R() * 2 - 1) * (1 - i / td.length);
+    tail.buffer = tb;
+    const hp = audioCtx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
+    const tg = audioCtx.createGain(); tg.gain.value = 0.0;
+    tg.gain.setValueAtTime(0.0001, t + dur - 0.02);
+    tg.gain.exponentialRampToValueAtTime(0.18, t + dur + 0.01);
+    tg.gain.exponentialRampToValueAtTime(0.001, t + dur + 0.09);
+    tail.connect(hp); hp.connect(tg); tg.connect(audioCtx.destination);
+    o.start(t); o.stop(t + dur + 0.05);
+    wob.start(t); wob.stop(t + dur);
+    spl.start(t); spl.stop(t + dur);
+    ns.start(t); ns.stop(t + dur);
+    tail.start(t + dur - 0.02); tail.stop(t + dur + 0.1);
   } catch { /* sin audio, igual sacude */ }
 }
 function localZumb(name, mine, pid) {
   fartSound();
   shakeUntil = performance.now() + 650;
-  const p = pid ? state.players.get(pid) : null;
-  if (p) { p.emote = '💨'; p.emoteUntil = performance.now() + 3000; }
   addChat(null, mine ? '💨 ¡Mandaste un zumbido!' : `💨 ¡Zumbido de ${name}!`, 'system');
 }
 function doZumbido() {
@@ -522,6 +546,76 @@ function doZumbido() {
   zumbCd = now + 2500;
   send({ type: 'nudge', id: state.myId, from: state.myName });
   localZumb(state.myName, true, state.myId);
+}
+
+// ---------- Radio de la oficina (YouTube sincronizado para todos) ----------
+let ytReady = false, ytPlayer = null, pendingMusic = null;
+const music = { vid: null, playing: false, amDJ: false };
+function parseVid(url) {
+  const m = (url || '').match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/);
+  return m ? m[1] : null;
+}
+window.onYouTubeIframeAPIReady = () => {
+  ytReady = true;
+  ytPlayer = new YT.Player('ytBox', {
+    width: 2, height: 2,
+    playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1 },
+    events: {
+      onReady: () => { try { ytPlayer.setVolume(60); } catch {} if (pendingMusic) { const p = pendingMusic; pendingMusic = null; applyMusic(p, true); } },
+    },
+  });
+};
+function musicNowPos() { try { return ytPlayer && ytPlayer.getCurrentTime ? (ytPlayer.getCurrentTime() || 0) : 0; } catch { return 0; } }
+function sendMusic(act, vid, pos) {
+  music.amDJ = true; music.vid = vid; music.playing = act === 'play';
+  send({ type: 'music', act, vid, pos, at: Date.now(), from: state.myName });
+  updateMpNow();
+}
+function applyMusic(msg, silent) {
+  const target = msg.pos + Math.max(0, (Date.now() - msg.at) / 1000);
+  music.vid = msg.vid; music.playing = msg.act === 'play';
+  if (!ytReady || !ytPlayer || !ytPlayer.seekTo) { pendingMusic = msg; return; }
+  try {
+    if (msg.act === 'stop') { ytPlayer.stopVideo(); updateMpNow(); return; }
+    const cur = ytPlayer.getVideoData ? (ytPlayer.getVideoData().video_id || null) : null;
+    if (msg.act === 'pause') { if (cur === msg.vid) ytPlayer.pauseVideo(); updateMpNow(); return; }
+    if (cur !== msg.vid) ytPlayer.loadVideoById({ videoId: msg.vid, startSeconds: target });
+    else { ytPlayer.seekTo(target, true); ytPlayer.playVideo(); }
+  } catch { /* iframe ocupado */ }
+  if (!silent && msg.act === 'play' && msg.from) toast(`🎵 ${msg.from} puso música para todos`);
+  updateMpNow();
+}
+function maybeMusicForNewcomer() {
+  if (music.amDJ && music.playing && music.vid) sendMusic('play', music.vid, musicNowPos());
+}
+function updateMpNow() {
+  const el = document.getElementById('mpNow');
+  if (!el) return;
+  el.textContent = music.playing && music.vid ? `Sonando para todos: youtu.be/${music.vid}` : 'Nada sonando';
+}
+function mpToggle() { const p = document.getElementById('musicPanel'); if (p) p.classList.toggle('hidden'); }
+function mpPlay() {
+  const input = document.getElementById('musicUrl');
+  const url = input ? input.value.trim() : '';
+  let vid = parseVid(url);
+  let pos = 0;
+  if (vid && vid !== music.vid) pos = 0;
+  if (!vid) { vid = music.vid; pos = musicNowPos(); }
+  if (!vid) { toast(' Pegá primero un link de YouTube'); return; }
+  if (!ytReady) { toast('🎵 La radio se está cargando… probá en unos segundos'); return; }
+  sendMusic('play', vid, pos);
+  applyMusic({ act: 'play', vid, pos, at: Date.now(), from: state.myName }, true);
+}
+function mpPause() {
+  if (!music.vid) return;
+  const pos = musicNowPos();
+  sendMusic('pause', music.vid, pos);
+  applyMusic({ act: 'pause', vid: music.vid, pos, at: Date.now(), from: state.myName }, true);
+}
+function mpStop() {
+  if (!music.vid) return;
+  sendMusic('stop', music.vid, 0);
+  applyMusic({ act: 'stop', vid: music.vid, pos: 0, at: Date.now(), from: state.myName }, true);
 }
 let toastTimer = null;
 function toast(t) { toastBox.textContent = t; toastBox.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastBox.classList.remove('show'), 2600); }
@@ -571,6 +665,7 @@ window.addEventListener('keydown', (e) => {
   keys[e.key.toLowerCase()] = true;
   if (e.key === 'Enter') { chatInput.focus(); e.preventDefault(); return; }
   if (e.key.toLowerCase() === 'h') { helpOverlay.classList.toggle('hidden'); return; }
+  if (e.key.toLowerCase() === 'p') { mpToggle(); return; }
   if (e.key === 'Escape') { helpOverlay.classList.add('hidden'); return; }
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 3) { setStatus(STATUS_KEYS[n - 1]); return; }
@@ -924,6 +1019,12 @@ function init() {
   buildStatusBar();
   buildColorPicker();
   renderPlayerList();
+  const mb = document.getElementById('musicBtn'); if (mb) mb.onclick = mpToggle;
+  const bp1 = document.getElementById('mpPlay'); if (bp1) bp1.onclick = mpPlay;
+  const bp2 = document.getElementById('mpPause'); if (bp2) bp2.onclick = mpPause;
+  const bp3 = document.getElementById('mpStop'); if (bp3) bp3.onclick = mpStop;
+  const mv = document.getElementById('mpVol');
+  if (mv) mv.oninput = () => { try { if (ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(+mv.value); } catch {} };
   const q = new URLSearchParams(location.search);
   if (q.get('name')) nameInput.value = q.get('name');
   joinBtn.onclick = join;

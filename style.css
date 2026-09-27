@@ -131,3 +131,16 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
   #playerList { display: none; }
   #hint { display: none !important; }
 }
+
+/* Radio de la oficina */
+#musicBtn { position: fixed; top: 14px; left: 210px; z-index: 40; font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+#musicBtn:hover { background: #1f2736; }
+#musicPanel { position: fixed; top: 54px; left: 210px; z-index: 40; background: rgba(16,20,29,0.95); border: 2px solid #2c3550; border-radius: 10px; padding: 12px; width: 240px; display: flex; flex-direction: column; gap: 8px; }
+#musicPanel.hidden { display: none; }
+.mp-title { font-size: 9px; color: #ffd76a; letter-spacing: 1px; }
+#musicUrl { background: #0a0d13; border: 1px solid #2c3550; color: #cdd5e4; font-size: 9px; padding: 7px; border-radius: 6px; font-family: inherit; width: 100%; box-sizing: border-box; }
+.mp-row { display: flex; gap: 6px; align-items: center; font-size: 9px; color: #cdd5e4; }
+.mp-row button { background: #1b2230; border: 1px solid #2c3550; color: #cdd5e4; font-size: 9px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-family: inherit; }
+.mp-row button:hover { background: #26304a; }
+.mp-now { font-size: 8px; color: #7ee787; word-break: break-all; }
+#ytBox { position: fixed; left: -8px; bottom: -8px; width: 2px; height: 2px; opacity: 0.01; pointer-events: none; z-index: 1; }
