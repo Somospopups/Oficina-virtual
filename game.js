@@ -23,15 +23,6 @@ const SEATS = [
   { x: 861, y: 683, face: 'right' }, // recalado: manos sobre el teclado delantero der.
 ];
 
-// Coordenadas de las pantallas en el fondo, asociadas a los cuatro puestos.
-// Vacías quedan negras; al sentarse alguien se deja ver el fondo original encendido.
-const MONITOR_BANKS = [
-  { seat: 0, screens: [[22, 350, 105, 117], [136, 350, 117, 117]] },
-  { seat: 1, screens: [[347, 351, 42, 79], [397, 351, 38, 79]] },
-  { seat: 2, screens: [[782, 351, 43, 79], [832, 351, 36, 79]] },
-  { seat: 3, screens: [[967, 350, 101, 117], [1078, 350, 95, 117]] },
-];
-
 const SPEED = 320;
 const SEND_MS = 140;
 
@@ -854,7 +845,7 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.30.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.31.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2092,23 +2083,6 @@ function render() {
     }
     ctx.globalCompositeOperation = 'source-over';
   }
-
-  // En cada puesto, se apagan únicamente las pantallas cuando la silla está vacía.
-  // El fondo original ya trae las pantallas encendidas; al haber ocupante lo dejamos visible.
-  const activePlayers = [...state.players.values()].filter((p) => {
-    if (!p.seated || p.status === 'ausente' || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
-    return p.id === state.myId || (p.seen && now - p.seen < 9000);
-  });
-  ctx.save();
-  ctx.globalCompositeOperation = 'source-over';
-  for (const bank of MONITOR_BANKS) {
-    const seat = SEATS[bank.seat];
-    const occupied = activePlayers.some((p) => Math.hypot(p.x - seat.x, p.y - seat.y) < 50);
-    if (occupied) continue;
-    ctx.fillStyle = '#080b12';
-    for (const [x, y, w, h] of bank.screens) ctx.fillRect(x, y, w, h);
-  }
-  ctx.restore();
 
   const list = [...state.players.values()].sort((a, b) => a.y - b.y);
   for (const p of list) {
