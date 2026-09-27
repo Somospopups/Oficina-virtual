@@ -353,26 +353,44 @@ function connectWS() {
   ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } handleMsg(m); };
 }
 
+const P2P_STRATS = ['nostr', 'mqtt'];
+const p2pRooms = [];
+let p2pPeerCount = 0;
+function updateNetLabel() {
+  p2pPeerCount = p2pRooms.reduce((n, r) => { try { return n + r.getPeers().length; } catch { return n; } }, 0);
+}
+function p2pSend(o) { for (const r of p2pRooms) { try { if (r._sendG) r._sendG(o); } catch { /* room caído */ } } }
 async function connectP2P() {
   toast('🌐 Modo sin servidor: conectando P2P...');
+  for (const s of P2P_STRATS) joinStrategy(s, 0);
+}
+async function joinStrategy(strat, attempt) {
   try {
-    const mod = await import('https://esm.run/trystero/nostr');
+    const mod = await import(`https://esm.run/trystero/${strat}`);
     const room = mod.joinRoom({ appId: 'oficina-virtual-somospopups-v1' }, 'oficina-principal');
+    p2pRooms.push(room);
     const [sendG, recvG] = room.makeAction('g');
-    sendFn = (o) => sendG(o);
-    recvG((m, peerId) => { if (m && m.type) { m._pid = peerId; handleMsg(m); } });
-    room.onPeerJoin(() => { sendMoveNow(); maybeMusicForNewcomer(); });
-    room.onPeerLeave((pid) => {
-      const p = [...state.players.values()].find((q) => q.pid === pid);
-      if (p) { state.players.delete(p.id); addChat(null, `${p.name} salió de la oficina`, 'system'); renderPlayerList(); }
-    });
-    toast('✅ Conectado P2P (sin servidor)');
+    room._sendG = sendG;
+    if (!sendFn) sendFn = p2pSend;
+    recvG((m, peerId) => { if (m && m.type) { m._pid = strat + ':' + peerId; handleMsg(m); } });
+    room.onPeerJoin(() => { sendMoveNow(); maybeMusicForNewcomer(); updateNetLabel(); });
+    room.onPeerLeave(() => { updateNetLabel(); }); // el podado por silencio despide con cartel
+    updateNetLabel();
+    toast(`✅ Conectado P2P (${strat})`);
     if (state.joined) { send({ type: 'profile', id: state.myId, name: state.myName, color: state.myColor }); sendMoveNow(); }
   } catch (e) {
-    toast('⚠️ No se pudo conectar P2P');
+    if (attempt < 4) setTimeout(() => joinStrategy(strat, attempt + 1), 4000);
   }
 }
 
+const seenNonces = new Set();
+function dedupe(msg) {
+  if (!msg.nonce) return false;
+  if (seenNonces.has(msg.nonce)) return true;
+  seenNonces.add(msg.nonce);
+  if (seenNonces.size > 400) seenNonces.clear();
+  return false;
+}
 function handleMsg(msg) {
   switch (msg.type) {
     case 'move':
@@ -391,7 +409,7 @@ function handleMsg(msg) {
       break;
     }
     case 'joined': upsertRemote(msg.player, true); renderPlayerList(); maybeMusicForNewcomer(); break;
-    case 'music': applyMusic(msg); break;
+    case 'music': if (!dedupe(msg)) applyMusic(msg); break;
     case 'left':
       state.players.delete(msg.id);
       addChat(null, `${msg.name} salió de la oficina`, 'system');
@@ -399,6 +417,7 @@ function handleMsg(msg) {
       break;
     case 'system': addChat(null, msg.text, 'system'); break;
     case 'chat': {
+      if (dedupe(msg)) break;
       const mine = msg.from === state.myName, isW = !!msg.to;
       if (isW && !mine && msg.to !== state.myName) break;
       addChat(msg.from, msg.text, isW ? 'whisper' : 'normal', msg.to);
@@ -407,7 +426,7 @@ function handleMsg(msg) {
     }
     case 'status': { const p = state.players.get(msg.id); if (p) p.status = msg.status; renderPlayerList(); break; }
     case 'emote': { const p = state.players.get(msg.id); if (p) { p.emote = msg.emote; p.emoteUntil = performance.now() + 3000; } break; }
-    case 'nudge': { localZumb(msg.from || 'Alguien', false, msg.id); break; }
+    case 'nudge': { if (!dedupe(msg)) localZumb(msg.from || 'Alguien', false, msg.id); break; }
     case 'wave': {
       const p = state.players.get(msg.id);
       if (p) { p.wave = true; p.waveUntil = performance.now() + 1500; }
@@ -447,10 +466,11 @@ function addChat(from, text, cls, to) {
 }
 function sendChat(raw) {
   const text = raw.trim(); if (!text) return;
+  const nonce = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const w = text.match(/^\/w\s+(\S+)\s+([\s\S]+)$/i);
-  if (w) send({ type: 'chat', id: state.myId, from: state.myName, text: w[2], to: w[1] });
+  if (w) send({ type: 'chat', id: state.myId, from: state.myName, text: w[2], to: w[1], nonce });
   else if (text.startsWith('/')) addChat(null, 'Comando desconocido. Usá /w nombre mensaje', 'system');
-  else send({ type: 'chat', id: state.myId, from: state.myName, text });
+  else send({ type: 'chat', id: state.myId, from: state.myName, text, nonce });
 }
 let myStatus = 'disponible';
 let shakeUntil = 0, zumbCd = 0;
@@ -544,7 +564,7 @@ function doZumbido() {
   const now = performance.now();
   if (now < zumbCd) { toast('💨 El zumbido se está recargando…'); return; }
   zumbCd = now + 2500;
-  send({ type: 'nudge', id: state.myId, from: state.myName });
+  send({ type: 'nudge', id: state.myId, from: state.myName, nonce: Date.now().toString(36) + Math.random().toString(36).slice(2, 8) });
   localZumb(state.myName, true, state.myId);
 }
 
@@ -568,7 +588,7 @@ window.onYouTubeIframeAPIReady = () => {
 function musicNowPos() { try { return ytPlayer && ytPlayer.getCurrentTime ? (ytPlayer.getCurrentTime() || 0) : 0; } catch { return 0; } }
 function sendMusic(act, vid, pos) {
   music.amDJ = true; music.vid = vid; music.playing = act === 'play';
-  send({ type: 'music', act, vid, pos, at: Date.now(), from: state.myName });
+  send({ type: 'music', act, vid, pos, at: Date.now(), from: state.myName, nonce: Date.now().toString(36) + Math.random().toString(36).slice(2, 8) });
   updateMpNow();
 }
 function applyMusic(msg, silent) {
@@ -865,7 +885,7 @@ function update(dt) {
   // P2P: podar compañeros silenciosos
   if (USE_P2P) {
     for (const p of [...state.players.values()]) {
-      if (p.id !== state.myId && p.seen && now - p.seen > 6000) {
+      if (p.id !== state.myId && p.seen && now - p.seen > 9000) {
         state.players.delete(p.id);
         addChat(null, `${p.name} salió de la oficina`, 'system');
         renderPlayerList();
@@ -977,7 +997,7 @@ function render() {
     if (p.bubble && now < p.bubbleUntil) drawBubble(ctx, p.bubble, p.x, ly - fs * 0.8, fs);
   }
 
-  clockBox.textContent = `${phaseName(hf)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  clockBox.textContent = `${phaseName(hf)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` + (USE_P2P ? ` · 📡${p2pPeerCount}` : '');
 }
 
 function drawBubble(g2, text, cx, bottomY, fs) {
