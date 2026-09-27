@@ -19,7 +19,7 @@ const FLOOR = { yTop: 460, yBot: 890, xlTop: 505, xrTop: 720, xlBot: 280, xrBot:
 const SEATS = [
   { x: 365, y: 725, face: 'left' },
   { x: 510, y: 518, face: 'left' },
-  { x: 750, y: 518, face: 'right' },
+  { x: 710, y: 518, face: 'right' }, // recalado: manos sobre el teclado (el fondo no es simétrico)
   { x: 875, y: 720, face: 'right' },
 ];
 
