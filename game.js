@@ -776,6 +776,133 @@ const bgCv = document.createElement('canvas');
 const wideBackdropCv = document.createElement('canvas');
 let backdropDirty = true;
 function pxAt(g, x, y) { const d = g.getImageData(x, y, 1, 1).data; return `rgb(${d[0]},${d[1]},${d[2]})`; }
+
+// ---------- Repisas de atrás: lo que el fondo se repite, cambiado ----------
+// El fondo repite en las dos repisas del fondo los mismos pósters que las de
+// adelante: "GOOD CODE BETTER DAYS" a la izquierda y </> a la derecha. Es el
+// típico tiled de la imagen generada, y delata que la oficina está copiada.
+//
+// Se tapan con el color real de la pared, medido sobre la franja limpia que queda
+// justo arriba de cada póster, y en su lugar se dibujan otras cosas. Todo se pinta
+// una sola vez sobre bgCv al cargar el fondo, así que no cuesta nada por frame y
+// de noche recibe el mismo oscurecimiento y los mismos parches de sol que el resto
+// de la oficina. Si se dibujara por frame, encima del overlay, se vería pegado.
+//
+// La tabla corre en diagonal porque todo converge al centro: en la pared
+// izquierda baja hacia la derecha y en la derecha sube. De ahí shelfBase() abajo,
+// que da la y donde se apoya cada objeto.
+const SHELF = {
+  left:  { x0: 346, y0: 273, k:  0.180 },
+  right: { x0: 770, y0: 304, k: -0.189 },
+};
+function shelfBase(side, x) { const s = SHELF[side]; return s.y0 + (x - s.x0) * s.k; }
+
+// Color de la pared en una franja, por mediana y no por promedio. La franja que
+// hay justo arriba de cada póster roza la diagonal del techo en un par de píxeles
+// oscuros, y con el promedio eso arrastraba el color casi 5 niveles: la tapa
+// quedaba visible. La mediana los ignora.
+function paredFranja(g, x, y, w, h) {
+  const d = g.getImageData(x, y, w, h).data;
+  const R = [], G = [], B = [];
+  for (let i = 0; i < d.length; i += 4) { R.push(d[i]); G.push(d[i + 1]); B.push(d[i + 2]); }
+  const med = (a) => { a.sort((p, q) => p - q); return a[a.length >> 1]; };
+  return `rgb(${med(R)},${med(G)},${med(B)})`;
+}
+
+// Tapa un póster con el color real de la pared.
+//
+// El color se pasa ya medido sobre pared limpia (ver paredFranja) y no se muestrea
+// en los bordes del objeto: a la derecha de la tapa del póster </> hay una hoja de
+// la planta a cuatro píxeles, y muestrear ahí devolvía un verde apagado que
+// enturbia todo el relleno.
+//
+// Va difuminado a propósito. La pared tiene ~10 niveles de variación de izquierda
+// a derecha, así que un relleno plano acertado queda igual de visible que uno
+// errado: el ojo detecta el canto antes que la diferencia de tono. Con blur los
+// bordes se mezclan con la pared y la forma desaparece.
+//
+// Abajo NO se difumina: el recorte contra la tabla mantiene ese canto duro. Si no,
+// el blur se comía un par de píxeles de la madera y quedaba una banda blanda.
+function taparFondo(g, x, y, w, side, col) {
+  const yb = shelfBase(side, x + w), ya = shelfBase(side, x);
+  const pad = 8, blur = 5;
+  const t = document.createElement('canvas');
+  t.width = w + pad * 2;
+  t.height = (yb - y) + pad * 2;
+  const c = t.getContext('2d');
+  c.filter = `blur(${blur}px)`;
+  c.fillStyle = col;
+  c.beginPath();
+  c.moveTo(pad, pad);
+  c.lineTo(pad + w, pad);
+  c.lineTo(pad + w, pad + (yb - y));
+  c.lineTo(pad, pad + (ya - y));
+  c.closePath();
+  c.fill();
+  g.save();
+  g.beginPath();
+  g.moveTo(x - pad, y - pad);
+  g.lineTo(x + w + pad, y - pad);
+  g.lineTo(x + w + pad, shelfBase(side, x + w + pad));
+  g.lineTo(x - pad, shelfBase(side, x - pad));
+  g.closePath();
+  g.clip();
+  g.drawImage(t, x - pad, y - pad);
+  g.restore();
+}
+
+// Reloj de mesa, en el lugar del póster repetido de la izquierda.
+function propReloj(g, cx) {
+  const base = shelfBase('left', cx);
+  const r = 15, cy = base - r - 3;
+  g.globalAlpha = 0.26; g.fillStyle = '#241f2b';
+  ell(g, cx + 1, base - 1, r * 0.9, 2.4); g.fill(); g.globalAlpha = 1;
+  g.fillStyle = gRad(g, cx, cy, r, '#3b3340', { sombra: 0.45 });
+  ell(g, cx, cy, r, r); g.fill();
+  g.fillStyle = gRad(g, cx, cy, r * 0.78, '#e8e2d2', { sombra: 0.2 });
+  ell(g, cx, cy, r * 0.78, r * 0.78); g.fill();
+  g.strokeStyle = 'rgba(60,50,44,0.7)'; g.lineWidth = 1;
+  for (let i = 0; i < 4; i++) {
+    const a = (Math.PI / 2) * i + Math.PI / 4;
+    g.beginPath();
+    g.moveTo(cx + Math.cos(a) * r * 0.6, cy + Math.sin(a) * r * 0.6);
+    g.lineTo(cx + Math.cos(a) * r * 0.72, cy + Math.sin(a) * r * 0.72);
+    g.stroke();
+  }
+  g.lineWidth = 1.6; g.strokeStyle = '#3a3128';
+  g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + 4, cy - 5); g.stroke();
+  g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx - 1, cy - 8); g.stroke();
+  g.fillStyle = '#2f2833';
+  rr(g, cx - 7, base - 3, 14, 4, 1.5); g.fill();
+  borde(g, '#2f2833', 1);
+}
+
+// Radio de mesa, en el lugar del póster repetido de la derecha. Baja y ancha a
+// propósito: el póster era alto, y dejar pared arriba es lo que más lo cambia.
+function propRadio(g, cx) {
+  const base = shelfBase('right', cx);
+  const w = 44, h = 27, x = cx - w / 2, y = base - h;
+  g.globalAlpha = 0.26; g.fillStyle = '#241f2b';
+  ell(g, cx, base - 1, w * 0.5, 2.8); g.fill(); g.globalAlpha = 1;
+  g.strokeStyle = '#4a332a'; g.lineWidth = 2;
+  g.beginPath(); g.arc(x + w / 2, y + 4, w * 0.3, Math.PI, 0); g.stroke();
+  g.fillStyle = gLin(g, x, y, x, y + h, '#6b4a3a', { fuerza: 0.9 });
+  rr(g, x, y, w, h, 4); g.fill();
+  borde(g, '#6b4a3a', 1.5);
+  g.fillStyle = '#3a2a22';
+  ell(g, x + 13, y + h / 2, 8, 8); g.fill();
+  g.fillStyle = 'rgba(205,185,165,0.32)';
+  for (let dy = -4; dy <= 4; dy += 2.5) for (let dx = -4; dx <= 4; dx += 2.5) {
+    if (dx * dx + dy * dy < 15) g.fillRect(x + 13 + dx, y + h / 2 + dy, 1, 1);
+  }
+  g.fillStyle = gRad(g, x + w - 11, y + 9, 5, '#d8c9a8', { sombra: 0.3 });
+  ell(g, x + w - 11, y + 9, 5, 5); g.fill();
+  g.fillStyle = gRad(g, x + w - 11, y + h - 8, 3.4, '#c8b48c', { sombra: 0.3 });
+  ell(g, x + w - 11, y + h - 8, 3.4, 3.4); g.fill();
+  g.globalAlpha = 0.16; g.fillStyle = '#fff';
+  rr(g, x + 2, y + 2, w - 4, 4, 2); g.fill(); g.globalAlpha = 1;
+}
+
 bgImg.onload = () => {
   bgCv.width = bgImg.width; bgCv.height = bgImg.height;
   const g = bgCv.getContext('2d');
@@ -791,6 +918,14 @@ bgImg.onload = () => {
     gv.addColorStop(1, pxAt(g, x + (w >> 1), y + h + 4));
     g.globalAlpha = 0.5; g.fillStyle = gv; g.fillRect(x, y, w, h); g.globalAlpha = 1;
   }
+  // Las dos repisas de atrás repetían los pósters de las de adelante. Se tapan
+  // con la pared muestreada y en su lugar van props distintas por pared, para que
+  // ninguna sea el espejo de la otra. El color sale de la franja de pared limpia
+  // que queda justo arriba de cada póster, antes de taparlo.
+  taparFondo(g, 384, 223, 32, 'left', paredFranja(g, 384, 220, 32, 2));
+  propReloj(g, 400);
+  taparFondo(g, 808, 222, 41, 'right', paredFranja(g, 808, 221, 41, 2));
+  propRadio(g, 829);
   bgReady = true;
   backdropDirty = true;
 };
@@ -823,7 +958,7 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.32.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.33.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
