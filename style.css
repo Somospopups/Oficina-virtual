@@ -101,6 +101,8 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 .status-btn.active { background: #ffd76a; color: #241c00; }
 .status-btn .key { color: #7d87a0; font-size: 7px; }
 .status-btn.active .key { color: #7a5a10; }
+.status-btn.zumbido { background: #241a10; border-color: #8a5a2b; color: #e8c39a; }
+.status-btn.zumbido:hover { background: #33251a; }
 
 #hint {
   position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%);

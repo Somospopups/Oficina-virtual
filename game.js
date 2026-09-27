@@ -34,11 +34,11 @@ const SEND_MS = 70;
 const STATUS_INFO = {
   codeando:   { emoji: '💻', label: 'Codeando' },
   reunion:    { emoji: '🤝', label: 'En reunión' },
-  cafe:       { emoji: '☕', label: 'Pausa café' },
-  ausente:    { emoji: '🌙', label: 'Ausente' },
+  cafe:       { emoji: '☕', label: 'Pausa café' }, // solo automático (zona café)
+  ausente:    { emoji: '🏃', label: '¡Ya vengo!' },
   disponible: { emoji: '🟢', label: 'Disponible' },
 };
-const STATUS_KEYS = ['codeando', 'reunion', 'cafe', 'ausente', 'disponible'];
+const STATUS_KEYS = ['codeando', 'reunion', 'ausente'];
 const SHIRT_COLORS = ['#e05252', '#4a90d9', '#4caf6d', '#e6b422', '#9b59b6', '#e67e22', '#26a69a', '#ec6ea4'];
 const HAIR_COLORS  = ['#3a2c20', '#1c1c22', '#6b4a2b', '#c9a24b', '#222831', '#513228', '#101418', '#8a5a3b'];
 
@@ -406,6 +406,7 @@ function handleMsg(msg) {
     }
     case 'status': { const p = state.players.get(msg.id); if (p) p.status = msg.status; renderPlayerList(); break; }
     case 'emote': { const p = state.players.get(msg.id); if (p) { p.emote = msg.emote; p.emoteUntil = performance.now() + 3000; } break; }
+    case 'nudge': { localZumb(msg.from || 'Alguien', false, msg.id); break; }
     case 'wave': {
       const p = state.players.get(msg.id);
       if (p) { p.wave = true; p.waveUntil = performance.now() + 1500; }
@@ -451,6 +452,7 @@ function sendChat(raw) {
   else send({ type: 'chat', id: state.myId, from: state.myName, text });
 }
 let myStatus = 'disponible';
+let shakeUntil = 0, zumbCd = 0;
 function buildStatusBar() {
   statusBar.innerHTML = '';
   STATUS_KEYS.forEach((k, i) => {
@@ -460,13 +462,66 @@ function buildStatusBar() {
     b.onclick = () => setStatus(k);
     statusBar.appendChild(b);
   });
+  const z = document.createElement('button');
+  z.className = 'status-btn zumbido';
+  z.innerHTML = '💨 Zumbido! <span class="key">4</span>';
+  z.onclick = () => doZumbido();
+  statusBar.appendChild(z);
 }
 function setStatus(k, silent) {
+  if (k === myStatus) k = 'disponible'; // tocar el estado activo te devuelve a disponible
   myStatus = k; send({ type: 'status', id: state.myId, status: k });
   const me = state.players.get(state.myId); if (me) me.status = k;
   document.querySelectorAll('.status-btn').forEach((b) => b.classList.toggle('active', b.dataset.status === k));
   renderPlayerList();
   if (!silent) beep(440, 0.05, 0.03, 'sine');
+}
+
+// ---------- Zumbido! (nudge estilo Messenger, con pedo) ----------
+function fartSound() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const t = audioCtx.currentTime, dur = 0.55;
+    // ruido soplado con filtro que cae (el "pffft")
+    const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * dur), audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = audioCtx.createBufferSource(); src.buffer = buf;
+    const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(420, t);
+    lp.frequency.exponentialRampToValueAtTime(70, t + dur);
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
+    src.start(t); src.stop(t + dur);
+    // serrucho grave con temblor (el "brrrr")
+    const o = audioCtx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(130, t);
+    o.frequency.exponentialRampToValueAtTime(34, t + 0.45);
+    const g2 = audioCtx.createGain();
+    g2.gain.setValueAtTime(0.32, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    const lfo = audioCtx.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 27;
+    const lg = audioCtx.createGain(); lg.gain.value = 0.12;
+    lfo.connect(lg); lg.connect(g2.gain);
+    o.connect(g2); g2.connect(audioCtx.destination);
+    o.start(t); o.stop(t + 0.5); lfo.start(t); lfo.stop(t + 0.5);
+  } catch { /* sin audio, igual sacude */ }
+}
+function localZumb(name, mine, pid) {
+  fartSound();
+  shakeUntil = performance.now() + 650;
+  const p = pid ? state.players.get(pid) : null;
+  if (p) { p.emote = '💨'; p.emoteUntil = performance.now() + 3000; }
+  addChat(null, mine ? '💨 ¡Mandaste un zumbido!' : `💨 ¡Zumbido de ${name}!`, 'system');
+}
+function doZumbido() {
+  const now = performance.now();
+  if (now < zumbCd) { toast('💨 El zumbido se está recargando…'); return; }
+  zumbCd = now + 2500;
+  send({ type: 'nudge', id: state.myId, from: state.myName });
+  localZumb(state.myName, true, state.myId);
 }
 let toastTimer = null;
 function toast(t) { toastBox.textContent = t; toastBox.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastBox.classList.remove('show'), 2600); }
@@ -518,7 +573,8 @@ window.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'h') { helpOverlay.classList.toggle('hidden'); return; }
   if (e.key === 'Escape') { helpOverlay.classList.add('hidden'); return; }
   const n = parseInt(e.key, 10);
-  if (n >= 1 && n <= 5) { setStatus(STATUS_KEYS[n - 1]); return; }
+  if (n >= 1 && n <= 3) { setStatus(STATUS_KEYS[n - 1]); return; }
+  if (n === 4) { doZumbido(); return; }
   const emoteMap = { z: '👋', x: '😂', c: '🎉', v: '👍', b: '🤔', n: '🔥', m: '☕' };
   const em = emoteMap[e.key.toLowerCase()];
   if (em) { send({ type: 'emote', id: state.myId, emote: em }); const me = state.players.get(state.myId); if (me) { me.emote = em; me.emoteUntil = performance.now() + 3000; } return; }
@@ -738,6 +794,10 @@ function render() {
   ctx.setTransform(viewScale, 0, 0, viewScale, viewOX, viewOY);
 
   const now = performance.now();
+  // sacudón de zumbido (estilo Messenger, pero con pedo)
+  if (now < shakeUntil) {
+    ctx.translate(Math.round((Math.random() - 0.5) * 14), Math.round((Math.random() - 0.5) * 14));
+  }
   const d = new Date();
   const hf = d.getHours() + d.getMinutes() / 60;
   const sky = skyNow(hf);
