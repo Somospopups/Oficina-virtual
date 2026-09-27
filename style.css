@@ -176,7 +176,9 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
   #hint { display: none !important; }
   #clock { font-size: 8px; padding: 7px 9px; }
   #musicBtn { font-size: 12px; padding: 6px 8px; }
-  #musicPanel { left: 8px; top: 46px; width: min(240px, calc(100vw - 16px)); }
+  #musicPanel { left: 8px; top: 92px; width: min(240px, calc(100vw - 16px)); }
+  /* La llamada se posiciona al final del archivo: la regla base de #callBar esta
+     despues de este bloque y la pisaba. */
   /* Anclado, no flotante. El :not(.float) importa: body.desktop-rails le gana en
      especificidad a #videoPanel.float, y sin esto el panel flotante terminaba
      arriba a la derecha con top:98px en vez de centrado. */
@@ -190,9 +192,17 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #musicBtn { font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
 #musicBtn:hover { background: #1f2736; }
 
-/* Llamada de la oficina: micro + volumen. Vive en la barra de arriba para no
-   agregar otro panel y no chocar ni con la radio (arriba izquierda) ni con la
-   ventana de video (arriba derecha). */
+/* Llamada de la oficina: micro + pantalla + volumen.
+   Van en un grupo propio en el MARGEN DERECHO, abajo. Antes estaban dentro del
+   #topbar, y en desktop-rails esa barra es una columna en el rail izquierdo: al
+   sumarle cuatro elementos crecía hacia abajo y terminaba encima del chat, que
+   esta abajo a la izquierda. Abajo a la derecha no hay nada: el chat esta a la
+   izquierda, la lista de companeros arriba a la derecha y la barra de estados al
+   centro (ademas su max-width deja libre el borde). */
+#callBar {
+  position: fixed; right: 12px; bottom: 12px; z-index: 45;
+  display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+}
 #micCallBtn { font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
 #micCallBtn:hover { background: #1f2736; }
 #micCallBtn.on { background: #2a1420; border-color: #e05252; color: #ff8f8f; }
@@ -200,15 +210,16 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #shareBtn:hover { background: #1f2736; }
 #shareBtn.on { background: #14261a; border-color: #7ee787; color: #7ee787; }
 #shareBtn:disabled { opacity: 0.35; cursor: not-allowed; }
-/* El video de la pantalla compartida va en la misma caja que el de YouTube, pero
-   nunca los dos a la vez. */
-#rtcVideo { width: 100%; height: 100%; object-fit: contain; background: #05070b; display: block; }
 #callListen { font-size: 13px; background: #3a1414; border: 2px solid #e05252; border-radius: 8px; padding: 8px 9px; cursor: pointer; animation: callpulse 1.2s ease-in-out infinite; }
 @keyframes callpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
-#callVolBox { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #cdd5e4;
+#callVolBox { display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px; color: #cdd5e4;
   background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 6px 9px; }
 #callVolBox.hidden { display: none; }
 #callVol { width: 70px; accent-color: #7ee787; cursor: pointer; }
+
+/* El video de la pantalla compartida va en la misma caja que el de YouTube, pero
+   nunca los dos a la vez. */
+#rtcVideo { width: 100%; height: 100%; object-fit: contain; background: #05070b; display: block; }
 
 /* Chispas de voz en la lista de jugadores */
 .pl-row.mic::before { content: '🎤'; margin-right: 2px; }
@@ -441,3 +452,24 @@ body.spectator-mode #musicPanel { display: none !important; }
    del local, que mira la oficina en espectador y tiene que ver lo que pone el DJ.
    Lo que no tiene sentido es la radio, porque el espectador no puede ser DJ. */
 body.spectator-mode #chatLog { flex: 1 1 auto; }
+
+/* ---------- Ajustes de movil, al final del archivo a proposito ----------
+   El bloque @media del principio del archivo queda PISADO por las reglas base que
+   estan despues: en CSS manda la ultima regla si la especificidad empata. Por eso
+   el override de la llamada va aca, y no en el bloque de arriba. Con la regla
+   baseApplied, el grupo hereda left:8 y right:12 a la vez y se estira a todo el
+   ancho. */
+@media (max-width: 900px) {
+  #callBar {
+    left: auto; right: 8px; top: 12px; bottom: auto;
+    flex-direction: row; align-items: center;
+  }
+  #callBar #micCallBtn, #callBar #shareBtn, #callBar #callListen { padding: 7px 9px; }
+  #callListen.hidden { display: none; }
+  /* A la misma altura que el reloj, que es lo unico libre: el joystick se lleva la
+     esquina inferior derecha, el chat la inferior izquierda, y arriba a la
+     izquierda van el reloj y la pila de estados. La lista de companeros arranca
+     mas abajo (y=62), asi que tampoco molesta. La radio queda en 92px para no
+     quedar debajo. */
+  #musicPanel { left: 8px; right: auto; top: 92px; width: min(240px, calc(100vw - 16px)); }
+}
