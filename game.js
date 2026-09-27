@@ -1230,7 +1230,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v40 · 27/09/2026';
+const VERSION = 'v41 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2789,10 +2789,9 @@ function render() {
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath(); ctx.ellipse(p.x, p.y + 4, shR, shR * 0.32, 0, 0, Math.PI * 2); ctx.fill();
 
-    const st = STATUS_INFO[p.status] || STATUS_INFO.disponible;
     ctx.font = `${fs}px "Press Start 2P", monospace`;
     ctx.textAlign = 'center';
-    const label = `${st.emoji} ${p.name}`;
+    const label = p.name;
     const ly = topY - fs * 0.6;
     ctx.lineWidth = fs * 0.28; ctx.strokeStyle = 'rgba(10,12,18,0.9)';
     ctx.strokeText(label, p.x, ly);
