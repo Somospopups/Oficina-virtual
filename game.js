@@ -111,59 +111,112 @@ const CHAR_DEF = {
 function charOf(key) { return CHAR_DEF[key] || CHAR_DEF.ger; }
 
 
-// ---------- Detalle fino (grilla 2x): caras, barbas, telas, cierres ----------
+// ---------- Detalle FINÍSIMO (grilla 4x): micro-píxeles de arte ----------
 function detailStand(g, c, dir, frame) {
   const A = (col, al) => { g.fillStyle = col; g.globalAlpha = al == null ? 1 : al; };
+  const step = frame === 1;
+  const lx = step ? 32 : 40, rx = step ? 72 : 64; // piernas según frame
+  // ojos: blanco + pupila + brillo + ceja
   if (dir === 'down') {
-    A('#ffffff'); g.fillRect(25, 21, 3, 4); g.fillRect(37, 21, 3, 4);
-    A('#26221e'); g.fillRect(26, 22, 2, 3); g.fillRect(38, 22, 2, 3);
-    A(c.hair); g.fillRect(24, 18, 5, 1); g.fillRect(36, 18, 5, 1);
+    A('#ffffff'); g.fillRect(50, 42, 6, 8); g.fillRect(74, 42, 6, 8);
+    A('#26221e'); g.fillRect(52, 44, 4, 6); g.fillRect(76, 44, 4, 6);
+    A('#ffffff'); g.fillRect(52, 44, 1, 1); g.fillRect(76, 44, 1, 1);
+    A(c.hair); g.fillRect(48, 36, 10, 2); g.fillRect(72, 36, 10, 2);
+    A(c.skinD); g.fillRect(62, 52, 4, 2);
+    A(c.skin); g.fillRect(44, 46, 3, 6); g.fillRect(81, 46, 3, 6);
+    A(c.skinD); g.fillRect(45, 48, 1, 2); g.fillRect(82, 48, 1, 2);
   } else if (dir === 'left') {
-    A('#ffffff'); g.fillRect(24, 21, 3, 4); A('#26221e'); g.fillRect(24, 22, 2, 3); A(c.hair); g.fillRect(23, 18, 5, 1);
+    A('#ffffff'); g.fillRect(48, 42, 6, 8); A('#26221e'); g.fillRect(48, 44, 4, 6); A('#ffffff'); g.fillRect(48, 44, 1, 1);
+    A(c.hair); g.fillRect(46, 36, 10, 2); A(c.skinD); g.fillRect(44, 52, 3, 2); A(c.skin); g.fillRect(54, 46, 4, 6); A(c.skinD); g.fillRect(55, 48, 1, 2);
   } else if (dir === 'right') {
-    A('#ffffff'); g.fillRect(38, 21, 3, 4); A('#26221e'); g.fillRect(39, 22, 2, 3); A(c.hair); g.fillRect(37, 18, 5, 1);
+    A('#ffffff'); g.fillRect(76, 42, 6, 8); A('#26221e'); g.fillRect(78, 44, 4, 6); A('#ffffff'); g.fillRect(78, 44, 1, 1);
+    A(c.hair); g.fillRect(74, 36, 10, 2); A(c.skinD); g.fillRect(81, 52, 3, 2); A(c.skin); g.fillRect(70, 46, 4, 6); A(c.skinD); g.fillRect(71, 48, 1, 2);
   }
-  if (c.hairStyle === 'spiky') { A('#7a5a3a'); g.fillRect(23, 7, 2, 6); g.fillRect(29, 5, 2, 8); g.fillRect(35, 7, 2, 6); }
-  else if (c.hairStyle === 'full') { A('#33333c'); g.fillRect(24, 7, 10, 2); }
-  else { A('#454e5a'); g.fillRect(31, 7, 2, 8); g.fillRect(30, 5, 4, 2); A('#6a7480'); g.fillRect(19, 17, 26, 1); }
+  // pelo / gorra
+  if (c.hairStyle === 'spiky') {
+    A('#7a5a3a'); g.fillRect(46, 14, 3, 12); g.fillRect(58, 10, 3, 16); g.fillRect(70, 14, 3, 12);
+    A('#4a2e1c'); g.fillRect(52, 12, 2, 10); g.fillRect(64, 12, 2, 10);
+    A('#4a2e1c', 0.5); g.fillRect(44, 20, 40, 1);
+  } else if (c.hairStyle === 'full') {
+    A('#33333c'); g.fillRect(48, 14, 20, 4);
+    A('#101014'); g.fillRect(56, 12, 2, 10); g.fillRect(66, 14, 2, 8);
+    A('#101014', 0.5); g.fillRect(44, 18, 40, 1);
+  } else {
+    A('#454e5a'); g.fillRect(62, 14, 3, 16); g.fillRect(60, 10, 8, 4);
+    A('#6a7480'); g.fillRect(38, 34, 52, 2);
+    A('#39414b'); for (let x = 40; x <= 86; x += 6) g.fillRect(x, 36, 3, 1);
+  }
+  // barba
   if (c.beardStyle === 'full') {
-    A('#000000', 0.25); for (let y = 26; y <= 36; y += 3) for (let x = 24; x <= 40; x += 4) g.fillRect(x, y, 1, 1);
-    A('#2a2a30'); g.fillRect(28, 26, 8, 1);
+    A('#000000', 0.25); for (let y = 52; y <= 72; y += 4) for (let x = 48; x <= 80; x += 5) g.fillRect(x, y, 1, 1);
+    A('#2f2f36'); for (let y = 56; y <= 68; y += 6) for (let x = 50; x <= 76; x += 8) g.fillRect(x, y, 2, 1);
+    A('#2a2a30'); g.fillRect(56, 52, 16, 2);
+    A('#3a2a2a'); g.fillRect(58, 60, 12, 1);
   } else if (dir !== 'up') {
     A(c.beard, 0.8);
-    if (dir === 'down') { for (let x = 26; x <= 38; x += 2) g.fillRect(x, 31, 1, 1); g.fillRect(30, 34, 4, 1); }
-    else if (dir === 'left') { g.fillRect(21, 29, 1, 3); g.fillRect(23, 28, 1, 2); }
-    else { g.fillRect(41, 29, 1, 3); g.fillRect(39, 28, 1, 2); }
+    if (dir === 'down') { for (let x = 52; x <= 76; x += 3) { g.fillRect(x, 62, 1, 1); g.fillRect(x + 1, 64, 1, 1); } g.fillRect(60, 68, 8, 2); A(c.beard, 0.5); g.fillRect(44, 56, 3, 8); g.fillRect(81, 56, 3, 8); }
+    else if (dir === 'left') { for (let y = 56; y <= 66; y += 2) g.fillRect(42, y, 1, 1); g.fillRect(44, 68, 6, 2); }
+    else { for (let y = 56; y <= 66; y += 2) g.fillRect(85, y, 1, 1); g.fillRect(78, 68, 6, 2); }
   }
   g.globalAlpha = 1;
-  const bx = (c.wide ? 7 : 8) * 2, bw = (c.wide ? 18 : 16) * 2;
-  A('#000000', 0.35); g.fillRect(bx + 8, 36, bw - 16, 1);
-  A('#000000', 0.25); g.fillRect(bx - 4, 40, 4, 1); g.fillRect(bx + bw, 40, 4, 1);
+  // torso: cuello, bastillas, costuras, pliegues
+  const bx = (c.wide ? 7 : 8) * 4, bw = (c.wide ? 18 : 16) * 4;
+  A('#000000', 0.35); g.fillRect(bx + 16, 72, bw - 32, 2);
+  A('#000000', 0.25); g.fillRect(bx - 8, 80, 8, 2); g.fillRect(bx + bw, 80, 8, 2);
+  A('#000000', 0.15); g.fillRect(bx, 74, 1, 24); g.fillRect(bx + bw - 1, 74, 1, 24);
+  A('#000000', 0.12); g.fillRect(bx + 10, 96, 10, 1); g.fillRect(bx + bw - 22, 104, 12, 1);
   if (c.jacket) {
-    A('#5a6470'); g.fillRect(31, 38, 2, 24);
-    A('#d8dce2'); g.fillRect(31, 42, 2, 4);
-    A('#d8dce2'); g.fillRect(28, 40, 2, 8); g.fillRect(34, 40, 2, 8);
-    A('#c88a10'); g.fillRect(bx + 2, 56, 5, 1); g.fillRect(bx + bw - 7, 56, 5, 1);
+    A('#5a6470'); g.fillRect(62, 76, 3, 48);
+    A('#8a94a2'); for (let y = 78; y <= 118; y += 4) g.fillRect(62, y, 3, 1);
+    A('#d8dce2'); g.fillRect(62, 84, 4, 8);
+    A('#d8dce2'); g.fillRect(56, 80, 3, 16); g.fillRect(68, 80, 3, 16); g.fillRect(56, 96, 3, 3); g.fillRect(68, 96, 3, 3);
+    A('#c88a10'); g.fillRect(bx + 4, 112, 10, 2); g.fillRect(bx + bw - 14, 112, 10, 2); g.fillRect(bx, 124, bw, 2);
   }
-  A('#3a5a85'); g.fillRect(21, 66, 1, 12); g.fillRect(42, 66, 1, 12);
-  if (c.sole) { A('#ffffff', 0.9); g.fillRect(22, 81, 4, 1); g.fillRect(38, 81, 4, 1); }
+  // jeans: costuras, bolsillos, bragueta, rodillas, dobladillo
+  A('#3a5a85'); g.fillRect(lx + 2, 132, 2, 24); g.fillRect(rx + 20, 132, 2, 24);
+  A('#3a5a85'); g.fillRect(lx + 4, 128, 8, 2); g.fillRect(rx + 12, 128, 8, 2);
+  A('#2a4a75'); g.fillRect(62, 128, 2, 10);
+  A('#000000', 0.12); g.fillRect(lx + 6, 150, 8, 1); g.fillRect(rx + 10, 150, 8, 1);
+  A('#000000', 0.2); g.fillRect(lx, 160, 12, 2); g.fillRect(rx + 12, 160, 12, 2);
+  // zapatos: cordones cruzados + dibujo de suela
+  if (c.sole) {
+    A('#ffffff', 0.9); g.fillRect(lx + 6, 162, 2, 1); g.fillRect(lx + 10, 164, 2, 1); g.fillRect(rx + 6, 162, 2, 1); g.fillRect(rx + 10, 164, 2, 1);
+    A('#000000', 0.3); for (let x = lx; x <= lx + 12; x += 4) g.fillRect(x, 172, 2, 1); for (let x = rx + 4; x <= rx + 16; x += 4) g.fillRect(x, 172, 2, 1);
+  }
   g.globalAlpha = 1;
 }
 function detailSit(g, c, frame) {
   const A = (col, al) => { g.fillStyle = col; g.globalAlpha = al == null ? 1 : al; };
-  A('#ffffff'); g.fillRect(35, 29, 3, 4); A('#26221e'); g.fillRect(35, 30, 2, 3); A(c.hair); g.fillRect(34, 26, 5, 1);
-  if (c.hairStyle === 'spiky') { A('#7a5a3a'); g.fillRect(35, 17, 2, 6); g.fillRect(41, 15, 2, 8); }
-  else if (c.hairStyle === 'full') { A('#33333c'); g.fillRect(36, 17, 10, 2); }
-  else { A('#454e5a'); g.fillRect(45, 13, 2, 8); g.fillRect(43, 11, 4, 2); A('#6a7480'); g.fillRect(33, 19, 20, 1); }
+  // brillo del monitor sobre el frente
+  A('#9fc0ff', 0.10); g.fillRect(64, 44, 2, 48); g.fillRect(56, 104, 2, 56);
+  // ojo de perfil + ceja + nariz + oreja
+  A('#ffffff'); g.fillRect(70, 58, 6, 8); A('#26221e'); g.fillRect(70, 60, 4, 6); A('#ffffff'); g.fillRect(70, 60, 1, 1);
+  A(c.hair); g.fillRect(68, 52, 10, 2); A(c.skinD); g.fillRect(66, 68, 4, 3);
+  A(c.skin); g.fillRect(86, 58, 6, 10); A(c.skinD); g.fillRect(88, 60, 2, 4);
+  // pelo / gorra
+  if (c.hairStyle === 'spiky') { A('#7a5a3a'); g.fillRect(70, 34, 3, 12); g.fillRect(82, 30, 3, 16); A('#4a2e1c'); g.fillRect(76, 32, 2, 10); }
+  else if (c.hairStyle === 'full') { A('#33333c'); g.fillRect(72, 34, 20, 4); A('#101014'); g.fillRect(80, 32, 2, 10); }
+  else { A('#454e5a'); g.fillRect(90, 26, 3, 16); g.fillRect(86, 22, 8, 4); A('#6a7480'); g.fillRect(66, 38, 40, 2); }
+  // barba
   if (c.beardStyle === 'full') {
-    A('#000000', 0.25); for (let y = 26; y <= 40; y += 3) for (let x = 32; x <= 44; x += 3) g.fillRect(x, y, 1, 1);
-    A('#2a2a30'); g.fillRect(34, 34, 6, 1);
+    A('#000000', 0.25); for (let y = 52; y <= 80; y += 4) for (let x = 64; x <= 88; x += 5) g.fillRect(x, y, 1, 1);
+    A('#2a2a30'); g.fillRect(68, 68, 12, 2); A('#3a2a2a'); g.fillRect(70, 74, 8, 1);
   } else {
-    A(c.beard, 0.8); for (let x = 34; x <= 44; x += 2) g.fillRect(x, 39, 1, 1); g.fillRect(36, 42, 6, 1);
+    A(c.beard, 0.8); for (let x = 68; x <= 88; x += 3) { g.fillRect(x, 78, 1, 1); g.fillRect(x + 1, 80, 1, 1); } g.fillRect(72, 84, 12, 2);
   }
-  A(c.skinD); g.fillRect(2, 60 + (frame ? 0 : 2), 6, 1); g.fillRect(4, 68 + (frame ? 2 : 0), 6, 1);
-  if (c.jacket) { A('#d8dce2'); g.fillRect(32, 62, 2, 8); g.fillRect(36, 62, 2, 8); A('#5a6470'); g.fillRect(29, 62, 2, 18); }
-  A('#000000', 0.15); g.fillRect(30, 74, 6, 1); g.fillRect(36, 80, 6, 1);
+  // manos: dedos separados sobre el teclado
+  const o1 = frame ? 0 : 4, o2 = frame ? 4 : 0;
+  A(c.skinD); g.fillRect(4, 120 + o1, 12, 1); g.fillRect(8, 136 + o2, 12, 1);
+  A(c.skinD, 0.7); g.fillRect(16, 118 + o1, 1, 2); g.fillRect(20, 134 + o2, 1, 2);
+  // hoodie / campera
+  if (c.jacket) {
+    A('#d8dce2'); g.fillRect(64, 124, 3, 16); g.fillRect(72, 124, 3, 16); g.fillRect(64, 140, 3, 3); g.fillRect(72, 140, 3, 3);
+    A('#5a6470'); g.fillRect(58, 124, 3, 36);
+    A('#c88a10'); g.fillRect(56, 160, 40, 2);
+  }
+  A('#000000', 0.12); g.fillRect(60, 148, 12, 1); g.fillRect(72, 156, 12, 1);
+  // muslo: costura y rodilla
+  A('#3a5a85'); g.fillRect(44, 164, 2, 16); A('#000000', 0.12); g.fillRect(96, 168, 8, 1);
   g.globalAlpha = 1;
 }
 
@@ -174,9 +227,9 @@ function getSprite(charKey, dir, frame) {
   if (spriteCache[key]) return spriteCache[key];
   const c = charOf(charKey);
   const cv = document.createElement('canvas');
-  cv.width = 64; cv.height = 88;
+  cv.width = 128; cv.height = 176;
   const g = cv.getContext('2d');
-  g.scale(2, 2); // misma silueta calibrada, dibujada al doble de resolución
+  g.scale(4, 4); // misma silueta calibrada, dibujada en grilla finísima 4x
   const step = frame === 1;
   const bx = c.wide ? 7 : 8, bw = c.wide ? 18 : 16; // torso
   // piernas y zapatos
@@ -365,7 +418,7 @@ function getSitSprite(charKey, face, occupied, frame = 0) {
   const key = `vC_k${charKey}_${face}_${occupied ? 1 : 0}_${frame}`;
   if (sitCache[key]) return sitCache[key];
   const cv = document.createElement('canvas');
-  cv.width = 96; cv.height = 112;
+  cv.width = 192; cv.height = 224;
   const g = cv.getContext('2d');
   const c = charOf(charKey);
   const draw = (gg) => {
@@ -380,11 +433,11 @@ function getSitSprite(charKey, face, occupied, frame = 0) {
     sitC(gg, c, frame);
   };
   if (face === 'left') {
-    g.save(); g.scale(2, 2); draw(g); g.restore();
+    g.save(); g.scale(4, 4); draw(g); g.restore();
     if (occupied) detailSit(g, c, frame);
   } else {
-    g.save(); g.translate(96, 0); g.scale(-2, 2); draw(g); g.restore();
-    if (occupied) { g.save(); g.translate(96, 0); g.scale(-1, 1); detailSit(g, c, frame); g.restore(); }
+    g.save(); g.translate(192, 0); g.scale(-4, 4); draw(g); g.restore();
+    if (occupied) { g.save(); g.translate(192, 0); g.scale(-1, 1); detailSit(g, c, frame); g.restore(); }
   }
   sitCache[key] = cv;
   return cv;
@@ -439,7 +492,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.14.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.15.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
