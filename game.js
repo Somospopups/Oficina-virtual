@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.11.0 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.11.1 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1155,17 +1155,17 @@ function layoutMobile() {
     if (chatEl) { chatEl.style.top = ''; chatEl.style.bottom = ''; }
     return;
   }
-  viewOY = 0; // escena pegada arriba: el chat y el stick viven en la franja de abajo
-  const sceneH = VH * viewScale;
+  // diseño congelado v1.11.1: escena centrada, chat bajo la imagen (sin meterse
+  // en la columna del stick) y stick centrado en la franja que queda abajo
+  const sceneBottom = viewOY + VH * viewScale;
   const h = canvas.height;
   const stickH = 92;
-  const band = h - sceneH;
+  const band = h - sceneBottom;
   const stickBottom = Math.max(10, (band - stickH) / 2);
-  const stickTop = h - stickBottom - stickH;
   if (stickEl) stickEl.style.bottom = stickBottom + 'px';
   if (chatEl) {
-    chatEl.style.top = (sceneH + 6) + 'px';
-    chatEl.style.bottom = Math.max(4, h - stickTop + 6) + 'px';
+    chatEl.style.top = (sceneBottom + 6) + 'px';
+    chatEl.style.bottom = ''; // el CSS móvil lo deja a 8px del borde, al lado del stick
   }
 }
 window.addEventListener('resize', resize);
