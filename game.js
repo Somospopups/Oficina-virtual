@@ -240,6 +240,127 @@ const rtcNivel = new Map();    // peerId -> 0..1, para ver quién está hablando
 const rtcVivo = new Map();     // peerId -> { audio, analyser, data, buf }
 let rtcStream = null, rtcTrack = null, rtcOn = false, rtcAviso = false, rtcBloqueado = false;
 
+// ---------- Compartir pantalla ----------
+// Reusa la malla de audio: no es una red nueva, es agregar un track de video a las
+// conexiones que ya están. Solo uno a la vez, y mudo (el audio lo lleva el micro
+// aparte; mezclarlo se acopla y ademas es unaDecision de privacidad).
+let rtcPantalla = null, rtcPantallaTrack = null, rtcComparto = false, rtcReneg = false;
+const rtcComparte = new Map();  // peerId -> true si está compartiendo pantalla
+
+// Con quién tiene que haber conexión: si yo hablo, o me comparten el micro, o me
+// comparten la pantalla. Ojo: esto es lo que hace que compartir pantalla funcione
+// aunque nadie tenga el micro abierto.
+function rtcConectaCon(peer) {
+  return rtcOn || rtcComparto || !!rtcMic.get(peer) || !!rtcComparte.get(peer);
+}
+
+function rtcNombreDe(peer) {
+  const p = state.players.get(peer);
+  return p ? p.name : 'un compañero';
+}
+
+async function rtcCompartir() {
+  if (rtcComparto) { rtcDejarDeCompartir(); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+    toast('🖥 Este navegador no deja compartir pantalla. En iPhone e iPad no existe la función.');
+    return;
+  }
+  if (rtcComparte.size) {
+    toast('🖥 Ya hay alguien compartiendo pantalla. Solo una a la vez.');
+    return;
+  }
+  let stream;
+  try {
+    // Abstractions: el usuario elige pantalla, ventana o pestaña. Si cancela, se
+    // lanza y no pasa nada.
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 12 }, audio: false });
+  } catch { return; }
+  rtcPantalla = stream;
+  rtcPantallaTrack = stream.getVideoTracks()[0];
+  if (!rtcPantallaTrack) { rtcDejarDeCompartir(); return; }
+  rtcComparto = true;
+  // Si el usuario corta desde el propio navegador (el cartelito de "Dejar de
+  // compartir"), hay que enterarse igual.
+  rtcPantallaTrack.onended = () => rtcDejarDeCompartir();
+  send({ type: 'rtc-share', on: true, from: state.myId });
+  rtcConectarConTodos();
+  renderCallUI();
+  await rtcRenegociar();
+  toast('🖥 Compartiendo tu pantalla. La ven en la ventana de video.');
+}
+
+function rtcDejarDeCompartir() {
+  const track = rtcPantallaTrack;
+  if (track) { try { track.stop(); } catch { /* ya estaba */ } }
+  rtcPantalla = null; rtcPantallaTrack = null;
+  if (!rtcComparto) return;
+  rtcComparto = false;
+  send({ type: 'rtc-share', on: false, from: state.myId });
+  // Sacar el track de video de cada conexión y renegociar. Si no se sacara, el
+  // compañero seguiría viendo una imagen congelada de tu pantalla.
+  for (const p of rtcMesh.values()) {
+    try {
+      if (track) p.pc.getSenders().forEach((s) => { if (s.track === track) p.pc.removeTrack(s); });
+    } catch { /* ya cerrado */ }
+  }
+  renderCallUI();
+  rtcRenegociar();
+}
+
+// Agrega o saca el track de pantalla y vuelve a ofertar. Solo comparte uno a la vez,
+// así que las renegociaciones nunca se cruzan entre dos pares.
+async function rtcRenegociar() {
+  if (rtcReneg) return;
+  rtcReneg = true;
+  try {
+    for (const [peer, p] of rtcMesh) {
+      try {
+        const yaEsta = rtcPantallaTrack && p.pc.getSenders().some((s) => s.track === rtcPantallaTrack);
+        if (rtcPantallaTrack && !yaEsta) p.pc.addTrack(rtcPantallaTrack, rtcPantalla);
+        const of = await p.pc.createOffer();
+        await p.pc.setLocalDescription(of);
+        send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, reneg: 1 });
+      } catch { /* se reintenta con el siguiente hello */ }
+    }
+  } finally { rtcReneg = false; }
+}
+
+function rtcVerPantalla(peer, stream) {
+  const box = document.getElementById('videoBox');
+  if (!box) return;
+  // Nunca conviven el iframe de YouTube y el video de la pantalla.
+  box.querySelectorAll('iframe').forEach((f) => f.remove());
+  let v = document.getElementById('rtcVideo');
+  if (!v) {
+    v = document.createElement('video');
+    v.id = 'rtcVideo';
+    v.autoplay = true; v.playsInline = true; v.muted = true;  // mudo: el audio va por el micro
+    box.appendChild(v);
+  }
+  v.srcObject = stream;
+  v.play().catch(() => {});
+  rtcComparte.set(peer, true);
+  const panel = document.getElementById('videoPanel');
+  if (panel) panel.classList.remove('hidden');
+  const who = document.getElementById('videoWho');
+  if (who) who.textContent = `🖥 ${rtcNombreDe(peer)} está compartiendo pantalla`;
+  const note = document.getElementById('videoNote');
+  if (note) note.textContent = 'Pantalla de un compañero: no se puede pausar ni sincronizar.';
+  const tap = document.getElementById('videoTap');
+  if (tap) tap.classList.add('hidden');
+  aplicarFloat();
+  renderCallUI();
+}
+
+function rtcOcultarPantalla() {
+  rtcComparte.clear();
+  const v = document.getElementById('rtcVideo');
+  if (v) { try { v.srcObject = null; } catch { /* ya no está */ } v.remove(); }
+  const panel = document.getElementById('videoPanel');
+  if (panel && !music.item) panel.classList.add('hidden');
+  renderCallUI();
+}
+
 // El que tiene el id más chico alfabéticamente inicia. Así nunca se cruzan dos
 // ofertas del mismo par a la vez, que es lo que rompe las conexiones (glare).
 // Sin id propio no se inicia nunca: comparar '' contra cualquier cosa da true y
@@ -261,10 +382,19 @@ function rtcPar(peer) {
   if (rtcTrack) {
     try { p.pc.addTrack(rtcTrack, rtcStream); } catch { /* sin track */ }
   }
+  // El de pantalla se agrega acá si ya se estaba compartiendo, para que la
+  // conexión nazca completa y no haya que renegociar en el acto.
+  if (rtcPantallaTrack) {
+    try { p.pc.addTrack(rtcPantallaTrack, rtcPantalla); } catch { /* sin track */ }
+  }
   pc.onicecandidate = (e) => {
     if (e.candidate) send({ type: 'rtc-ice', to: peer, cand: e.candidate.toJSON(), from: state.myId });
   };
-  pc.ontrack = (e) => rtcConectarAudio(peer, e.streams[0] || new MediaStream([e.track]));
+  // El audio va al <audio> suelto; el video a la ventana que ya usa YouTube.
+  pc.ontrack = (e) => {
+    if (e.track.kind === 'video') rtcVerPantalla(peer, e.streams[0] || new MediaStream([e.track]));
+    else rtcConectarAudio(peer, e.streams[0] || new MediaStream([e.track]));
+  };
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === 'connected') { rtcAviso = false; renderCallUI(); }
     if (pc.connectionState === 'failed' && !rtcAviso) {
@@ -374,8 +504,8 @@ function rtcCallVolumen() {
 function rtcConectarConTodos() {
   for (const p of state.players.values()) {
     if (!p.id || p.id === state.myId) continue;
-    if (rtcIniciyo(p.id) && (rtcOn || rtcMic.get(p.id))) rtcOfrecer(p.id);
-    else rtcPar(p.id);
+    if (rtcConectaCon(p.id) && rtcIniciyo(p.id)) rtcOfrecer(p.id);
+    else if (rtcConectaCon(p.id)) rtcPar(p.id);
   }
 }
 
@@ -401,6 +531,7 @@ async function rtcAbrir() {
 }
 let rtcAvisoHecho = false;
 function rtcCerrar() {
+  if (rtcComparto) rtcDejarDeCompartir();
   if (rtcTrack) { try { rtcTrack.stop(); } catch { /* ya estaba */ } }
   rtcStream = null; rtcTrack = null; rtcOn = false;
   send({ type: 'rtc-hello', mic: false, from: state.myId });
@@ -417,7 +548,11 @@ function rtcSalirDePeer(peer) {
   if (p) { try { p.pc.close(); } catch { /* ya cerrado */ } rtcMesh.delete(peer); }
   const v = rtcVivo.get(peer);
   if (v) { try { v.audio.remove(); } catch { /* ya no está */ } rtcVivo.delete(peer); }
+  const partia = rtcComparte.delete(peer);
   rtcMic.delete(peer); rtcNivel.delete(peer);
+  // Si se va el que compartía, se cae la ventana: si no queda clavada mostrando la
+  // última imagen de su pantalla.
+  if (partia && !rtcComparto) rtcOcultarPantalla();
   renderCallUI();
 }
 
@@ -446,9 +581,18 @@ function renderCallUI() {
   const b = document.getElementById('micCallBtn');
   if (b) {
     b.classList.toggle('on', rtcOn);
-    b.textContent = rtcOn ? '🎤' : '🎤';
     b.style.opacity = rtcOn ? '1' : '0.65';
     b.title = rtcOn ? 'Micro abierto: queda así hasta que lo cierres' : 'Abrir el micro de la oficina (tecla M)';
+  }
+  const sh = document.getElementById('shareBtn');
+  if (sh) {
+    sh.classList.toggle('on', rtcComparto);
+    // Si hay otro compartiendo, el botón se deshabilita: solo uno a la vez.
+    const ocupado = rtcComparte.size > 0;
+    sh.disabled = ocupado;
+    sh.style.opacity = rtcComparto ? '1' : (ocupado ? '0.35' : '0.65');
+    sh.title = ocupado ? 'Ya hay alguien compartiendo pantalla'
+      : (rtcComparto ? 'Dejar de compartir (tecla S)' : 'Compartir tu pantalla con los de la oficina (tecla S)');
   }
   const vb = document.getElementById('callVolBox');
   if (vb) vb.classList.toggle('hidden', !rtcOn && !rtcVivo.size);
@@ -1060,7 +1204,7 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.37.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.38.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1082,8 +1226,13 @@ let ws = null, reconnectTimer = null, sendFn = null;
 const USE_P2P = location.hostname.endsWith('github.io') || new URLSearchParams(location.search).has('p2p');
 // El espectador sigue siendo de solo lectura para la OFICINA: no chatea, no se
 // mueve, no toca la radio ni los emotes. Pero SÍ participa de la llamada, porque
-// para recibir audio tiene que mandar la respuesta del offer y sus candidatos ICE,
-// que es WebRTC bidireccional por naturaleza. Por eso la lista blanca.
+// para recibir audio (y para ver la pantalla que comparte otro) tiene que mandar
+// la respuesta del offer y sus candidatos ICE, que es WebRTC bidireccional por
+// naturaleza. Por eso la lista blanca.
+//
+// 'rtc-share' NO entra a propósito: es el aviso de "estoy compartiendo pantalla", y
+// un espectador solo lo recibe, nunca lo manda. Si lo dejara pasar, un espectador
+// podría anunciarse como compartidor.
 const RTC_TIPOS = new Set(['rtc-hello', 'rtc-offer', 'rtc-answer', 'rtc-ice', 'rtc-bye']);
 function send(o) {
   if (state.spectating && !RTC_TIPOS.has(o.type)) return;
@@ -1366,6 +1515,18 @@ function handleMsg(msg) {
     case 'rtc-answer': if (!rtcVisto(msg)) rtcIceRespuesta(msg); break;
     case 'rtc-ice': if (!rtcVisto(msg)) rtcIce(msg.to, msg.cand); break;
     case 'rtc-bye': if (!rtcVisto(msg)) rtcSalirDePeer(msg.from); break;
+    case 'rtc-share': {
+      if (msg.on) {
+        rtcComparte.set(msg.from, true);
+        if (rtcConectaCon(msg.from) && rtcIniciyo(msg.from)) rtcOfrecer(msg.from);
+        else rtcPar(msg.from);
+        renderCallUI();
+      } else {
+        rtcComparte.delete(msg.from);
+        if (!rtcComparte.size) rtcOcultarPantalla();
+      }
+      break;
+    }
     case 'left':
       state.players.delete(msg.id);
       // Se cuelga la conexión con ese par: si no, el <audio> sigue vivo ocupando
@@ -2098,6 +2259,7 @@ window.addEventListener('keydown', (e) => {
   if (key === 'h') { helpOverlay.classList.toggle('hidden'); return; }
     if (key === 'p') { mpToggle(); return; }
     if (key === 'm') { rtcToggle(); return; }
+    if (key === 's') { rtcCompartir(); return; }
   if (e.key === 'Escape') { helpOverlay.classList.add('hidden'); return; }
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 3) { setStatus(STATUS_KEYS[n - 1]); return; }
@@ -2702,6 +2864,16 @@ function init() {
   const bSync = document.getElementById('videoSync'); if (bSync) bSync.onclick = videoSync;
   const bTap = document.getElementById('videoTap');
   if (bTap) bTap.onclick = () => { bTap.classList.add('hidden'); playerCmd('playVideo'); };
+  // Llamada de la oficina: micro, pantalla y volumen
+  const bMic = document.getElementById('micCallBtn'); if (bMic) bMic.onclick = rtcToggle;
+  const bShare = document.getElementById('shareBtn'); if (bShare) bShare.onclick = rtcCompartir;
+  const bListen = document.getElementById('callListen');
+  if (bListen) bListen.onclick = () => {
+    for (const v of rtcVivo.values()) { const a = v.audio; a.muted = false; a.volume = rtcVolumen(); a.play().catch(() => {}); }
+    rtcBloqueado = false; renderCallUI();
+  };
+  const cVol = document.getElementById('callVol');
+  if (cVol) cVol.oninput = rtcCallVolumen;
   const bFloat = document.getElementById('videoFloat'); if (bFloat) bFloat.onclick = () => setVideoFloat(!videoFloat);
   const bBig = document.getElementById('videoBig');
   if (bBig) bBig.onclick = () => { if (!videoFloat) setVideoFloat(true); else setVideoBig(!videoBig); };

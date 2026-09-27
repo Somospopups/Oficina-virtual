@@ -196,6 +196,13 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #micCallBtn { font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
 #micCallBtn:hover { background: #1f2736; }
 #micCallBtn.on { background: #2a1420; border-color: #e05252; color: #ff8f8f; }
+#shareBtn { font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+#shareBtn:hover { background: #1f2736; }
+#shareBtn.on { background: #14261a; border-color: #7ee787; color: #7ee787; }
+#shareBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+/* El video de la pantalla compartida va en la misma caja que el de YouTube, pero
+   nunca los dos a la vez. */
+#rtcVideo { width: 100%; height: 100%; object-fit: contain; background: #05070b; display: block; }
 #callListen { font-size: 13px; background: #3a1414; border: 2px solid #e05252; border-radius: 8px; padding: 8px 9px; cursor: pointer; animation: callpulse 1.2s ease-in-out infinite; }
 @keyframes callpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 #callVolBox { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #cdd5e4;
