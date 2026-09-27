@@ -797,6 +797,8 @@ let lastSend = 0, lastZone = null, audioCtx = null;
 const bgImg = new Image();
 let bgReady = false;
 const bgCv = document.createElement('canvas');
+const wideBackdropCv = document.createElement('canvas');
+let backdropDirty = true;
 function pxAt(g, x, y) { const d = g.getImageData(x, y, 1, 1).data; return `rgb(${d[0]},${d[1]},${d[2]})`; }
 bgImg.onload = () => {
   bgCv.width = bgImg.width; bgCv.height = bgImg.height;
@@ -814,6 +816,7 @@ bgImg.onload = () => {
     g.globalAlpha = 0.5; g.fillStyle = gv; g.fillRect(x, y, w, h); g.globalAlpha = 1;
   }
   bgReady = true;
+  backdropDirty = true;
 };
 bgImg.src = 'bg_deep2.png';
 
@@ -831,7 +834,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.25.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.26.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1639,8 +1642,31 @@ function ejectSelf(reason) {
 
 // ---------- Bucle ----------
 let lastT = performance.now();
+function rebuildWideBackdrop() {
+  backdropDirty = false;
+  const W = canvas.width, H = canvas.height;
+  if (!bgReady || W <= 900 || W / H <= 1.45) {
+    wideBackdropCv.width = 0; wideBackdropCv.height = 0;
+    return;
+  }
+  // Rellena las franjas laterales del monitor con la misma oficina, suavizada.
+  // La escena central y los sprites siguen usando su escala original, sin estirarse.
+  const bw = Math.max(1, Math.ceil(W / 4)), bh = Math.max(1, Math.ceil(H / 4));
+  wideBackdropCv.width = bw; wideBackdropCv.height = bh;
+  const g = wideBackdropCv.getContext('2d');
+  g.imageSmoothingEnabled = true;
+  g.fillStyle = '#10131a'; g.fillRect(0, 0, bw, bh);
+  const scale = Math.max(bw / bgCv.width, bh / bgCv.height);
+  const dw = bgCv.width * scale, dh = bgCv.height * scale;
+  g.save();
+  g.filter = 'blur(8px)';
+  g.drawImage(bgCv, (bw - dw) / 2, (bh - dh) / 2, dw, dh);
+  g.restore();
+  g.fillStyle = 'rgba(8,10,18,0.34)'; g.fillRect(0, 0, bw, bh);
+}
 function resize() {
   canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  backdropDirty = true;
   viewScale = Math.min(canvas.width / VW, canvas.height / VH);
   viewOX = (canvas.width - VW * viewScale) / 2;
   viewOY = (canvas.height - VH * viewScale) / 2;
@@ -1822,6 +1848,16 @@ function render() {
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = '#0c0e14';
   ctx.fillRect(0, 0, W, H);
+  // En escritorio panorámico, usa las bandas como ambiente de la oficina en vez
+  // de dejarlas vacías. Móvil conserva exactamente el encuadre de siempre.
+  if (W > 900 && W / H > 1.45) {
+    if (backdropDirty) rebuildWideBackdrop();
+    if (wideBackdropCv.width && wideBackdropCv.height) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(wideBackdropCv, 0, 0, W, H);
+      ctx.imageSmoothingEnabled = false;
+    }
+  }
   ctx.setTransform(viewScale, 0, 0, viewScale, viewOX, viewOY);
 
   // Los PNG de referencia son digital painting con antialiasing: reescalados con
