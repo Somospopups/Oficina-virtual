@@ -23,6 +23,13 @@ body { font-family: 'Press Start 2P', monospace; color: #e8e6df; }
 .join-card .sub { font-size: 9px; color: #9aa4bd; margin-bottom: 16px; line-height: 1.7; }
 #avatarPreview { image-rendering: pixelated; background: #12161f; border: 2px solid #2c3550; margin-bottom: 14px; }
 
+#dniInput {
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 15px !important; letter-spacing: 4px; text-align: center;
+  padding: 16px 10px !important; border-color: #ffd76a !important;
+  box-shadow: 0 0 0 3px rgba(255, 215, 106, 0.25); color: #ffe9a8 !important;
+}
+#dniInput::placeholder { color: #55617a; letter-spacing: 1px; font-size: 9px; }
 #dniInput, #chatInput {
   font-family: inherit; font-size: 11px; color: #fff;
   background: #10141d; border: 3px solid #3b4560; outline: none;
@@ -130,9 +137,21 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
   font-size: 8px; color: #ffd76a; white-space: nowrap;
 }
 
+/* Stick tactil */
+#stick {
+  display: none; position: absolute; left: 12px; bottom: 138px; z-index: 35;
+  width: 92px; height: 92px; border-radius: 50%;
+  background: rgba(16, 20, 29, 0.45); border: 2px solid #3b4560; touch-action: none;
+}
+#stickKnob {
+  position: absolute; left: 50%; top: 50%; width: 36px; height: 36px; margin: -18px 0 0 -18px;
+  border-radius: 50%; background: #3a4664; border: 2px solid #55688f; pointer-events: none;
+}
+#game { touch-action: none; }
+
 @media (max-width: 900px) {
   #statusBar {
-    max-width: none; bottom: 138px; top: auto; left: auto; right: 10px; transform: none;
+    max-width: none; bottom: auto; top: 56px; left: auto; right: 8px; transform: none;
     display: grid; grid-template-columns: auto auto; gap: 6px; justify-content: end;
   }
   .status-btn { font-size: 7px; padding: 7px 8px; }
@@ -147,17 +166,6 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
   #stick { display: block; }
 }
 
-/* Stick tactil */
-#stick {
-  display: none; position: absolute; left: 12px; bottom: 138px; z-index: 35;
-  width: 92px; height: 92px; border-radius: 50%;
-  background: rgba(16, 20, 29, 0.45); border: 2px solid #3b4560; touch-action: none;
-}
-#stickKnob {
-  position: absolute; left: 50%; top: 50%; width: 36px; height: 36px; margin: -18px 0 0 -18px;
-  border-radius: 50%; background: #3a4664; border: 2px solid #55688f; pointer-events: none;
-}
-#game { touch-action: none; }
 
 /* Radio de la oficina */
 #musicBtn { font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
@@ -171,3 +179,16 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 .mp-row button:hover { background: #26304a; }
 .mp-now { font-size: 8px; color: #7ee787; word-break: break-all; }
 #ytBox { position: fixed; left: -8px; bottom: -8px; width: 2px; height: 2px; opacity: 0.01; pointer-events: none; z-index: 1; }
+
+/* Panel de diagnóstico de red */
+#netPanel {
+  position: fixed; top: 50px; left: 12px; z-index: 60; width: min(300px, calc(100vw - 24px));
+  background: rgba(10, 13, 19, 0.96); border: 2px solid #3b4560; border-radius: 10px;
+  padding: 10px 12px; font-size: 8px; color: #9fb0cc; line-height: 1.9;
+  font-family: 'Press Start 2P', monospace;
+}
+#netPanel.hidden { display: none; }
+#netPanel .np-title { color: #ffd76a; margin-bottom: 6px; }
+#netPanel .ok { color: #7ee787; }
+#netPanel .bad { color: #ff8a8a; }
+#clock { cursor: pointer; }

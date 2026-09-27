@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.9.0 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.9.1 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -434,6 +434,7 @@ let busSockets = [];
 const busSub = 's' + Math.random().toString(36).slice(2, 8);
 let myPub = '', mySec = null, nobleSchnorr = null, nobleSha = null;
 let p2pPeerCount = 0;
+let busSent = 0, busRecv = 0;
 const seenEvents = new Set();
 
 function bytesHex(b) { return [...b].map((x) => x.toString(16).padStart(2, '0')).join(''); }
@@ -466,8 +467,9 @@ async function connectP2P() {
 function openRelay(host) {
   let ws;
   try { ws = new WebSocket('wss://' + host); } catch { return; }
-  const alive = { ws, host };
+  const alive = { ws, host, rx: 0, st: 'abriendo' };
   ws.onopen = () => {
+    alive.st = 'ok';
     busSockets.push(alive);
     ws.send(JSON.stringify(['REQ', busSub, { kinds: [20001], '#o': [BUS_ROOM], since: Math.floor(Date.now() / 1000) - 60 }]));
     if (state.joined) sendMoveNow();
@@ -478,13 +480,14 @@ function openRelay(host) {
     const e = m[2];
     if (e.pubkey === myPub || seenEvents.has(e.id)) return;
     seenEvents.add(e.id); if (seenEvents.size > 800) seenEvents.clear();
+    alive.rx++; busRecv++;
     let payload; try { payload = JSON.parse(e.content); } catch { return; }
     if (!payload || !payload.type) return;
     payload._pid = e.pubkey;
     handleMsg(payload);
   };
-  ws.onclose = () => { busSockets = busSockets.filter((s) => s !== alive); setTimeout(() => openRelay(host), 5000); };
-  ws.onerror = () => { try { ws.close(); } catch { /* ya muerto */ } };
+  ws.onclose = () => { alive.st = 'cerrado'; busSockets = busSockets.filter((s) => s !== alive); setTimeout(() => openRelay(host), 5000); };
+  ws.onerror = () => { alive.st = 'error'; try { ws.close(); } catch { /* ya muerto */ } };
 }
 function busSend(o) {
   if (!nobleSchnorr || !busSockets.length) return;
@@ -494,8 +497,21 @@ function busSend(o) {
   const id = bytesHex(nobleSha(JSON.stringify([0, myPub, created, 20001, tags, content])));
   nobleSchnorr.sign(id, mySec).then((sig) => {
     const evt = JSON.stringify(['EVENT', { id, pubkey: myPub, created_at: created, kind: 20001, tags, content, sig: bytesHex(sig) }]);
-    for (const s of busSockets) { try { if (s.ws.readyState === 1) s.ws.send(evt); } catch { /* relay caído */ } }
+    busSent++;
+    for (const s of busSockets.slice(0, 3)) { try { if (s.ws.readyState === 1) s.ws.send(evt); } catch { /* relay caído */ } }
   }).catch(() => { /* sin firma no hay mensaje */ });
+}
+function renderNetPanel() {
+  const el = document.getElementById('netPanel');
+  if (!el || el.classList.contains('hidden')) return;
+  const relays = BUS_RELAYS.map((h) => {
+    const s = busSockets.find((x) => x.host === h);
+    const st = s ? (s.st === 'ok' ? `<span class="ok">🟢 rx ${s.rx}</span>` : `<span class="bad">${s.st}</span>`) : '<span class="bad">—</span>';
+    return `${h}: ${st}`;
+  }).join('<br>');
+  el.innerHTML = `<div class="np-title">🛰 RED P2P (tocá el reloj para cerrar)</div>${relays}<br>` +
+    `enviados: ${busSent} · recibidos: ${busRecv}<br>peers: ${p2pPeerCount} · firma: ${nobleSchnorr ? '<span class="ok">ok</span>' : '<span class="bad">no</span>'}<br>` +
+    `versión: ${VERSION}`;
 }
 window.addEventListener('pagehide', () => { if (state.joined) send({ type: 'bye', id: state.myId, name: state.myName }); });
 
@@ -1014,7 +1030,7 @@ function update(dt) {
 
   const now = performance.now();
   if (me.moving && now - lastSend > SEND_MS) { lastSend = now; sendMoveNow(); }
-  else if (!me.moving && now - lastSend > 600) { lastSend = now; sendMoveNow(); }
+  else if (!me.moving && now - lastSend > 1000) { lastSend = now; sendMoveNow(); }
 
   const z = me.seated ? { name: 'tu puesto', status: 'codeando' } : zoneAt(me.x, me.y);
   const zKey = z ? z.name : null;
@@ -1218,6 +1234,11 @@ function init() {
     stickEl.addEventListener('pointerup', end);
     stickEl.addEventListener('pointercancel', end);
   }
+
+  // panel de diagnóstico: tocar el reloj lo abre/cierra
+  const np = document.getElementById('netPanel');
+  clockBox.addEventListener('click', () => { if (np) { np.classList.toggle('hidden'); renderNetPanel(); } });
+  setInterval(renderNetPanel, 2000);
   const q = new URLSearchParams(location.search);
   if (q.get('dni')) dniInput.value = q.get('dni');
   joinBtn.onclick = join;
