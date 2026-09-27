@@ -779,7 +779,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.19.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.19.1 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1835,21 +1835,17 @@ function render() {
       ctx.imageSmoothingEnabled = conAsset;              // ver nota arriba del setTransform
       if (conAsset) ctx.imageSmoothingQuality = 'high';
 
-      // Caminata: la foto de referencia es una pose única, así que no hay pasos que
-      // recortar (intentar separar las piernas por capas deja artefactos: la IA
-      // pintó la sombra entre ellas como tono opaco y no hay frontera limpia). Lo
-      // que sí da lectura de movimiento es el rebote, el balanceo y el squash: cada
-      // cuadro la figura se comprime y se estira un poco alrededor de los pies.
+      // Caminata: el sprite se dibuja SIEMPRE con la misma forma, igual que
+      // parado. Solo se mueve de posición (rebote y balanceo); no hay squash ni
+      // estiramiento, que deformaban la silueta y lo hacían ver distinto de la
+      // pose quieta. La foto de referencia es una pose única y su sombra entre las
+      // piernas es tono opaco, así que no hay pasos que recortar: separar el sprite
+      // en capas parte la ropa y deja artefactos.
       if (p.moving) {
         const ph = Math.floor(now / 150) % 2;
-        const dy = ph ? -s * 0.42 : s * 0.12;
-        const dx = ph ? s * 0.3 : -s * 0.3;
-        const sx = ph ? 0.985 : 1.025, sy = ph ? 1.02 : 0.975;
-        ctx.save();
-        ctx.translate(p.x + dx, p.y + dy);
-        ctx.scale(sx, sy);
-        ctx.drawImage(spr, -w / 2, -h, w, h);
-        ctx.restore();
+        const dy = ph ? -s * 0.4 : s * 0.1;
+        const dx = ph ? s * 0.28 : -s * 0.28;
+        ctx.drawImage(spr, p.x - w / 2 + dx, p.y - h + dy, w, h);
       } else {
         ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
       }
