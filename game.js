@@ -837,7 +837,7 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.29.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.29.1 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1909,69 +1909,72 @@ function drawSky(now, hf, sky) {
 }
 
 function update(dt) {
+  const now = performance.now();
   const me = state.players.get(state.myId);
-  if (!me || !state.joined) return;
-  let dx = 0, dy = 0;
-  if (document.activeElement !== chatInput) {
-    if (keys['arrowleft'] || keys['a'] || keys['keya']) dx -= 1;
-    if (keys['arrowright'] || keys['d'] || keys['keyd']) dx += 1;
-    if (keys['arrowup'] || keys['w'] || keys['keyw']) dy -= 1;
-    if (keys['arrowdown'] || keys['s'] || keys['keys']) dy += 1;
-  }
-  if (state.stick && state.stick.active) {
-    if (Math.abs(state.stick.x) > 0.12) dx += state.stick.x;
-    if (Math.abs(state.stick.y) > 0.12) dy += state.stick.y;
-  }
-  const want = dx !== 0 || dy !== 0;
+  // El movimiento propio solo existe al jugar; el suavizado remoto debe correr
+  // también en login/espectador para que se vean los desplazamientos recibidos.
+  if (me && state.joined) {
+    let dx = 0, dy = 0;
+    if (document.activeElement !== chatInput) {
+      if (keys['arrowleft'] || keys['a'] || keys['keya']) dx -= 1;
+      if (keys['arrowright'] || keys['d'] || keys['keyd']) dx += 1;
+      if (keys['arrowup'] || keys['w'] || keys['keyw']) dy -= 1;
+      if (keys['arrowdown'] || keys['s'] || keys['keys']) dy += 1;
+    }
+    if (state.stick && state.stick.active) {
+      if (Math.abs(state.stick.x) > 0.12) dx += state.stick.x;
+      if (Math.abs(state.stick.y) > 0.12) dy += state.stick.y;
+    }
+    const want = dx !== 0 || dy !== 0;
 
-  if (me.seated && want) {
-    me.seated = false;
-    const toward = me.x < VW / 2 ? 1 : -1;
-    let nx = me.x + toward * 120, ny = me.y + 40;
-    ny = clamp(ny, FLOOR.yTop + 12, FLOOR.yBot - 8);
-    if (!walkable(nx, ny)) nx = me.x + toward * 40;
-    me.x = nx; me.y = ny;
-    sendMoveNow();
-    lastSend = performance.now();
-  }
-  if (want && !me.seated) {
-    const len = Math.hypot(dx, dy); dx /= len; dy /= len;
-    const sp = SPEED * clamp(depthScale(me.y) / 12, 0.35, 1.6);
-    const nx = me.x + dx * sp * dt, ny = me.y + dy * sp * dt;
-    if (walkable(nx, me.y)) me.x = nx;
-    if (walkable(me.x, ny)) me.y = ny;
-    me.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
-    me.moving = true;
-  } else {
-    me.moving = false;
-    if (!me.seated) {
-      const seat = seatNear(me.x, me.y);
-      if (seat) {
-        const occ = seatOwner(seat, state.myId);
-        if (occ) {
-          const t = performance.now();
-          if (!me.seatWarn || t - me.seatWarn > 4000) { me.seatWarn = t; toast(`🪑 Ese puesto es de ${occ.name}`); }
-        } else {
-          me.seated = true; me.dir = seat.face; me.x = seat.x; me.y = seat.y;
-          sendMoveNow();
-          lastSend = performance.now();
+    if (me.seated && want) {
+      me.seated = false;
+      const toward = me.x < VW / 2 ? 1 : -1;
+      let nx = me.x + toward * 120, ny = me.y + 40;
+      ny = clamp(ny, FLOOR.yTop + 12, FLOOR.yBot - 8);
+      if (!walkable(nx, ny)) nx = me.x + toward * 40;
+      me.x = nx; me.y = ny;
+      sendMoveNow();
+      lastSend = performance.now();
+    }
+    if (want && !me.seated) {
+      const len = Math.hypot(dx, dy); dx /= len; dy /= len;
+      const sp = SPEED * clamp(depthScale(me.y) / 12, 0.35, 1.6);
+      const nx = me.x + dx * sp * dt, ny = me.y + dy * sp * dt;
+      if (walkable(nx, me.y)) me.x = nx;
+      if (walkable(me.x, ny)) me.y = ny;
+      me.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+      me.moving = true;
+    } else {
+      me.moving = false;
+      if (!me.seated) {
+        const seat = seatNear(me.x, me.y);
+        if (seat) {
+          const occ = seatOwner(seat, state.myId);
+          if (occ) {
+            const t = performance.now();
+            if (!me.seatWarn || t - me.seatWarn > 4000) { me.seatWarn = t; toast(`🪑 Ese puesto es de ${occ.name}`); }
+          } else {
+            me.seated = true; me.dir = seat.face; me.x = seat.x; me.y = seat.y;
+            sendMoveNow();
+            lastSend = performance.now();
+          }
         }
       }
     }
-  }
-  me.tx = me.x; me.ty = me.y;
+    me.tx = me.x; me.ty = me.y;
 
-  const now = performance.now();
-  if (me.moving && now - lastSend > SEND_MS) { lastSend = now; sendMoveNow(); }
-  else if (!me.moving && now - lastSend > 1000) { lastSend = now; sendMoveNow(); }
+    if (me.moving && now - lastSend > SEND_MS) { lastSend = now; sendMoveNow(); }
+    else if (!me.moving && now - lastSend > 1000) { lastSend = now; sendMoveNow(); }
 
-  const z = me.seated ? { name: 'tu puesto', status: 'codeando' } : null;
-  const zKey = z ? z.name : null;
-  if (zKey !== lastSeatState) {
-    lastSeatState = zKey;
-    if (me.status === 'ausente') { /* 🏃 ausente: no resucitar automáticamente */ }
-    else if (z) setStatus(z.status, true);
-    else setStatus('disponible', true);
+    const z = me.seated ? { name: 'tu puesto', status: 'codeando' } : null;
+    const zKey = z ? z.name : null;
+    if (zKey !== lastSeatState) {
+      lastSeatState = zKey;
+      if (me.status === 'ausente') { /* 🏃 ausente: no resucitar automáticamente */ }
+      else if (z) setStatus(z.status, true);
+      else setStatus('disponible', true);
+    }
   }
 
   for (const p of state.players.values()) {
