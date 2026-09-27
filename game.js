@@ -334,9 +334,61 @@ function detailSit(g, c, frame) {
   g.globalAlpha = 1;
 }
 
+// ---------- Sprites de referencia (PNG) ----------
+// Los 3 personajes vienen recortados de la foto de referencia del equipo. Son
+// digital painting, no pixel art: reescalan mejor con smoothing que con
+// nearest-neighbor, así que NO pasan por la grilla de 4x ni por pixelOutline.
+const charAssets = {};   // charKey -> { down, left, right, up }
+let assetsReady = false;
+
+function flipCanvas(src) {
+  const cv = document.createElement('canvas');
+  cv.width = src.width; cv.height = src.height;
+  const g = cv.getContext('2d');
+  g.translate(src.width, 0); g.scale(-1, 1);
+  g.drawImage(src, 0, 0);
+  return cv;
+}
+
+// La foto no tiene a nadie de espaldas, así que no hay referencia para la vista
+// "up". La aproximamos con el mismo sprite oscurecido: es un truco viejo de
+// juegos 2D y funciona porque el jugador casi nunca camina hacia arriba y, cuando
+// lo hace, no tiene a quién comparar. Si algún día se dibuja la vista de espaldas
+// en serio, se reemplaza esta línea por el sprite correspondiente.
+function oscurecer(src) {
+  const cv = document.createElement('canvas');
+  cv.width = src.width; cv.height = src.height;
+  const g = cv.getContext('2d');
+  g.drawImage(src, 0, 0);
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = 'rgba(24,26,38,0.45)';
+  g.fillRect(0, 0, src.width, src.height);
+  return cv;
+}
+
+function loadCharAssets() {
+  const keys = Object.keys(CHAR_DEF);
+  return Promise.all(keys.map((k) => new Promise((res) => {
+    const im = new Image();
+    im.onload = () => {
+      const r = flipCanvas(im);
+      charAssets[k] = { down: im, left: r, right: r, up: oscurecer(im) };
+      res();
+    };
+    im.onerror = () => res();   // si falta el PNG, se sigue con el sprite por código
+    im.src = `sprites/${k}.png`;
+  }))).then(() => {
+    assetsReady = true;
+    const p = document.getElementById('avatarPreview');
+    if (p) { const b = p.getAttribute('data-char'); if (b) previewChar(b); }
+  });
+}
+
 // ---------- Sprites de pie (64x88: grilla fina) ----------
 const spriteCache = {};
 function getSprite(charKey, dir, frame) {
+  // Si cargó el PNG de referencia, manda ese: es el aspecto pedido.
+  if (assetsReady && charAssets[charKey]) return charAssets[charKey][dir] || charAssets[charKey].down;
   const key = `s${charKey}_${dir}_${frame}`;
   if (spriteCache[key]) return spriteCache[key];
   const c = charOf(charKey);
@@ -714,7 +766,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.16.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.17.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1434,10 +1486,17 @@ function previewChar(charKey) {
   const pv = document.getElementById('avatarPreview');
   if (!pv) return;
   const g = pv.getContext('2d');
-  g.imageSmoothingEnabled = false;
+  pv.setAttribute('data-char', charKey || '');
+  // El sprite puede ser el PNG de referencia (digital painting) o el chibi de la
+  // grilla. Los de arriba llevan antialiasing y reescalan bien con smoothing; los
+  // de abajo son pixel art duro y necesitan nearest-neighbor. Por eso el modo se
+  // decide acá y no en el render de la escena.
+  g.imageSmoothingEnabled = !!(charKey && assetsReady && charAssets[charKey]);
   g.clearRect(0, 0, pv.width, pv.height);
   if (!charKey) return;
-  g.drawImage(getSprite(charKey, 'down', 0), 0, 0, 32, 44, (pv.width - 96) / 2, (pv.height - 132) / 2, 96, 132);
+  const spr = getSprite(charKey, 'down', 0);
+  const h = 132, w = h * (spr.width / spr.height);
+  g.drawImage(spr, (pv.width - w) / 2, (pv.height - h) / 2, w, h);
 }
 function dniError(msg) {
   const e = document.getElementById('dniError');
@@ -1674,6 +1733,11 @@ function render() {
   ctx.fillRect(0, 0, W, H);
   ctx.setTransform(viewScale, 0, 0, viewScale, viewOX, viewOY);
 
+  // Los PNG de referencia son digital painting con antialiasing: reescalados con
+  // nearest-neighbor se ven serrados. Todo lo demás (fondo, escenario, chibi de
+  // la grilla) es pixel art duro y depende de nearest, así que el modo se decide
+  // por personaje dentro del loop de jugadores.
+
   const now = performance.now();
   // sacudón de zumbido (estilo Messenger, pero con pedo)
   if (now < shakeUntil) {
@@ -1742,20 +1806,27 @@ function render() {
       const sframe = Math.floor(now / 280) % 2;
       const spr = getSitSprite(p.char || 'ger', p.x < VW / 2 ? 'left' : 'right', true, sframe);
       const w = 41 * ss, h = 48 * ss;
+      ctx.imageSmoothingEnabled = false;   // el sentado es pixel art de grilla
       ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
       topY = p.y - h; shR = 15 * ss; fs = Math.round(3.1 * ss);
     } else {
       const s = depthScale(p.y);
       const f = p.id === state.myId ? (p.moving ? frame : 0) : (p.moving ? Math.floor(now / 160) % 2 : 0);
       const spr = getSprite(p.char || 'ger', p.dir || 'down', f);
-      const w = 32 * s, h = 44 * s;
+      // La altura en pantalla no cambia respecto al sprite por código (44*s), pero
+      // el ancho sale de la proporción real del sprite: los PNG de referencia son
+      // mucho más esbeltos que el chibi de la grilla de 4x.
+      const h = 44 * s, w = h * (spr.width / spr.height);
+      const conAsset = assetsReady && !!charAssets[p.char || 'ger'];
+      ctx.imageSmoothingEnabled = conAsset;              // ver nota arriba del setTransform
+      if (conAsset) ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
       if (p.wave && now < p.waveUntil) {
         ctx.save(); ctx.translate(p.x - w / 2, p.y - h); ctx.scale(w / 32, h / 44);
         drawWaveArm(ctx, p.color || 0, now);
         ctx.restore();
       }
-      topY = p.y - h; shR = 11 * s; fs = Math.round(3.1 * s);
+      topY = p.y - h; shR = 11 * s * (spr.width / spr.height) * (32 / 44) * 1.9; fs = Math.round(3.1 * s);
     }
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath(); ctx.ellipse(p.x, p.y + 4, shR, shR * 0.32, 0, 0, Math.PI * 2); ctx.fill();
@@ -1816,6 +1887,10 @@ function loop(t) {
 
 function init() {
   if (USE_P2P) state.myId = 'me' + Math.random().toString(36).slice(2, 8);
+  // Los PNG de referencia tardan un instante en venir. Mientras tanto la escena
+  // arranca con el chibi de la grilla y en cuanto llegan se usan solos: getSprite
+  // chequea assetsReady en cada llamada y el caché del chibi no estorba.
+  loadCharAssets();
   resize();
   buildStatusBar();
   renderPlayerList();
