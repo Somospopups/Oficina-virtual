@@ -128,7 +128,7 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #hint b { color: #ffd76a; }
 
 #toast {
-  position: absolute; top: 14px; left: 50%; z-index: 90; transform: translateX(-50%) translateY(-80px);
+  position: fixed; top: 14px; left: 50%; z-index: 999; transform: translateX(-50%) translateY(-80px);
   background: #1b2130; border: 3px solid #0c0f16; box-shadow: 0 0 0 2px #ffd76a;
   font-size: 9px; padding: 10px 16px; transition: transform 0.25s ease; line-height: 1.7;
   max-width: calc(100vw - 24px); text-align: center;
@@ -155,16 +155,16 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 @media (max-width: 900px) {
   /* v1.11.2: botones en columna IZQUIERDA, lista de jugadores a la derecha */
   #statusBar {
-    max-width: 46vw; bottom: auto; top: 46px; left: 8px; right: auto; transform: none;
+    width: calc(50vw - 14px); max-width: none; bottom: auto; top: 46px; left: 8px; right: auto; transform: none;
     display: flex; flex-direction: column; gap: 6px; justify-content: flex-start; align-items: stretch;
   }
-  .status-btn { font-size: 8px; padding: 10px 8px; text-align: center; }
+  .status-btn { font-size: 8px; padding: 10px 6px; text-align: center; white-space: normal; line-height: 1.5; box-sizing: border-box; }
   .status-btn .key { display: none; }
   #chatPanel { left: 8px; right: 118px; width: auto; bottom: 8px; display: flex; flex-direction: column; }
   #chatLog { height: auto; flex: 1 1 auto; min-height: 60px; font-size: 8px; }
   #playerList {
-    display: block; top: 46px; right: 6px; width: min(47vw, 190px);
-    padding: 6px 8px; font-size: 7px; max-height: 42vh;
+    display: block; top: 46px; right: 6px; width: calc(50vw - 14px);
+    padding: 6px 8px; font-size: 7px; max-height: 42vh; box-sizing: border-box;
   }
   .pl-title { font-size: 7px; margin-bottom: 4px; }
   .pl-row { padding: 3px 0; gap: 4px; }
