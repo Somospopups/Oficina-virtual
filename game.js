@@ -312,6 +312,10 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
+const VERSION = window.APP_VERSION || 'dev';
+const versionTag = document.getElementById('versionTag');
+if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
+console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
 
 function beep(freq, dur, vol = 0.04, type = 'square') {
   try {
