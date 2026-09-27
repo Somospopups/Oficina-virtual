@@ -151,10 +151,10 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 
 @media (max-width: 900px) {
   #statusBar {
-    max-width: none; bottom: auto; top: 56px; left: auto; right: 8px; transform: none;
-    display: grid; grid-template-columns: auto auto; gap: 6px; justify-content: end;
+    max-width: none; bottom: auto; top: 54px; left: 50%; right: auto; transform: translateX(-50%);
+    display: grid; grid-template-columns: auto auto; gap: 7px; justify-content: center;
   }
-  .status-btn { font-size: 7px; padding: 7px 8px; }
+  .status-btn { font-size: 8px; padding: 11px 13px; }
   .status-btn .key { display: none; }
   #chatPanel { left: 8px; right: 8px; width: auto; bottom: 8px; }
   #chatLog { height: 72px; font-size: 8px; }
@@ -163,7 +163,7 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
   #clock { font-size: 8px; padding: 7px 9px; }
   #musicBtn { font-size: 12px; padding: 6px 8px; }
   #musicPanel { left: 8px; top: 46px; width: min(240px, calc(100vw - 16px)); }
-  #stick { display: block; }
+  #stick { display: block; left: auto; right: 12px; }
 }
 
 
@@ -180,6 +180,7 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 .mp-row button:hover { background: #26304a; }
 .mp-now { font-size: 8px; color: #7ee787; word-break: break-all; }
 #ytBox { position: fixed; left: -8px; bottom: -8px; width: 2px; height: 2px; opacity: 0.01; pointer-events: none; z-index: 1; }
+#ytBox iframe { width: 2px; height: 2px; border: 0; }
 
 /* Panel de diagnóstico de red */
 #netPanel {

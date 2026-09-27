@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.9.3 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.9.4 · 26/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -781,24 +781,50 @@ function doZumbido() {
   localZumb(state.myName, true, state.myId);
 }
 
-// ---------- Radio de la oficina (YouTube sincronizado para todos) ----------
-let ytReady = false, ytPlayer = null, pendingMusic = null;
+// ---------- Radio de la oficina (YouTube sincronizado, SIN el script oficial: lo bloquean los navegadores) ----------
+// Controlamos el iframe embed directo por postMessage (protocolo público del player).
+let ytFrame = null, ytCurVid = null, ytPos = 0, ytLoadPromise = null;
 const music = { vid: null, playing: false, amDJ: false };
 function parseVid(url) {
   const m = (url || '').match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/);
   return m ? m[1] : null;
 }
-window.onYouTubeIframeAPIReady = () => {
-  ytReady = true;
-  ytPlayer = new YT.Player('ytBox', {
-    width: 2, height: 2,
-    playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1 },
-    events: {
-      onReady: () => { try { ytPlayer.setVolume(60); } catch {} if (pendingMusic) { const p = pendingMusic; pendingMusic = null; applyMusic(p, true); } },
-    },
+function ytCmd(fn, args) {
+  try { if (ytFrame) ytFrame.contentWindow.postMessage(JSON.stringify({ event: 'command', func: fn, args: args || [] }), 'https://www.youtube.com'); } catch { /* iframe ocupado */ }
+}
+function ytEnsure(vid, autoplay, start) {
+  if (ytFrame && ytCurVid === vid) return Promise.resolve(ytFrame);
+  if (ytLoadPromise) return ytLoadPromise;
+  ytLoadPromise = new Promise((res) => {
+    const box = document.getElementById('ytBox');
+    if (ytFrame) { ytFrame.remove(); ytFrame = null; ytCurVid = null; }
+    const f = document.createElement('iframe');
+    f.setAttribute('allow', 'autoplay; encrypted-media');
+    f.src = `https://www.youtube.com/embed/${vid}?enablejsapi=1&controls=0&playsinline=1&disablekb=1&autoplay=${autoplay ? 1 : 0}${start ? '&start=' + Math.floor(start) : ''}`;
+    const done = () => {
+      ytFrame = f; ytCurVid = vid; ytLoadPromise = null;
+      const listen = () => ytPost(f, { event: 'listening', id: 'ofv', channel: 'widget' });
+      listen(); setTimeout(listen, 700); setTimeout(listen, 1800); setTimeout(listen, 3500);
+      try { ytPost(f, { event: 'command', func: 'setVolume', args: [60] }); } catch {}
+      res(f);
+    };
+    f.onload = done;
+    f.onerror = () => { ytLoadPromise = null; res(null); };
+    box.appendChild(f);
+    setTimeout(() => { if (!ytFrame) done(); }, 7000);
   });
-};
-function musicNowPos() { try { return ytPlayer && ytPlayer.getCurrentTime ? (ytPlayer.getCurrentTime() || 0) : 0; } catch { return 0; } }
+  return ytLoadPromise;
+}
+function ytPost(f, obj) { try { f.contentWindow.postMessage(JSON.stringify(obj), 'https://www.youtube.com'); } catch { /* aún no listo */ } }
+window.addEventListener('message', (ev) => {
+  let host = '';
+  try { host = new URL(ev.origin).hostname; } catch { return; }
+  if (host !== 'www.youtube.com' && host !== 'youtube.com') return;
+  let d = ev.data;
+  if (typeof d === 'string') { try { d = JSON.parse(d); } catch { return; } }
+  if (d && d.event === 'infoDelivery' && d.info && typeof d.info.currentTime === 'number') ytPos = d.info.currentTime;
+});
+function musicNowPos() { return ytPos; }
 function sendMusic(act, vid, pos) {
   music.amDJ = true; music.vid = vid; music.playing = act === 'play';
   send({ type: 'music', act, vid, pos, at: Date.now(), from: state.myName, nonce: Date.now().toString(36) + Math.random().toString(36).slice(2, 8) });
@@ -807,14 +833,17 @@ function sendMusic(act, vid, pos) {
 function applyMusic(msg, silent) {
   const target = msg.pos + Math.max(0, (Date.now() - msg.at) / 1000);
   music.vid = msg.vid; music.playing = msg.act === 'play';
-  if (!ytReady || !ytPlayer || !ytPlayer.seekTo) { pendingMusic = msg; return; }
-  try {
-    if (msg.act === 'stop') { ytPlayer.stopVideo(); updateMpNow(); return; }
-    const cur = ytPlayer.getVideoData ? (ytPlayer.getVideoData().video_id || null) : null;
-    if (msg.act === 'pause') { if (cur === msg.vid) ytPlayer.pauseVideo(); updateMpNow(); return; }
-    if (cur !== msg.vid) ytPlayer.loadVideoById({ videoId: msg.vid, startSeconds: target });
-    else { ytPlayer.seekTo(target, true); ytPlayer.playVideo(); }
-  } catch { /* iframe ocupado */ }
+  if (msg.act === 'stop') { ytCmd('stopVideo'); updateMpNow(); return; }
+  if (msg.act === 'pause') { ytCmd('pauseVideo'); updateMpNow(); return; }
+  (async () => {
+    if (ytCurVid !== msg.vid) {
+      await ytEnsure(msg.vid, true, target);
+    } else {
+      await ytEnsure(msg.vid, true, 0);
+      ytCmd('seekTo', [target, true]);
+      ytCmd('playVideo');
+    }
+  })();
   if (!silent && msg.act === 'play' && msg.from) toast(`🎵 ${msg.from} puso música para todos`);
   updateMpNow();
 }
@@ -834,8 +863,7 @@ function mpPlay() {
   let pos = 0;
   if (vid && vid !== music.vid) pos = 0;
   if (!vid) { vid = music.vid; pos = musicNowPos(); }
-  if (!vid) { toast(' Pegá primero un link de YouTube'); return; }
-  if (!ytReady) { toast('🎵 La radio se está cargando… probá en unos segundos'); return; }
+  if (!vid) { toast('🎵 Pegá primero un link de YouTube'); return; }
   sendMusic('play', vid, pos);
   applyMusic({ act: 'play', vid, pos, at: Date.now(), from: state.myName }, true);
 }
@@ -1306,7 +1334,7 @@ function init() {
   const bp2 = document.getElementById('mpPause'); if (bp2) bp2.onclick = mpPause;
   const bp3 = document.getElementById('mpStop'); if (bp3) bp3.onclick = mpStop;
   const mv = document.getElementById('mpVol');
-  if (mv) mv.oninput = () => { try { if (ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(+mv.value); } catch {} };
+  if (mv) mv.oninput = () => ytCmd('setVolume', [+mv.value]);
 
   // stick táctil (móvil)
   state.stick = { x: 0, y: 0, active: false };
