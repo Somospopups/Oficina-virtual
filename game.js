@@ -221,6 +221,243 @@ function oscurecer(src) {
   return cv;
 }
 
+// ---------- Llamada de la oficina: micro compartido (malla WebRTC) ----------
+// Audio nada más, no video. La idea es poder DEJAR EL MICRO ABIERTO y hablar
+// siempre con quien esté en la oficina, sin apretar para hablar. Con 3 personas
+// son 3 conexiones (una por pareja) y el audio comprimido va unos 40 kbps cada
+// una, así que el ancho de banda no es un problema.
+//
+// El STUN es el público de Google: gratis y sin servidor propio. No hay TURN, así
+// que en redes simétricas o corporativas la conexión puede no cruzar. Por eso,
+// si falla, avisamos en vez de dejar al usuario mirando un botón mudo.
+//
+// Malla completa (1,1,1) y no "hub": cada uno se conecta con cada uno. A los 3 no
+// hay drama; a 8 esto ya no escala y ahí haría falta un servidor de reenvío.
+const RTC_STUN = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+const rtcMesh = new Map();     // peerId -> { pc, polite, pendingIce[] }
+const rtcMic = new Map();      // peerId -> true si tiene el micro abierto
+const rtcNivel = new Map();    // peerId -> 0..1, para ver quién está hablando
+const rtcVivo = new Map();     // peerId -> { audio, analyser, data, buf }
+let rtcStream = null, rtcTrack = null, rtcOn = false, rtcAviso = false, rtcBloqueado = false;
+
+// El que tiene el id más chico alfabéticamente inicia. Así nunca se cruzan dos
+// ofertas del mismo par a la vez, que es lo que rompe las conexiones (glare).
+// Sin id propio no se inicia nunca: comparar '' contra cualquier cosa da true y
+// los dos lados se creerian iniciadores.
+function rtcIniciyo(peer) {
+  const yo = String(state.myId || ''), el = String(peer || '');
+  if (!yo || !el) return false;
+  return yo < el;
+}
+
+function rtcPar(peer) {
+  let p = rtcMesh.get(peer);
+  if (p) return p;
+  const pc = new RTCPeerConnection({ iceServers: RTC_STUN });
+  p = { pc, polite: !rtcIniciyo(peer), pendingIce: [], flujo: null };
+  // El track local se agrega SIEMPRE, aun muto, para que prender y apagar el
+  // micro sea solo track.enabled y no una renegociación (que es lo que suele
+  // fallar y cortar la llamada).
+  if (rtcTrack) {
+    try { p.pc.addTrack(rtcTrack, rtcStream); } catch { /* sin track */ }
+  }
+  pc.onicecandidate = (e) => {
+    if (e.candidate) send({ type: 'rtc-ice', to: peer, cand: e.candidate.toJSON(), from: state.myId });
+  };
+  pc.ontrack = (e) => rtcConectarAudio(peer, e.streams[0] || new MediaStream([e.track]));
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'connected') { rtcAviso = false; renderCallUI(); }
+    if (pc.connectionState === 'failed' && !rtcAviso) {
+      // Sin TURN esto pasa en redes simétricas o con firewalls corporativos. Es
+      // el motivo por el que existe el mensaje: mejor un aviso claro que un
+      // botón mudo sin explicación.
+      rtcAviso = true;
+      toast('⚠️ No se pudo conectar con alguien. Puede ser una red restrictiva (sin TURN no hay más).');
+      renderCallUI();
+    }
+  };
+  rtcMesh.set(peer, p);
+  return p;
+}
+
+async function rtcOfrecer(peer) {
+  const p = rtcPar(peer);
+  try {
+    const of = await p.pc.createOffer();
+    await p.pc.setLocalDescription(of);
+    send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId });
+  } catch { /* se reconecta solo con el siguiente hello */ }
+}
+
+async function rtcContestar(peer, sdp) {
+  const p = rtcPar(peer);
+  try {
+    await p.pc.setRemoteDescription(sdp);
+    for (const c of p.pendingIce.splice(0)) { try { await p.pc.addIceCandidate(c); } catch { /* viejo */ } }
+    const an = await p.pc.createAnswer();
+    await p.pc.setLocalDescription(an);
+    send({ type: 'rtc-answer', to: peer, sdp: p.pc.localDescription, from: state.myId });
+  } catch { /* renegociar */ }
+}
+
+async function rtcIce(peer, cand) {
+  const p = rtcPar(peer);
+  // Antes de tener remoteDescription no se puede agregar un candidato: se encola.
+  if (!p.pc.remoteDescription) { p.pendingIce.push(cand); return; }
+  try { await p.pc.addIceCandidate(cand); } catch { /* duplicado */ }
+}
+
+async function rtcIceRespuesta(msg) {
+  const p = rtcMesh.get(msg.from);
+  if (!p) return;
+  try {
+    await p.pc.setRemoteDescription(msg.sdp);
+    for (const c of p.pendingIce.splice(0)) { try { await p.pc.addIceCandidate(c); } catch { /* viejo */ } }
+  } catch { /* renegociar */ }
+}
+
+const rtcVistos = new Set();
+function rtcVisto(msg) {
+  // Deduplica SOLO lo que lleva oferta, respuesta o candidato. El hello es un
+  // aviso de estado: chico e idempotente, y dedupearlo por par+tipo se tragaba el
+  // segundo aviso, o sea abrir y volver a cerrar el micro.
+  if (msg.type !== 'rtc-offer' && msg.type !== 'rtc-answer' && msg.type !== 'rtc-ice') return false;
+  const sdp = msg.sdp ? (msg.sdp.sdp || '').slice(-60) : '';
+  const k = msg.type + '|' + (msg.from || '') + '|' + (msg.to || '') + '|' + sdp + '|' + (msg.cand ? msg.cand.candidate : '');
+  if (rtcVistos.has(k)) return true;
+  rtcVistos.add(k);
+  // Tope para que no crezca sin límite en una sesión larga.
+  if (rtcVistos.size > 400) { const it = rtcVistos.values(); for (let i = 0; i < 200; i++) rtcVistos.delete(it.next().value); }
+  return false;
+}
+
+function rtcConectarAudio(peer, stream) {
+  let v = rtcVivo.get(peer);
+  if (v) { v.audio.srcObject = stream; }
+  else {
+    const a = document.createElement('audio');
+    a.autoplay = true; a.playsInline = true;
+    a.srcObject = stream;
+    a.play().then(() => { rtcBloqueado = false; renderCallUI(); }).catch(() => {
+      // Chrome bloquea el audio si la pagina no tuvo gesto. Como estos <audio>
+      // aparecen despues de entrar, a veces hay que pedir un click.
+      rtcBloqueado = true; renderCallUI();
+    });
+    document.body.appendChild(a);
+    v = { audio: a, analyser: null, data: null, buf: null };
+    rtcVivo.set(peer, v);
+  }
+  try {
+    const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+    if (ctx.state === 'suspended') ctx.resume();
+    if (!v.analyser) {
+      const src = ctx.createMediaStreamSource(stream);
+      v.analyser = ctx.createAnalyser();
+      v.analyser.fftSize = 512;
+      v.data = new Uint8Array(v.analyser.frequencyBinCount);
+      v.buf = new Uint8Array(v.analyser.fftSize);
+      src.connect(v.analyser);   // no se conecta al destino: acá no se oye, solo se mide
+      v.src = src;
+    }
+  } catch { /* medir es opcional */ }
+  if (v.audio.volume !== undefined) v.audio.volume = rtcVolumen();
+}
+
+function rtcVolumen() {
+  const el = document.getElementById('callVol');
+  return el ? Math.min(1.5, (+el.value || 100) / 100) : 1;
+}
+function rtcCallVolumen() {
+  for (const v of rtcVivo.values()) { try { v.audio.volume = rtcVolumen(); } catch { /* ya no está */ } }
+}
+
+function rtcConectarConTodos() {
+  for (const p of state.players.values()) {
+    if (!p.id || p.id === state.myId) continue;
+    if (rtcIniciyo(p.id) && (rtcOn || rtcMic.get(p.id))) rtcOfrecer(p.id);
+    else rtcPar(p.id);
+  }
+}
+
+async function rtcAbrir() {
+  if (rtcOn || rtcStream) return;
+  try {
+    rtcStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+  } catch {
+    toast('🎤 No se pudo abrir el micro. Revisá el permiso del navegador.');
+    return;
+  }
+  rtcTrack = rtcStream.getAudioTracks()[0];
+  rtcOn = true;
+  send({ type: 'rtc-hello', mic: true, from: state.myId });
+  rtcConectarConTodos();
+  renderCallUI();
+  if (!rtcAvisoHecho) {
+    rtcAvisoHecho = true;
+    toast('🎤 Micro abierto. Usá auriculares si podés: con parlantes se acopla.');
+  }
+}
+let rtcAvisoHecho = false;
+function rtcCerrar() {
+  if (rtcTrack) { try { rtcTrack.stop(); } catch { /* ya estaba */ } }
+  rtcStream = null; rtcTrack = null; rtcOn = false;
+  send({ type: 'rtc-hello', mic: false, from: state.myId });
+  for (const [peer, p] of rtcMesh) { send({ type: 'rtc-bye', to: peer, from: state.myId }); }
+  rtcMesh.clear();
+  for (const v of rtcVivo.values()) { try { v.audio.remove(); } catch { /* ya no está */ } }
+  rtcVivo.clear(); rtcNivel.clear();
+  renderCallUI();
+}
+function rtcToggle() { if (rtcOn) rtcCerrar(); else rtcAbrir(); }
+
+function rtcSalirDePeer(peer) {
+  const p = rtcMesh.get(peer);
+  if (p) { try { p.pc.close(); } catch { /* ya cerrado */ } rtcMesh.delete(peer); }
+  const v = rtcVivo.get(peer);
+  if (v) { try { v.audio.remove(); } catch { /* ya no está */ } rtcVivo.delete(peer); }
+  rtcMic.delete(peer); rtcNivel.delete(peer);
+  renderCallUI();
+}
+
+// Nivel de voz: se mide pero NO se manda al destino (en source solo), así que no
+// genera acoplamiento. Solo dispara un re-render de la lista cuando cambia el
+// booleano de "está hablando", para no repintar 20 veces por segundo.
+let rtcHablandoPrev = '';
+setInterval(() => {
+  if (!rtcVivo.size) return;
+  let key = '';
+  for (const [peer, v] of rtcVivo) {
+    let lvl = 0;
+    if (v.analyser) {
+      v.analyser.getByteTimeDomainData(v.buf);
+      let suma = 0;
+      for (let i = 0; i < v.buf.length; i++) { const d = (v.buf[i] - 128) / 128; suma += d * d; }
+      lvl = Math.min(1, Math.sqrt(suma / v.buf.length) * 6);
+    }
+    rtcNivel.set(peer, lvl);
+    if (lvl > 0.06) key += peer;
+  }
+  if (key !== rtcHablandoPrev) { rtcHablandoPrev = key; renderPlayerList(); }
+}, 140);
+
+function renderCallUI() {
+  const b = document.getElementById('micCallBtn');
+  if (b) {
+    b.classList.toggle('on', rtcOn);
+    b.textContent = rtcOn ? '🎤' : '🎤';
+    b.style.opacity = rtcOn ? '1' : '0.65';
+    b.title = rtcOn ? 'Micro abierto: queda así hasta que lo cierres' : 'Abrir el micro de la oficina (tecla M)';
+  }
+  const vb = document.getElementById('callVolBox');
+  if (vb) vb.classList.toggle('hidden', !rtcOn && !rtcVivo.size);
+  const lb = document.getElementById('callListen');
+  if (lb) lb.classList.toggle('hidden', !rtcBloqueado);
+  const pl = document.getElementById('playerList');
+  if (pl) pl.classList.toggle('mic-off', !rtcOn && !rtcVivo.size);
+}
+
 function loadCharAssets() {
   const keys = Object.keys(CHAR_DEF);
   return Promise.all(keys.map((k) => new Promise((res) => {
@@ -823,7 +1060,7 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.36.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.37.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -843,7 +1080,15 @@ function beep(freq, dur, vol = 0.04, type = 'square') {
 // ---------- Red: WS (servidor) o P2P (Trystero, sin servidor) ----------
 let ws = null, reconnectTimer = null, sendFn = null;
 const USE_P2P = location.hostname.endsWith('github.io') || new URLSearchParams(location.search).has('p2p');
-function send(o) { if (state.spectating) return; if (sendFn) { try { sendFn(o); } catch { /* offline */ } } }
+// El espectador sigue siendo de solo lectura para la OFICINA: no chatea, no se
+// mueve, no toca la radio ni los emotes. Pero SÍ participa de la llamada, porque
+// para recibir audio tiene que mandar la respuesta del offer y sus candidatos ICE,
+// que es WebRTC bidireccional por naturaleza. Por eso la lista blanca.
+const RTC_TIPOS = new Set(['rtc-hello', 'rtc-offer', 'rtc-answer', 'rtc-ice', 'rtc-bye']);
+function send(o) {
+  if (state.spectating && !RTC_TIPOS.has(o.type)) return;
+  if (sendFn) { try { sendFn(o); } catch { /* offline */ } }
+}
 function wsUrl() { return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`; }
 
 function myPublic() {
@@ -1102,8 +1347,30 @@ function handleMsg(msg) {
     }
     case 'joined': upsertRemote(msg.player, true); renderPlayerList(); maybeMusicForNewcomer(); break;
     case 'music': if (!dedupe(msg)) applyMusic(msg); break;
+
+    // ---------- Llamada de la oficina ----------
+    // El bus manda cada mensaje a los 6 relays, así que las ofertas llegan
+    // repetidas. Por eso hay un dedupe propio por par y tipo: una oferta
+    // renegociada a mitad de camino es lo que más rompe una conexión.
+    case 'rtc-hello': {
+      rtcMic.set(msg.from, !!msg.mic);
+      if (msg.mic) {
+        if (rtcOn && rtcIniciyo(msg.from)) rtcOfrecer(msg.from); else rtcPar(msg.from);
+      } else {
+        rtcSalirDePeer(msg.from);
+      }
+      renderPlayerList(); renderCallUI();
+      break;
+    }
+    case 'rtc-offer': if (!rtcVisto(msg)) rtcContestar(msg.to, msg.sdp); break;
+    case 'rtc-answer': if (!rtcVisto(msg)) rtcIceRespuesta(msg); break;
+    case 'rtc-ice': if (!rtcVisto(msg)) rtcIce(msg.to, msg.cand); break;
+    case 'rtc-bye': if (!rtcVisto(msg)) rtcSalirDePeer(msg.from); break;
     case 'left':
       state.players.delete(msg.id);
+      // Se cuelga la conexión con ese par: si no, el <audio> sigue vivo ocupando
+      // banda y el mic sigue marcado como conectado en la lista.
+      rtcSalirDePeer(msg.id);
       addChat(null, `${msg.name} salió de la oficina`, 'system');
       renderPlayerList();
       break;
@@ -1746,8 +2013,18 @@ function renderPlayerList() {
     list.map((p) => {
       const st = STATUS_INFO[p.status] || STATUS_INFO.disponible;
       const isMe = p.id === state.myId;
-      return `<div class="pl-row${isMe ? ' me' : ''}"><span class="dot" style="background:${(CHAR_DEF[p.char] || CHAR_DEF.ger).dot}"></span>${esc(p.name)}${isMe ? ' (vos)' : ''}${p.seated ? ' 🪑' : ''} <span class="pl-status">${st.emoji} ${st.label}</span></div>`;
+      // El micro abierto se marca con una clase, no con un emoji pegado en el
+      // texto: el ::before de .pl-row.mic lo dibuja y el del personaje queda
+      // intacto. rtcMic solo tiene a los remotos; el propio se marca con rtcOn.
+      const mic = isMe ? rtcOn : rtcMic.get(p.id);
+      const hablando = p.id && (rtcNivel.get(p.id) || 0) > 0.06;
+      const cls = ['pl-row'];
+      if (isMe) cls.push('me');
+      if (mic) cls.push('mic');
+      if (hablando) cls.push('speaking');
+      return `<div class="${cls.join(' ')}" data-id="${p.id || ''}"><span class="dot" style="background:${(CHAR_DEF[p.char] || CHAR_DEF.ger).dot}"></span>${esc(p.name)}${isMe ? ' (vos)' : ''}${p.seated ? ' 🪑' : ''} <span class="pl-status">${st.emoji} ${st.label}</span></div>`;
     }).join('');
+  renderCallUI();
   layoutDesktopAudio();
 }
 
@@ -1819,7 +2096,8 @@ window.addEventListener('keydown', (e) => {
       ['arrowleft','arrowright','arrowup','arrowdown','keya','keyd','keyw','keys'].includes(code)) e.preventDefault();
   if (e.key === 'Enter') { chatInput.focus(); e.preventDefault(); return; }
   if (key === 'h') { helpOverlay.classList.toggle('hidden'); return; }
-  if (key === 'p') { mpToggle(); return; }
+    if (key === 'p') { mpToggle(); return; }
+    if (key === 'm') { rtcToggle(); return; }
   if (e.key === 'Escape') { helpOverlay.classList.add('hidden'); return; }
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 3) { setStatus(STATUS_KEYS[n - 1]); return; }
@@ -1979,6 +2257,7 @@ function exitSpectatorMode() {
   if (attachmentModal && !attachmentModal.classList.contains('hidden')) closeAttachmentPreview();
   chatLog.innerHTML = ''; // no dejar susurros visibles para quien use luego el login
   spectatorWhisperBacklog.length = 0; state.players.clear(); renderPlayerList();
+  rtcCerrar();   // salir de espectador deja el micro cerrado, como corresponde
   joinOverlay.classList.remove('hidden');
 }
 
