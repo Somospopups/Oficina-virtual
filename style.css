@@ -30,8 +30,8 @@ body { font-family: 'Press Start 2P', monospace; color: #e8e6df; }
   box-shadow: 0 0 0 3px rgba(255, 215, 106, 0.25); color: #ffe9a8 !important;
 }
 #dniInput::placeholder { color: #55617a; letter-spacing: 1px; font-size: 9px; }
-#dniInput { margin-bottom: 40px; }
-#joinBtn { margin-top: 6px; display: inline-block; }
+#dniInput { margin-bottom: 26px; }
+#joinBtn { margin-top: 0; display: inline-block; }
 #dniError:empty { margin: 0; }
 #dniInput, #chatInput {
   font-family: inherit; font-size: 11px; color: #fff;
@@ -40,7 +40,7 @@ body { font-family: 'Press Start 2P', monospace; color: #e8e6df; }
 }
 #dniInput:focus, #chatInput:focus { border-color: #ffd76a; }
 
-.lbl { font-size: 9px; color: #9aa4bd; margin: 14px 0 8px; }
+.lbl { font-size: 9px; color: #9aa4bd; margin: 14px 0 26px; }
 .dni-error { display: none; font-size: 8px; color: #ff8a8a; line-height: 1.7; margin-top: 8px; }
 .dni-error.show { display: block; }
 #colors { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
@@ -128,7 +128,7 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #hint b { color: #ffd76a; }
 
 #toast {
-  position: absolute; top: 14px; left: 50%; transform: translateX(-50%) translateY(-80px);
+  position: absolute; top: 14px; left: 50%; z-index: 90; transform: translateX(-50%) translateY(-80px);
   background: #1b2130; border: 3px solid #0c0f16; box-shadow: 0 0 0 2px #ffd76a;
   font-size: 9px; padding: 10px 16px; transition: transform 0.25s ease; line-height: 1.7;
   max-width: calc(100vw - 24px); text-align: center;
@@ -153,18 +153,18 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #game { touch-action: none; }
 
 @media (max-width: 900px) {
-  /* diseño congelado aprobado por el usuario (captura 27/09): botones 2x2 grandes */
+  /* v1.11.2: botones en columna IZQUIERDA, lista de jugadores a la derecha */
   #statusBar {
-    max-width: none; bottom: auto; top: 54px; left: 50%; right: auto; transform: translateX(-50%);
-    display: grid; grid-template-columns: auto auto; gap: 7px; justify-content: center;
+    max-width: 46vw; bottom: auto; top: 46px; left: 8px; right: auto; transform: none;
+    display: flex; flex-direction: column; gap: 6px; justify-content: flex-start; align-items: stretch;
   }
-  .status-btn { font-size: 8px; padding: 11px 13px; }
+  .status-btn { font-size: 8px; padding: 10px 8px; text-align: center; }
   .status-btn .key { display: none; }
   #chatPanel { left: 8px; right: 118px; width: auto; bottom: 8px; display: flex; flex-direction: column; }
   #chatLog { height: auto; flex: 1 1 auto; min-height: 60px; font-size: 8px; }
   #playerList {
-    display: block; top: 92px; right: 6px; width: min(47vw, 190px);
-    padding: 6px 8px; font-size: 7px; max-height: 150px;
+    display: block; top: 46px; right: 6px; width: min(47vw, 190px);
+    padding: 6px 8px; font-size: 7px; max-height: 42vh;
   }
   .pl-title { font-size: 7px; margin-bottom: 4px; }
   .pl-row { padding: 3px 0; gap: 4px; }
