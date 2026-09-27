@@ -133,7 +133,7 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'status': {
-        if (['codeando', 'reunion', 'cafe', 'ausente', 'disponible'].includes(msg.status)) {
+        if (['codeando', 'reunion', 'ausente', 'disponible'].includes(msg.status)) {
           p.status = msg.status;
           broadcast({ type: 'status', id, status: p.status });
         }

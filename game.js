@@ -23,18 +23,12 @@ const SEATS = [
   { x: 861, y: 683, face: 'right' }, // recalado: manos sobre el teclado delantero der.
 ];
 
-// Zona café: frente al gabinete blanco bajo la ventana
-const ZONES = [
-  { name: 'Estación de café (junto a la ventana)', x0: 515, y0: 462, x1: 715, y1: 560, status: 'cafe' },
-];
-
 const SPEED = 320;
 const SEND_MS = 140;
 
 const STATUS_INFO = {
   codeando:   { emoji: '💻', label: 'Codeando' },
   reunion:    { emoji: '🤝', label: 'En reunión' },
-  cafe:       { emoji: '☕', label: 'Pausa café' }, // solo automático (zona café)
   ausente:    { emoji: '🏃', label: '¡Ya vengo!' },
   disponible: { emoji: '🟢', label: 'Disponible' },
 };
@@ -790,9 +784,13 @@ function drawWaveArm(g, colorIdx, time) {
 }
 
 // ---------- Estado / DOM ----------
-const state = { myId: null, myName: '', myColor: 0, players: new Map(), joined: false };
+const state = { myId: null, myName: '', myColor: 0, players: new Map(), joined: false, spectating: false };
+const spectatorWhisperBacklog = [];
+const SPECTATOR_PIN_SALT = 'somospopups-observer-v1:';
+const SPECTATOR_PIN_HASH = 'f18455ea0b372784dc5b59b1085cdeeefbbc6c7cbfc580e675a63af1a0e11a86';
+let spectatorFailures = 0, spectatorLockUntil = 0, spectatorCheckBusy = false;
 const keys = {};
-let lastSend = 0, lastZone = null, audioCtx = null;
+let lastSend = 0, lastSeatState = null, audioCtx = null;
 
 const bgImg = new Image();
 let bgReady = false;
@@ -839,7 +837,7 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.28.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.29.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -859,7 +857,7 @@ function beep(freq, dur, vol = 0.04, type = 'square') {
 // ---------- Red: WS (servidor) o P2P (Trystero, sin servidor) ----------
 let ws = null, reconnectTimer = null, sendFn = null;
 const USE_P2P = location.hostname.endsWith('github.io') || new URLSearchParams(location.search).has('p2p');
-function send(o) { if (sendFn) { try { sendFn(o); } catch { /* offline */ } } }
+function send(o) { if (state.spectating) return; if (sendFn) { try { sendFn(o); } catch { /* offline */ } } }
 function wsUrl() { return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`; }
 
 function myPublic() {
@@ -1098,10 +1096,14 @@ function handleMsg(msg) {
         }
         break;
       }
-      if (msg.id) upsertRemote(msg, false);
+      if (msg.id) {
+        const isNewPlayer = !state.players.has(msg.id);
+        upsertRemote(msg, false);
+        if (state.spectating && isNewPlayer) renderPlayerList();
+      }
       break;
     case 'welcome':
-      state.myId = msg.id;
+      state.myId = state.spectating ? null : msg.id;
       for (const p of msg.players) upsertRemote(p, true);
       renderPlayerList();
       break;
@@ -1128,7 +1130,10 @@ function handleMsg(msg) {
     case 'chat': {
       if (dedupe(msg)) break;
       const mine = msg.from === state.myName, isW = !!msg.to;
-      if (isW && !mine && msg.to !== state.myName) break;
+      if (isW && !mine && msg.to !== state.myName && !state.spectating) {
+        if (!state.joined && spectatorWhisperBacklog.length < 120) spectatorWhisperBacklog.push(msg);
+        break;
+      }
       addChat(msg.from, msg.text, isW ? 'whisper' : 'normal', msg.to, msg.att);
       if (!mine && (!isW || msg.to === state.myName)) beep(isW ? 880 : 520, 0.07);
       break;
@@ -1179,7 +1184,10 @@ function addChat(from, text, cls, to, att) {
   const div = document.createElement('div');
   div.className = 'chat-msg ' + cls;
   if (cls === 'system') div.textContent = '· ' + text;
-  else if (cls === 'whisper') div.innerHTML = `<b>${esc(from === state.myName ? 'vos' : from)}</b> ${esc(text)} <i>(privado${from === state.myName ? ' a ' + esc(to) : ''})</i>`;
+  else if (cls === 'whisper') {
+    const privateTo = state.spectating ? ' a ' + esc(to || 'equipo') : (from === state.myName ? ' a ' + esc(to) : '');
+    div.innerHTML = `<b>${esc(from === state.myName ? 'vos' : from)}</b> ${esc(text)} <i>(privado${privateTo})</i>`;
+  }
   else div.innerHTML = `<b>${esc(from)}</b> ${esc(text)}`;
   if (att && att.data) {
     const owner = from || 'equipo';
@@ -1259,6 +1267,7 @@ function closeAttachmentPreview() {
 }
 
 function sendChat(raw, att) {
+  if (state.spectating) { toast('👁 Modo espectador: solo lectura'); return; }
   const text = raw.trim();
   if (!text && !att) return;
   if (att && att.data && att.data.length > 200000) { toast('⚠️ Adjunto demasiado pesado para el bus P2P'); return; }
@@ -1601,14 +1610,13 @@ function freeSeat() {
   return null;
 }
 function nearAnySeat(x, y) { return SEATS.some((s) => Math.hypot(s.x - x, s.y - y) < 55); }
-function zoneAt(x, y) {
-  for (const z of ZONES) if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) return z;
-  return null;
-}
-
 window.addEventListener('keydown', (e) => {
   if (attachmentModal && !attachmentModal.classList.contains('hidden')) {
     if (e.key === 'Escape') { closeAttachmentPreview(); e.preventDefault(); }
+    return;
+  }
+  if (state.spectating) {
+    if (e.key === 'Escape') { exitSpectatorMode(); e.preventDefault(); }
     return;
   }
   if (document.activeElement === chatInput) {
@@ -1690,13 +1698,49 @@ function seatFor(entry) {
   for (const s of SEATS) if (!taken(s)) return s;
   return null;
 }
-function join() {
+async function join() {
+  if (state.spectating || spectatorCheckBusy) return;
   const dni = (dniInput.value || '').replace(/\D/g, '');
+  if (/^\d{4}$/.test(dni)) {
+    if (Date.now() < spectatorLockUntil) {
+      dniError('Demasiados intentos. Esperá 30 segundos antes de volver a probar.');
+      return;
+    }
+    spectatorCheckBusy = true;
+    if (joinBtn) joinBtn.disabled = true;
+    dniInput.disabled = true;
+    let spectatorCodeValid = false, validationFailed = false;
+    try { spectatorCodeValid = await verifySpectatorPin(dni); }
+    catch { validationFailed = true; }
+    spectatorCheckBusy = false;
+    if (joinBtn) joinBtn.disabled = false;
+    dniInput.disabled = false;
+    if (validationFailed) {
+      dniError('No pude validar el código de ingreso; probá de nuevo.');
+      return;
+    }
+    if (spectatorCodeValid) {
+      spectatorFailures = 0;
+      dniError('');
+      dniInput.value = '';
+      enterSpectatorMode();
+      return;
+    }
+    spectatorFailures++;
+    if (spectatorFailures >= 5) {
+      spectatorFailures = 0; spectatorLockUntil = Date.now() + 30000;
+      dniError('Demasiados intentos. Esperá 30 segundos antes de volver a probar.');
+      return;
+    }
+  }
   const entry = ROSTER.find((r) => r.dni === dni);
   if (!entry) { dniError('⛔ DNI no autorizado: la oficina es privada del equipo.'); return; }
+  spectatorFailures = 0;
   const dup = [...state.players.values()].find((p) => p.char === entry.char && p.id !== state.myId && performance.now() - (p.seen || 0) < 9000);
   if (dup) { dniError(`⚠️ ${entry.name} ya está en la oficina desde otro dispositivo.`); return; }
   dniError('');
+  state.spectating = false; document.body.classList.remove('spectator-mode');
+  spectatorWhisperBacklog.length = 0;
   state.myChar = entry.char; state.myName = entry.name; state.joined = true; state.joinTs = state.joinTs || Date.now();
   if (USE_P2P) state.myId = entry.char;
   const seat = seatFor(entry);
@@ -1718,6 +1762,33 @@ function join() {
   beep(523, 0.09); setTimeout(() => beep(784, 0.12), 100);
   renderPlayerList();
 }
+async function verifySpectatorPin(pin) {
+  const bytes = new TextEncoder().encode(SPECTATOR_PIN_SALT + pin);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  const hex = [...digest].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return hex === SPECTATOR_PIN_HASH;
+}
+function enterSpectatorMode() {
+  state.spectating = true; state.joined = false; state.myId = null; state.myName = '';
+  document.body.classList.add('spectator-mode');
+  joinOverlay.classList.add('hidden');
+  const musicPanel = document.getElementById('musicPanel'); if (musicPanel) musicPanel.classList.add('hidden');
+  // Mensajes públicos ya estaban en el chat; agrega también los /w recibidos antes del PIN.
+  for (const msg of spectatorWhisperBacklog.splice(0)) addChat(msg.from, msg.text, 'whisper', msg.to, msg.att);
+  renderPlayerList();
+  addChat(null, '👁 Modo espectador · solo lectura · Esc para salir', 'system');
+  toast('👁 Entraste como espectador · Esc para volver al ingreso');
+}
+function exitSpectatorMode() {
+  if (!state.spectating) return;
+  state.spectating = false; state.myId = null; state.myName = '';
+  document.body.classList.remove('spectator-mode');
+  if (attachmentModal && !attachmentModal.classList.contains('hidden')) closeAttachmentPreview();
+  chatLog.innerHTML = ''; // no dejar susurros visibles para quien use luego el login
+  spectatorWhisperBacklog.length = 0; state.players.clear(); renderPlayerList();
+  joinOverlay.classList.remove('hidden');
+}
+
 function ejectSelf(reason) {
   state.joined = false;
   state.players.delete(state.myId);
@@ -1894,15 +1965,13 @@ function update(dt) {
   if (me.moving && now - lastSend > SEND_MS) { lastSend = now; sendMoveNow(); }
   else if (!me.moving && now - lastSend > 1000) { lastSend = now; sendMoveNow(); }
 
-  const z = me.seated ? { name: 'tu puesto', status: 'codeando' } : (nearAnySeat(me.x, me.y) ? null : zoneAt(me.x, me.y));
+  const z = me.seated ? { name: 'tu puesto', status: 'codeando' } : null;
   const zKey = z ? z.name : null;
-  if (zKey !== lastZone) {
-    lastZone = zKey;
+  if (zKey !== lastSeatState) {
+    lastSeatState = zKey;
     if (me.status === 'ausente') { /* 🏃 ausente: no resucitar automáticamente */ }
-    else if (z) {
-      setStatus(z.status, true);
-      if (z.name !== 'tu puesto') toast(`📍 ${z.name} — ${STATUS_INFO[z.status].emoji} ${STATUS_INFO[z.status].label}`);
-    } else setStatus('disponible', true);
+    else if (z) setStatus(z.status, true);
+    else setStatus('disponible', true);
   }
 
   for (const p of state.players.values()) {
@@ -1965,20 +2034,6 @@ function render() {
 
   if (bgReady) ctx.drawImage(bgCv, 0, 0, VW, VH);
   else { ctx.fillStyle = '#20242e'; ctx.fillRect(0, 0, VW, VH); }
-
-  // Marca visible de la zona café (decal en el piso)
-  {
-    const z = ZONES[0];
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,215,106,0.30)'; ctx.fillStyle = 'rgba(255,190,80,0.07)';
-    ctx.setLineDash([6, 5]); ctx.lineWidth = 2;
-    ctx.fillRect(z.x0, z.y0, z.x1 - z.x0, z.y1 - z.y0);
-    ctx.strokeRect(z.x0, z.y0, z.x1 - z.x0, z.y1 - z.y0);
-    ctx.setLineDash([]);
-    ctx.font = '18px serif'; ctx.textAlign = 'center';
-    ctx.fillText('☕', (z.x0 + z.x1) / 2, z.y0 + 24 + Math.sin(now / 400) * 3);
-    ctx.restore();
-  }
 
   drawSky(now, hf, sky);
   ctx.drawImage(skyCv, WIN.x, WIN.y);

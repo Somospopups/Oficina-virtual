@@ -30,7 +30,7 @@ WebSockets contra este servidor. Tip: `?name=Laura` pre-carga el nombre.
 | `Enter` | Abrir chat (Enter envía, Esc cancela) |
 | `/w nombre msg` | Susurro / mensaje privado |
 | `F` | Saludar 👋 al compañero más cercano |
-| `1–5` | Cambiar estado: 💻 codeando · 🤝 reunión · ☕ café · 🌙 ausente · 🟢 disponible |
+| `1–3` | Cambiar estado: 💻 codeando · 🤝 reunión · 🏃 ¡Ya vengo! |
 | `Z X C V B N M` | Emotes: 👋 😂 🎉 👍 🤔 🔥 ☕ |
 | `H` | Ayuda |
 
@@ -41,8 +41,7 @@ El mapa está calcado de la foto del espacio del equipo, en versión pixel art c
 - **Ventanal** al fondo con vista a la ciudad (skyline generado por código) y
   parches de sol reflejados sobre el piso.
 - **Porcelanato beige brillante** con juntas de pastillas grandes y paredes blancas.
-- **Counter bajo la ventana**: estantes de madera abiertos + gabinete blanco, con
-  la **estación de café** ☕ (acercarte cambia tu estado a "pausa café" solo).
+- **Counter bajo la ventana**: estantes de madera abiertos + gabinete blanco.
 - **Puestos de trabajo** blancos con canto de madera y monitor con terminal
   verde 💚: pararte en la silla te pone "codeando".
 - Lamparitas colgantes, spots embutidos y entrada con felpudo.
@@ -74,4 +73,3 @@ HTTPS sin cambios (wss automático).
 ### Ideas para después
 - Webhook de opencode/GitHub → notificación en el chat de la oficina
 - "Salas" privadas por proyecto
-- Minijuegos en la pausa café ☕

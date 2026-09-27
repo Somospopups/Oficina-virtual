@@ -309,3 +309,13 @@ body.desktop-rails #musicPanel #mpVol { flex: 1 1 auto; min-width: 0; width: 100
 }
 .attachment-preview img { display: block; max-width: 100%; max-height: calc(88vh - 110px); object-fit: contain; }
 .attachment-preview audio { width: min(720px, 94%); }
+
+
+body.spectator-mode #chatRow,
+body.spectator-mode #attChip,
+body.spectator-mode #statusBar,
+body.spectator-mode #hint,
+body.spectator-mode #stick,
+body.spectator-mode #musicBtn,
+body.spectator-mode #musicPanel { display: none !important; }
+body.spectator-mode #chatLog { flex: 1 1 auto; }
