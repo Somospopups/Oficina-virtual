@@ -28,14 +28,6 @@ const ZONES = [
   { name: 'Estación de café (junto a la ventana)', x0: 510, y0: 400, x1: 720, y1: 520, status: 'cafe' },
 ];
 
-// Frentes de mueble que tapan pies/piernas de quien está sentado detrás
-const OCCLUDERS = [
-  [0, 545, 430, 896],     // escritorio delantero izquierdo
-  [310, 435, 510, 645],   // escritorio trasero izquierdo
-  [685, 435, 885, 645],   // escritorio trasero derecho
-  [765, 545, 1195, 896],  // escritorio delantero derecho
-];
-
 const SPEED = 320;
 const SEND_MS = 70;
 
@@ -767,9 +759,27 @@ function render() {
     ctx.globalAlpha = 1;
   }
 
+  if (sky.amb > 0.01) {
+    ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
+    ctx.fillRect(0, 0, VW, VH);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = `rgba(90,140,255,${(0.10 * sky.amb * 3).toFixed(2)})`;
+    ctx.fillRect(19, 345, 245, 140); ctx.fillRect(341, 345, 98, 75);
+    ctx.fillRect(775, 345, 98, 75); ctx.fillRect(962, 345, 210, 140);
+    ctx.fillStyle = `rgba(59,130,246,${(0.14 * sky.amb * 3).toFixed(2)})`;
+    ctx.fillRect(0, 209, 318, 51); ctx.fillRect(327, 262, 140, 33);
+    ctx.fillRect(757, 262, 140, 33); ctx.fillRect(906, 209, 289, 51);
+    for (const [lx, ly] of [[313, 51], [878, 51], [420, 158], [789, 158], [477, 205], [733, 205]]) {
+      const rg = ctx.createRadialGradient(lx, ly, 3, lx, ly, 70);
+      rg.addColorStop(0, `rgba(255,224,160,${(0.5 * sky.amb * 2).toFixed(2)})`);
+      rg.addColorStop(1, 'rgba(255,224,160,0)');
+      ctx.fillStyle = rg; ctx.fillRect(lx - 70, ly - 70, 140, 140);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
   const frame = Math.floor(animT / 160) % 2;
   const list = [...state.players.values()].sort((a, b) => a.y - b.y);
-  const labels = [];
   for (const p of list) {
     if (!p.name) continue;
     let topY, shR, fs;
@@ -795,41 +805,7 @@ function render() {
     }
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath(); ctx.ellipse(p.x, p.y + 4, shR, shR * 0.32, 0, 0, Math.PI * 2); ctx.fill();
-    labels.push({ p, topY, fs });
-  }
 
-  // OCLUSORES: el frente de los muebles tapa pies/piernas de quien está detrás
-  if (bgReady) {
-    for (const [x0, y0, x1, y1] of OCCLUDERS) {
-      ctx.save();
-      ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.clip();
-      ctx.drawImage(bgCv, 0, 0, VW, VH);
-      ctx.restore();
-    }
-  }
-
-  // ambiente nocturno + luces (encima de todo el mobiliario)
-  if (sky.amb > 0.01) {
-    ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
-    ctx.fillRect(0, 0, VW, VH);
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = `rgba(90,140,255,${(0.10 * sky.amb * 3).toFixed(2)})`;
-    ctx.fillRect(19, 345, 245, 140); ctx.fillRect(341, 345, 98, 75);
-    ctx.fillRect(775, 345, 98, 75); ctx.fillRect(962, 345, 210, 140);
-    ctx.fillStyle = `rgba(59,130,246,${(0.14 * sky.amb * 3).toFixed(2)})`;
-    ctx.fillRect(0, 209, 318, 51); ctx.fillRect(327, 262, 140, 33);
-    ctx.fillRect(757, 262, 140, 33); ctx.fillRect(906, 209, 289, 51);
-    for (const [lx, ly] of [[313, 51], [878, 51], [420, 158], [789, 158], [477, 205], [733, 205]]) {
-      const rg = ctx.createRadialGradient(lx, ly, 3, lx, ly, 70);
-      rg.addColorStop(0, `rgba(255,224,160,${(0.5 * sky.amb * 2).toFixed(2)})`);
-      rg.addColorStop(1, 'rgba(255,224,160,0)');
-      ctx.fillStyle = rg; ctx.fillRect(lx - 70, ly - 70, 140, 140);
-    }
-    ctx.globalCompositeOperation = 'source-over';
-  }
-
-  // nombres, emotes y burbujas SIEMPRE encima
-  for (const { p, topY, fs } of labels) {
     const st = STATUS_INFO[p.status] || STATUS_INFO.disponible;
     ctx.font = `${fs}px "Press Start 2P", monospace`;
     ctx.textAlign = 'center';
