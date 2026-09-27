@@ -1228,7 +1228,9 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.38.2 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+// Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
+// viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
+const VERSION = 'v38 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
