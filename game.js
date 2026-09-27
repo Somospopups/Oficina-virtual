@@ -834,7 +834,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.26.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.27.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1670,6 +1670,8 @@ function resize() {
   viewScale = Math.min(canvas.width / VW, canvas.height / VH);
   viewOX = (canvas.width - VW * viewScale) / 2;
   viewOY = (canvas.height - VH * viewScale) / 2;
+  document.documentElement.style.setProperty('--desktop-rail-width', Math.max(0, Math.round(viewOX)) + 'px');
+  document.body.classList.toggle('desktop-rails', canvas.width > 900 && viewOX >= 220);
   ctx.imageSmoothingEnabled = false;
   layoutMobile();
 }
@@ -1992,6 +1994,26 @@ function render() {
   }
 
   clockBox.textContent = `${phaseName(hf)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` + (USE_P2P ? ` · 📡${p2pPeerCount}` : '');
+
+  // Marco visual de escritorio: oscurece solo las bandas exteriores; el área de
+  // la oficina queda intacta y sus límites coinciden con los paneles laterales.
+  if (document.body.classList.contains('desktop-rails')) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const railLeft = Math.floor(viewOX), railRight = Math.ceil(W - viewOX);
+    const left = ctx.createLinearGradient(0, 0, railLeft, 0);
+    left.addColorStop(0, 'rgba(8,10,16,0.78)');
+    left.addColorStop(0.88, 'rgba(8,10,16,0.72)');
+    left.addColorStop(1, 'rgba(8,10,16,0.52)');
+    ctx.fillStyle = left; ctx.fillRect(0, 0, railLeft, H);
+    const right = ctx.createLinearGradient(W, 0, railRight, 0);
+    right.addColorStop(0, 'rgba(8,10,16,0.78)');
+    right.addColorStop(0.88, 'rgba(8,10,16,0.72)');
+    right.addColorStop(1, 'rgba(8,10,16,0.52)');
+    ctx.fillStyle = right; ctx.fillRect(railRight, 0, W - railRight, H);
+    ctx.fillStyle = 'rgba(94,117,161,0.62)';
+    ctx.fillRect(Math.max(0, railLeft - 2), 0, 2, H);
+    ctx.fillRect(railRight, 0, 2, H);
+  }
 }
 
 function drawBubble(g2, text, cx, bottomY, fs) {

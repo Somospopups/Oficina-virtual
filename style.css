@@ -222,3 +222,44 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #attChip button { background: #33251a; border: 1px solid #8a5a2b; color: #e8c39a; border-radius: 4px; font-size: 8px; padding: 2px 6px; cursor: pointer; }
 .chat-att { display: block; max-width: 190px; max-height: 140px; margin-top: 5px; border: 2px solid #3b4560; border-radius: 6px; cursor: pointer; }
 .chat-att-a { display: block; width: 190px; height: 34px; margin-top: 5px; }
+
+
+/* ---------- HUD en marcos laterales para PC panorámica ---------- */
+body.desktop-rails #chatPanel {
+  width: calc(var(--desktop-rail-width) - 24px);
+  height: min(680px, calc(100vh - 140px));
+  display: flex; flex-direction: column;
+  background: rgba(12, 16, 25, 0.96);
+}
+body.desktop-rails #chatLog {
+  height: auto; min-height: 0; flex: 1 1 auto;
+  padding: 11px 10px; font-size: 11px; line-height: 2;
+}
+body.desktop-rails #chatRow { gap: 3px; padding: 4px; }
+body.desktop-rails #chatRow button { padding: 6px 5px; font-size: 10px; }
+body.desktop-rails #chatRow #chatInput {
+  flex: 1 1 90px; min-width: 0; font-size: 9px !important; padding: 7px 5px !important;
+}
+body.desktop-rails #topbar {
+  width: calc(var(--desktop-rail-width) - 24px);
+  flex-direction: column; align-items: stretch; gap: 6px;
+}
+body.desktop-rails #clock {
+  width: 100%; padding: 8px 6px; font-size: 8px; letter-spacing: 0;
+  white-space: nowrap; overflow: hidden;
+}
+body.desktop-rails #musicBtn { align-self: flex-start; padding: 6px 9px; font-size: 13px; }
+body.desktop-rails #playerList {
+  width: calc(var(--desktop-rail-width) - 24px);
+  padding: 9px; background: rgba(12, 16, 25, 0.96);
+}
+body.desktop-rails #statusBar {
+  max-width: calc(100vw - var(--desktop-rail-width) - var(--desktop-rail-width) - 24px);
+}
+body.desktop-rails #netPanel {
+  top: 98px; left: 12px; width: calc(var(--desktop-rail-width) - 24px);
+  max-height: calc(100vh - 112px); overflow-y: auto;
+}
+body.desktop-rails #musicPanel {
+  top: 98px; width: calc(var(--desktop-rail-width) - 24px);
+}
