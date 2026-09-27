@@ -435,6 +435,8 @@ body.desktop-rails #musicPanel #mpVol { flex: 1 1 auto; min-width: 0; width: 100
   background: #111723; color: #cdd5e4; box-shadow: 2px 2px 0 rgba(0,0,0,0.35);
   font-family: inherit; font-size: 8px; line-height: 1.6; text-align: left;
 }
+/* La miniatura de imagen va centrada en el ancho del chat, no pegada a un margen */
+.chat-att-open { display: flex; width: fit-content; margin-left: auto; margin-right: auto; align-items: center; }
 .chat-att-open:hover, .chat-audio-open:hover { filter: brightness(1.15); }
 .chat-att-open .chat-att { margin-top: 0; }
 .chat-att-label { color: #9fb0cc; }
@@ -458,7 +460,7 @@ body.desktop-rails #musicPanel #mpVol { flex: 1 1 auto; min-width: 0; width: 100
 .attachment-download:hover, #attachmentClose:hover { background: #303c55; }
 #attachmentClose { border-color: #8a5a5a; background: #392126; }
 .attachment-preview {
-  flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; align-items: center; justify-content: center;
+  flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center;
   padding: 8px; background: #090d13; border: 2px solid #2c3550;
 }
 .attachment-preview img { display: block; max-width: 100%; max-height: calc(88vh - 110px); object-fit: contain; }

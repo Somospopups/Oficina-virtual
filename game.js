@@ -1241,7 +1241,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v47 · 27/09/2026';
+const VERSION = 'v48 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1684,6 +1684,64 @@ function attachmentExtension(mime) {
   return ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp',
     'audio/webm': '.webm', 'audio/ogg': '.ogg', 'audio/mp4': '.m4a', 'audio/mpeg': '.mp3', 'audio/wav': '.wav' })[mime] || '.bin';
 }
+// Zoom del visor de imágenes: ruedita del mouse, pellizco (pinch) en táctil,
+// arrastre para pasear cuando está ampliada y doble click para acercar/alejar.
+// Todo se cuelga del <img> (que nace nuevo en cada apertura), así no se
+// acumulan listeners sobre la caja del modal.
+function attachImageZoom(img) {
+  let s = 1, tx = 0, ty = 0;
+  const ptrs = new Map();
+  let pinchD = 0, pinchS = 1, dragX = 0, dragY = 0;
+  img.style.transformOrigin = 'center center';
+  img.style.touchAction = 'none';
+  img.style.cursor = 'zoom-in';
+  const apply = () => {
+    img.style.transform = s === 1 && !tx && !ty ? '' : `translate(${tx}px, ${ty}px) scale(${s})`;
+    img.style.cursor = s > 1 ? 'grab' : 'zoom-in';
+  };
+  // Acerca hacia un punto de la pantalla manteniéndolo quieto bajo el cursor
+  const zoomAt = (clientX, clientY, ns) => {
+    ns = Math.min(8, Math.max(1, ns));
+    const r = img.getBoundingClientRect();
+    const cx0 = r.left + r.width / 2 - tx, cy0 = r.top + r.height / 2 - ty; // centro sin trasladar
+    const Cx = clientX - cx0, Cy = clientY - cy0;
+    const f = ns / s;
+    tx = Cx - f * (Cx - tx); ty = Cy - f * (Cy - ty);
+    s = ns;
+    if (s === 1) { tx = 0; ty = 0; }
+    apply();
+  };
+  img.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    zoomAt(e.clientX, e.clientY, s * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
+  }, { passive: false });
+  img.addEventListener('dblclick', (e) => { e.preventDefault(); zoomAt(e.clientX, e.clientY, s > 1 ? 1 : 2.5); });
+  img.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { img.setPointerCapture(e.pointerId); } catch { /* siga */ }
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      pinchD = Math.hypot(a.x - b.x, a.y - b.y) || 1; pinchS = s;
+    } else if (ptrs.size === 1) { dragX = e.clientX; dragY = e.clientY; if (s > 1) img.style.cursor = 'grabbing'; }
+  });
+  img.addEventListener('pointermove', (e) => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, pinchS * (d / pinchD));
+    } else if (ptrs.size === 1 && s > 1) {
+      tx += e.clientX - dragX; ty += e.clientY - dragY;
+      dragX = e.clientX; dragY = e.clientY;
+      apply();
+    }
+  });
+  const soltar = (e) => { ptrs.delete(e.pointerId); if (s > 1) img.style.cursor = 'grab'; };
+  img.addEventListener('pointerup', soltar);
+  img.addEventListener('pointercancel', soltar);
+}
 function openAttachmentPreview(att, owner) {
   if (!attachmentModal || !attachmentPreviewBox || !attachmentDownload || !att || !att.data) return;
   try {
@@ -1698,6 +1756,8 @@ function openAttachmentPreview(att, owner) {
     if (att.kind === 'img') {
       const img = document.createElement('img');
       img.src = activeAttachmentUrl; img.alt = 'Imagen enviada por ' + (owner || 'el equipo');
+      img.draggable = false;
+      attachImageZoom(img);
       attachmentPreviewBox.appendChild(img);
     } else if (att.kind === 'audio') {
       const audio = document.createElement('audio');
