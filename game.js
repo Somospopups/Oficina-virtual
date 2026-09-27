@@ -54,6 +54,69 @@ function lerpColor(a, b, t) {
 function depthScale(y) { return lerp(3.1, 20, clamp((y - FLOOR.yTop) / (FLOOR.yBot - FLOOR.yTop), 0, 1)); }
 function sitScale(y) { return lerp(4.8, 9.8, clamp((y - 560) / 190, 0, 1)); }
 
+// ---------- Volumetría y contorno (estilo chibi 2.5D) ----------
+// Sube o baja un color hacia blanco/negro. t>0 aclara, t<0 oscurece.
+function tone(hex, t) { return lerpColor(hex, t > 0 ? '#ffffff' : '#000000', Math.abs(t)); }
+
+// Rectángulo con volumen: luz en el borde superior+izquierdo, sombra en el
+// inferior+derecho, más una banda de sombra en la base. Es el helper que separa
+// el arte plano de la referencia, donde cada superficie se modela con 2-3 tonos.
+// depth = intensidad de esa banda inferior (0 la omite).
+function vol(g, x, y, w, h, base, o) {
+  const p = o || {};
+  g.fillStyle = base; g.fillRect(x, y, w, h);
+  // En colores muy oscuros (la remera negra de Ger) un bisel de 15% no se ve:
+  // subimos la luz y bajamos la sombra según la luminancia del color base.
+  const rgb = hex2rgb(base);
+  const lum = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+  const k = lum < 70 ? 0.22 : 0.15;
+  g.fillStyle = p.light || tone(base, k);
+  g.fillRect(x, y, w, 1); g.fillRect(x, y, 1, h);
+  g.fillStyle = p.dark || tone(base, lum < 70 ? -0.14 : -0.24);
+  g.fillRect(x, y + h - 1, w, 1); g.fillRect(x + w - 1, y, 1, h);
+  if (p.depth) {
+    const bh = Math.max(1, Math.round(h * 0.3));
+    g.fillStyle = tone(base, -p.depth);
+    g.fillRect(x + 1, y + h - 1 - bh, w - 2, bh);
+  }
+}
+
+// Overlay de sombra: para lo que queda en penumbra (bajo el mentón, bajo el
+// brazo al cuerpo, entre los muslos).
+function shade(g, x, y, w, h, alpha, col) {
+  g.fillStyle = col || '#000000';
+  g.globalAlpha = alpha;
+  g.fillRect(x, y, w, h);
+  g.globalAlpha = 1;
+}
+
+// Contorno negro de 1px alrededor de la silueta. Se hace por píxel real (fuera
+// de la grilla) porque es un detalle fino, igual que en la referencia. Se corre al
+// final, con el sprite ya completo, así que ve la forma exacta.
+function pixelOutline(cv, col) {
+  const g = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  const img = g.getImageData(0, 0, W, H);
+  const d = img.data;
+  // Hay que leer SIEMPRE del snapshot original. Si leyéramos de d mientras lo
+  // escribimos, cada píxel recién pintado contaría como vecino y el contorno
+  // crecería hacia afuera en cadena, rellenando el hueco entre las partes.
+  const snap = new Uint8ClampedArray(d);
+  const solid = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : snap[(y * W + x) * 4 + 3] > 8 ? 1 : 0);
+  const ink = hex2rgb(col || '#151119');
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (solid(x, y)) continue;
+      if (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1)) {
+        const i = (y * W + x) * 4;
+        d[i] = ink[0]; d[i + 1] = ink[1]; d[i + 2] = ink[2]; d[i + 3] = 255;
+      }
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return cv;
+}
+
 // ---------- Ciclo día/noche (hora real) ----------
 const SKY_STOPS = [
   { h: 0,   top: '#070b1e', bot: '#141c33', star: 1,   patch: '#39456b', patchA: 0.25, amb: 0.34 },
@@ -185,38 +248,89 @@ function detailStand(g, c, dir, frame) {
   }
   g.globalAlpha = 1;
 }
+// Detalle fino del sentado. Todo esto se dibuja en píxeles reales del canvas
+// (192x224) y no en la grilla lógica 4x: los ojos miden 10-13px y multiplicados
+// por 4 quedarían como manchas blancas de 40px.
 function detailSit(g, c, frame) {
-  const A = (col, al) => { g.fillStyle = col; g.globalAlpha = al == null ? 1 : al; };
-  // brillo del monitor sobre el frente
-  A('#9fc0ff', 0.10); g.fillRect(64, 44, 2, 48); g.fillRect(56, 104, 2, 56);
-  // ojo de perfil + ceja + nariz + oreja
-  A('#ffffff'); g.fillRect(70, 58, 6, 8); A('#26221e'); g.fillRect(70, 60, 4, 6); A('#ffffff'); g.fillRect(70, 60, 1, 1);
-  A(c.hair); g.fillRect(68, 52, 10, 2); A(c.skinD); g.fillRect(66, 68, 4, 3);
-  A(c.skin); g.fillRect(86, 58, 6, 10); A(c.skinD); g.fillRect(88, 60, 2, 4);
-  // pelo / gorra
-  if (c.hairStyle === 'spiky') { A('#7a5a3a'); g.fillRect(70, 34, 3, 12); g.fillRect(82, 30, 3, 16); A('#4a2e1c'); g.fillRect(76, 32, 2, 10); }
-  else if (c.hairStyle === 'full') { A('#33333c'); g.fillRect(72, 34, 20, 4); A('#101014'); g.fillRect(80, 32, 2, 10); }
-  else { A('#454e5a'); g.fillRect(90, 26, 3, 16); g.fillRect(86, 22, 8, 4); A('#6a7480'); g.fillRect(66, 38, 40, 2); }
-  // barba
+  const bob = frame ? 4 : 0;   // x4, igual que el desfase de la grilla
+
+  // Ojo en píxeles reales: esclerótica -> iris -> pupila -> brillo. El iris se
+  // lleva la mayor parte (como en la referencia) y la esclerótica queda de
+  // orla; al revés se lee como un bloque blanco vacío.
+  const eyePx = (x, y, w, h) => {
+    g.fillStyle = '#efe9df'; g.fillRect(x, y + bob, w, h);
+    const iw = Math.round(w * 0.68), ih = Math.round(h * 0.68);
+    g.fillStyle = '#5a7a9e'; g.fillRect(x + 2, y + 2 + bob, iw, ih);
+    const pw = Math.max(2, Math.round(iw * 0.55)), ph = Math.max(2, Math.round(ih * 0.6));
+    g.fillStyle = '#181116'; g.fillRect(x + 2 + ((iw - pw) >> 1), y + 2 + bob + ((ih - ph) >> 1), pw, ph);
+    g.fillStyle = '#ffffff'; g.fillRect(x + 3, y + 3 + bob, 2, 2);
+  };
+  const strand = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y + bob, w, h); };
+
+  // ---------- ojos: el cercano más grande que el lejano, eso arma el 3/4 ----------
+  eyePx(66, 81, 10, 11);   // ojo lejano
+  eyePx(90, 78, 13, 14);   // ojo cercano
+
+  // ---------- cejas: 2px, con el lejano un pelín más alto ----------
+  g.fillStyle = tone(c.hair, -0.16); g.fillRect(66, 76 + bob, 10, 2);
+  g.fillStyle = tone(c.hair, -0.16); g.fillRect(90, 73 + bob, 13, 2);
+  g.fillStyle = tone(c.hair, 0.1);   g.fillRect(66, 76 + bob, 3, 1);
+
+  // ---------- nariz: la punta asoma por el borde derecho ----------
+  g.fillStyle = tone(c.skin, 0.12);  g.fillRect(118, 92 + bob, 6, 4);
+  g.fillStyle = tone(c.skin, -0.36); g.fillRect(118, 96 + bob, 4, 2);
+  g.fillStyle = tone(c.skin, -0.22); g.fillRect(115, 94 + bob, 3, 1);
+
+  // ---------- boca: una insinuación dentro de la barba, no un bloque ----------
   if (c.beardStyle === 'full') {
-    A('#000000', 0.25); for (let y = 52; y <= 80; y += 4) for (let x = 64; x <= 88; x += 5) g.fillRect(x, y, 1, 1);
-    A('#2a2a30'); g.fillRect(68, 68, 12, 2); A('#3a2a2a'); g.fillRect(70, 74, 8, 1);
+    g.fillStyle = '#c8bfb2'; g.fillRect(85, 100 + bob, 8, 1);
+    g.fillStyle = '#17121a'; g.fillRect(84, 101 + bob, 10, 2);
   } else {
-    A(c.beard, 0.8); for (let x = 68; x <= 88; x += 3) { g.fillRect(x, 78, 1, 1); g.fillRect(x + 1, 80, 1, 1); } g.fillRect(72, 84, 12, 2);
+    g.fillStyle = '#6b3f36'; g.fillRect(86, 100 + bob, 7, 2);
+    g.fillStyle = '#4a2b26'; g.fillRect(86, 102 + bob, 7, 1);
   }
-  // manos: dedos separados sobre el teclado
-  const o1 = frame ? 0 : 4, o2 = frame ? 4 : 0;
-  A(c.skinD); g.fillRect(4, 120 + o1, 12, 1); g.fillRect(8, 136 + o2, 12, 1);
-  A(c.skinD, 0.7); g.fillRect(16, 118 + o1, 1, 2); g.fillRect(20, 134 + o2, 1, 2);
-  // hoodie / campera
+
+  // ---------- pelo: volumen con 2-3 mechones grandes, no rayas ----------
+  if (c.hairStyle === 'spiky') {
+    strand(70, 60, 3, 9, tone(c.hair, 0.16));
+    strand(84, 57, 3, 12, tone(c.hair, 0.16));
+    strand(102, 62, 2, 7, tone(c.hair, -0.3));
+  } else if (c.hairStyle === 'full') {
+    strand(68, 60, 3, 10, tone(c.hair, 0.14));
+    strand(82, 57, 3, 13, tone(c.hair, 0.14));
+    strand(101, 63, 2, 7, tone(c.hair, -0.34));
+  } else {
+    strand(64, 51, 15, 2, tone('#5a6470', 0.24));   // brillo de la gorra
+    strand(64, 70, 32, 2, '#3f4750');                // costura del ala
+  }
+
+  // ---------- barba: masa con volumen; mechones solo en los costados ----------
+  if (c.beardStyle === 'full') {
+    strand(60, 99, 3, 13, tone(c.beard, 0.16));
+    strand(108, 99, 3, 13, tone(c.beard, -0.22));
+  } else {
+    strand(64, 99, 3, 11, tone(c.beard, 0.18));
+    strand(110, 99, 3, 11, tone(c.beard, -0.2));
+  }
+
+  // ---------- ropa: pliegues, costura, brillos ----------
   if (c.jacket) {
-    A('#d8dce2'); g.fillRect(64, 124, 3, 16); g.fillRect(72, 124, 3, 16); g.fillRect(64, 140, 3, 3); g.fillRect(72, 140, 3, 3);
-    A('#5a6470'); g.fillRect(58, 124, 3, 36);
-    A('#c88a10'); g.fillRect(56, 160, 40, 2);
+    g.fillStyle = '#eef2f8'; g.fillRect(72, 126 + bob, 2, 4);      // brillo del cierre
+    g.fillStyle = '#5a6470'; g.fillRect(106, 122 + bob, 2, 26);    // costura del hoodie
+    g.fillStyle = '#8a94a2'; g.fillRect(74, 122 + bob, 2, 26);
+  } else {
+    g.fillStyle = tone(c.shirt, 0.2);
+    g.fillRect(68, 130 + bob, 10, 2); g.fillRect(104, 134 + bob, 8, 2);
+    g.fillStyle = tone(c.shirt, -0.28);
+    g.fillRect(80, 150 + bob, 8, 2); g.fillRect(96, 154 + bob, 6, 2);
   }
-  A('#000000', 0.12); g.fillRect(60, 148, 12, 1); g.fillRect(72, 156, 12, 1);
-  // muslo: costura y rodilla
-  A('#3a5a85'); g.fillRect(44, 164, 2, 16); A('#000000', 0.12); g.fillRect(96, 168, 8, 1);
+  g.fillStyle = tone(c.pants, 0.26); g.fillRect(80, 168 + bob, 12, 2);   // costura del jean
+  g.fillStyle = tone(c.pants, -0.36); g.fillRect(56, 178 + bob, 10, 2);
+
+  // ---------- brillo del monitor sobre el hombro y la sien ----------
+  g.fillStyle = '#9fc0ff'; g.globalAlpha = 0.11;
+  g.fillRect(121, 120 + bob, 2, 34);
+  g.fillRect(106, 74 + bob, 14, 2);
   g.globalAlpha = 1;
 }
 
@@ -307,10 +421,14 @@ function getSprite(charKey, dir, frame) {
 let SIT_VARIANT = 'C';
 
 function chairCommon(g) {
-  g.fillStyle = '#1d2126'; g.fillRect(12, 40, 28, 6);
-  g.fillStyle = '#3a4048'; g.fillRect(8, 38, 4, 8); g.fillRect(36, 38, 4, 8);
-  g.fillStyle = '#14171b'; g.fillRect(24, 46, 4, 5);
+  vol(g, 8, 37, 5, 12, '#2b3038');        // costados del respaldo
+  vol(g, 36, 37, 5, 12, '#2b3038');
+  vol(g, 12, 38, 26, 4, '#333a44');       // travesaño, pasa por detrás de la espalda
+  vol(g, 12, 41, 28, 6, '#3a4048', { depth: 0.3 }); // asiento
+  vol(g, 24, 47, 4, 5, '#2b3038');        // columna
+  g.fillStyle = '#14171b';                // base en cruz + ruedas
   g.fillRect(14, 51, 24, 2); g.fillRect(14, 51, 2, 4); g.fillRect(36, 51, 2, 4); g.fillRect(24, 53, 4, 2);
+  g.fillStyle = '#4a525c'; g.fillRect(12, 41, 28, 1);
 }
 function sitA(g, shirt, hair, frame) {
   g.fillStyle = '#1d2126'; g.fillRect(30, 6, 14, 34);
@@ -349,52 +467,144 @@ function sitB(g, shirt, hair, frame) {
   g.fillStyle = '#14161c'; g.fillRect(16, 6 + sway, 16, 3); g.fillRect(13, 12 + sway, 4, 7); g.fillRect(31, 12 + sway, 4, 7);
   chairCommon(g);
 }
-function sitC(g, c, frame) { // OFICIAL: perfil realista, manos SOBRE el teclado
-  g.fillStyle = '#1d2126'; g.fillRect(32, 4, 10, 6);
-  g.fillStyle = '#2b3038'; g.fillRect(32, 10, 8, 28);
-  g.fillStyle = '#14171b'; for (let y = 12; y < 36; y += 4) g.fillRect(33, y, 6, 1);
-  g.fillStyle = '#39424e'; g.fillRect(10, 40, 16, 6); // muslos (los pies van bajo el escritorio)
-  g.fillStyle = c.shirt;
-  g.fillRect(16, 26, 16, 6); g.fillRect(14, 30, 18, 6); g.fillRect(14, 36, 18, 5);
-  if (c.jacket) {
-    g.fillStyle = '#8a94a2'; g.fillRect(14, 30, 5, 11);
-    g.fillStyle = '#d8dce2'; g.fillRect(16, 31, 1, 4);
+// Cabeza chibi: octógono (esquinas achaflanadas 2px) para que lea redonda en vez
+// de cuadrada, más volumen suave (luz arriba-izquierda, sombra abajo-derecha).
+// k controla cuánto se dibuja la sombra propia: 0 para la base, 0.5 encima.
+function headShape(g, x, y, w, h, col, k) {
+  g.fillStyle = col;
+  g.fillRect(x + 2, y, w - 4, h);
+  g.fillRect(x + 1, y + 1, w - 2, h - 2);
+  g.fillRect(x, y + 2, w, h - 4);
+  const f = k || 0;
+  if (!f) return;
+  g.fillStyle = tone(col, 0.13 * f);
+  g.fillRect(x + 2, y, w - 4, 1);
+  g.fillRect(x + 1, y + 1, 1, h - 3);
+  g.fillStyle = tone(col, -0.18 * f);
+  g.fillRect(x + 2, y + h - 2, w - 4, 2);
+  g.fillRect(x + w - 2, y + 1, 1, h - 3);
+}
+
+// Mechones: triángulos que crecen desde la base del pelo hacia arriba. Se usan
+// en lugar de columnas sueltas, que se leen como púas pegadas.
+function tufts(g, x, y, w, col, n, depth) {
+  for (let i = 0; i < n; i++) {
+    const tx = x + Math.round((i * (w - 1)) / (n - 1));
+    const h = depth - (i % 2);
+    g.fillStyle = col;
+    g.fillRect(tx, y - h + 1, 1, h);
+    g.fillRect(tx - 1, y - h + 2, 1, h - 1);
+    g.fillRect(tx + 1, y - h + 2, 1, h - 1);
   }
-  g.fillStyle = c.shirt;
-  g.fillRect(8, 28, 10, 4);
-  g.fillRect(4, 30, 8, 3);
-  g.fillRect(10, 32, 10, 4);
-  g.fillRect(6, 34, 8, 3);
-  if (c.jacket) { g.fillStyle = '#d8dce2'; g.fillRect(4, 32, 2, 1); g.fillRect(6, 36, 2, 1); }
-  g.fillStyle = c.skin;
-  g.fillRect(0, 29 + (frame ? 0 : 1), 5, 3);
-  g.fillRect(2, 33 + (frame ? 1 : 0), 5, 3);
-  g.fillStyle = c.skin; g.fillRect(16, 10, 13, 14);
-  g.fillRect(14, 16, 2, 3);
-  // pelo / gorra según personaje
-  if (c.hairStyle === 'spiky') {
-    g.fillStyle = c.hair;
-    g.fillRect(18, 8, 12, 4); g.fillRect(26, 10, 4, 9);
-    g.fillRect(20, 6, 2, 3); g.fillRect(24, 5, 2, 4); g.fillRect(28, 6, 2, 3);
-  } else if (c.hairStyle === 'full') {
-    g.fillStyle = c.hair;
-    g.fillRect(18, 7, 12, 5); g.fillRect(26, 9, 4, 11); g.fillRect(24, 12, 3, 6);
-  } else {
-    g.fillStyle = '#5a6470'; g.fillRect(17, 6, 14, 6);
-    g.fillStyle = '#454e5a'; g.fillRect(17, 11, 14, 2);
-    g.fillStyle = '#3a424c'; g.fillRect(29, 8, 4, 3);
-    g.fillStyle = c.hair; g.fillRect(26, 12, 3, 6);
-  }
-  // barba
-  if (c.beardStyle === 'full') {
-    g.fillStyle = c.beard;
-    g.fillRect(15, 16, 9, 8); g.fillRect(14, 20, 4, 5);
-  } else {
-    g.fillStyle = '#b06a4a'; g.fillRect(16, 20, 3, 1);
-    g.fillStyle = c.beard; g.fillRect(16, 22, 5, 3); g.fillRect(15, 19, 4, 1);
-  }
-  g.fillStyle = '#26221e'; g.fillRect(18, 15, 2, 2);
+}
+
+//OFICIAL: perfil 3/4 realista, manos SOBRE el teclado. Estilo chibi 2.5D.
+function sitC(g, c, frame) {
+  const bob = frame ? 1 : 0; // micro cabeceo mientras tipea
+
   chairCommon(g);
+
+  // ---------- monitor: es adonde mira ----------
+  vol(g, 33, 3 + bob, 12, 12, '#20242c');
+  g.fillStyle = '#16241a'; g.fillRect(34, 4 + bob, 10, 10);
+  g.fillStyle = '#4caf6d'; g.fillRect(35, 5 + bob, 5, 1); g.fillRect(35, 7 + bob, 7, 1); g.fillRect(35, 9 + bob, 4, 1);
+  g.fillStyle = '#8ff0a2'; g.fillRect(35, 5 + bob, 3, 1);
+  g.fillStyle = '#2b3038'; g.fillRect(34, 14 + bob, 10, 2);
+  vol(g, 37, 16 + bob, 4, 18, '#2b3038');
+  vol(g, 34, 34 + bob, 11, 3, '#2b3038');
+  // teclado
+  vol(g, 34, 37, 12, 4, '#464e58');
+  g.fillStyle = '#6a7480';
+  g.fillRect(35, 38, 4, 1); g.fillRect(40, 38, 4, 1); g.fillRect(35, 39, 9, 1);
+
+  // ---------- brazo lejano (el del fondo, apenas asoma) ----------
+  g.fillStyle = c.shirt; g.fillRect(15, 30 + bob, 4, 6);
+  g.fillStyle = tone(c.shirt, -0.3); g.fillRect(15, 34 + bob, 4, 2);
+  vol(g, 17, 36 + bob, 6, 3, c.skinD);   // mano al fondo
+
+  // ---------- cuadril / muslos (sentado, van hacia atrás) ----------
+  vol(g, 13, 40 + bob, 15, 6, c.pants, { depth: 0.32 });
+  g.fillStyle = c.pants; g.fillRect(10, 43 + bob, 5, 4);
+  g.fillStyle = tone(c.pants, -0.3); g.fillRect(10, 46 + bob, 5, 1);
+  g.fillStyle = tone(c.pants, 0.22); g.fillRect(15, 41 + bob, 11, 1);   // luz en el muslo
+
+  // ---------- torso ----------
+  // Hombros anchos y redondeados arriba del bloque, para que no lea como un
+  // rectángulo plano.
+  g.fillStyle = c.shirt; g.fillRect(15, 29 + bob, 15, 3);
+  vol(g, 14, 31 + bob, 17, 12, c.shirt, { depth: 0.26 });
+  g.fillStyle = tone(c.shirt, 0.16); g.fillRect(15, 30 + bob, 15, 1);
+  // dos pliegues suaves: en la remera negra el volumen puro no se ve, así que
+  // el relieve se marca con reflejos en vez de sombras.
+  g.fillStyle = tone(c.shirt, 0.12); g.fillRect(18, 35 + bob, 5, 1);
+  g.fillStyle = tone(c.shirt, 0.12); g.fillRect(24, 38 + bob, 4, 1);
+  if (c.jacket) {
+    // hoodie gris en el medio con las dos solapas de la campera abierta encima
+    g.fillStyle = '#7e8894'; g.fillRect(18, 30 + bob, 9, 12);
+    g.fillStyle = '#a8b2be'; g.fillRect(19, 31 + bob, 1, 6);
+    g.fillStyle = '#5a6470'; g.fillRect(26, 30 + bob, 1, 12);
+    g.fillStyle = '#c88a10'; g.fillRect(16, 30 + bob, 2, 12);   // solapa izquierda
+    g.fillStyle = '#e8a820'; g.fillRect(16, 30 + bob, 1, 12);
+    g.fillStyle = '#c88a10'; g.fillRect(27, 30 + bob, 2, 12);   // solapa derecha
+    g.fillStyle = '#b87c08'; g.fillRect(28, 30 + bob, 1, 12);
+  }
+  shade(g, 14, 35 + bob, 3, 8, 0.2);     // sombra del brazo izquierdo
+  shade(g, 28, 35 + bob, 3, 8, 0.2);     // sombra del brazo derecho
+  g.fillStyle = tone(c.shirt, -0.3); g.fillRect(17, 34 + bob, 1, 6);   // costuras de armpila
+  g.fillStyle = tone(c.shirt, -0.3); g.fillRect(28, 34 + bob, 1, 6);
+
+  // ---------- brazo cercano: del hombro al teclado ----------
+  g.fillStyle = c.shirt; g.fillRect(27, 30 + bob, 4, 4);
+  g.fillStyle = c.shirt; g.fillRect(29, 33 + bob, 4, 3);
+  g.fillStyle = tone(c.shirt, 0.22); g.fillRect(27, 30 + bob, 4, 1);
+  // mano: nudillos arriba, dedos abajo apoyados en el teclado
+  g.fillStyle = c.skin; g.fillRect(31, 36 + bob, 5, 2);
+  g.fillStyle = c.skinD; g.fillRect(31, 38 + bob, 5, 1);
+  g.fillStyle = tone(c.skin, -0.3); g.fillRect(32, 38 + bob, 1, 1);
+  g.fillStyle = tone(c.skin, -0.3); g.fillRect(34, 38 + bob, 1, 1);
+
+  // ---------- cuello ----------
+  g.fillStyle = c.skinD; g.fillRect(20, 26 + bob, 5, 4);
+  shade(g, 20, 26 + bob, 5, 2, 0.35);     // penumbra del mentón
+
+  // ---------- cabeza ----------
+  // Piel: 19x16 en x=12..30, y=12..27. Arriba hasta y=19 es frente/casco, los
+  // ojos van en y=20..23 y la barba arranca en y=24: nunca se pisan.
+  headShape(g, 12, 12 + bob, 19, 16, c.skin, 1);
+  g.fillStyle = c.skinD; g.fillRect(12, 21 + bob, 2, 3);          // oreja del lado lejano
+  g.fillStyle = tone(c.skin, -0.32); g.fillRect(12, 22 + bob, 1, 1);
+  shade(g, 14, 25 + bob, 16, 2, 0.2);                            // mentón en penumbra
+
+  // pelo / gorra
+  const hy = 19 + bob;   // base del pelo: la frente queda visible
+  if (c.hairStyle === 'spiky') {
+    headShape(g, 12, hy - 6, 19, 8, c.hair, 0.5);
+    tufts(g, 15, hy - 6, 13, c.hair, 3, 3);
+    g.fillStyle = c.hair; g.fillRect(12, hy - 3, 2, 5); g.fillRect(30, hy - 3, 2, 5);
+  } else if (c.hairStyle === 'full') {
+    headShape(g, 12, hy - 6, 19, 8, c.hair, 0.5);
+    tufts(g, 15, hy - 6, 13, c.hair, 3, 2);
+    g.fillStyle = c.hair; g.fillRect(12, hy - 4, 3, 8); g.fillRect(29, hy - 4, 2, 8);
+  } else { // gorra gris, visera atrás
+    headShape(g, 11, hy - 7, 21, 9, '#5a6470', 0.5);
+    tufts(g, 16, hy - 6, 11, '#5a6470', 2, 1);
+    g.fillStyle = '#454e5a'; g.fillRect(11, hy - 1, 21, 2);   // ala de la gorra
+    g.fillStyle = '#3a424c'; g.fillRect(30, hy - 3, 3, 3);   // visera atrás
+    g.fillStyle = '#7a848f'; g.fillRect(14, hy - 6, 7, 1);   // brillo
+    g.fillStyle = c.hair; g.fillRect(14, hy + 1, 2, 4); g.fillRect(29, hy + 1, 2, 4);
+  }
+
+  // ---------- barba (siempre bajo los ojos) ----------
+  if (c.beardStyle === 'full') {
+    headShape(g, 14, 24 + bob, 15, 5, c.beard, 0.6);
+    g.fillStyle = tone(c.beard, 0.24); g.fillRect(17, 25 + bob, 6, 1);
+  } else {
+    // Goatee: mentón redondeado + bigote separado por la boca. Con dos barras
+    // rectas (bigote + mentón) se leía como una banda horizontal cruzando la cara.
+    headShape(g, 17, 25 + bob, 13, 4, c.beard, 0.6);
+    g.fillStyle = c.beard; g.fillRect(19, 24 + bob, 8, 1);
+    g.fillStyle = tone(c.beard, 0.22); g.fillRect(19, 25 + bob, 4, 1);
+  }
 }
 function sitD(g, shirt, hair, frame) {
   const hop = frame ? 1 : 0;
@@ -417,30 +627,42 @@ const sitCache = {};
 function getSitSprite(charKey, face, occupied, frame = 0) {
   const key = `vC_k${charKey}_${face}_${occupied ? 1 : 0}_${frame}`;
   if (sitCache[key]) return sitCache[key];
-  const cv = document.createElement('canvas');
-  cv.width = 192; cv.height = 224;
-  const g = cv.getContext('2d');
   const c = charOf(charKey);
-  const draw = (gg) => {
-    if (!occupied) {
-      gg.fillStyle = '#1d2126'; gg.fillRect(30, 6, 14, 34);
-      gg.fillStyle = '#2b3038'; gg.fillRect(32, 8, 10, 30);
-      gg.fillStyle = '#e8e8e8'; gg.fillRect(35, 12, 4, 3);
-      gg.fillStyle = '#2b3038'; gg.fillRect(14, 34, 20, 6);
-      chairCommon(gg);
-      return;
-    }
-    sitC(gg, c, frame);
-  };
-  if (face === 'left') {
-    g.save(); g.scale(4, 4); draw(g); g.restore();
-    if (occupied) detailSit(g, c, frame);
-  } else {
-    g.save(); g.translate(192, 0); g.scale(-4, 4); draw(g); g.restore();
-    if (occupied) { g.save(); g.translate(192, 0); g.scale(-1, 1); detailSit(g, c, frame); g.restore(); }
+  const mk = () => { const cv = document.createElement('canvas'); cv.width = 192; cv.height = 224; return cv; };
+
+  // El escenario (silla + monitor) y el personaje van en canvas separados: el
+  // contorno de 1px se aplica solo a la silueta humana, porque la silla y el
+  // monitor son parte del lugar y no deben quedar "delineados".
+  const bg = mk(), fig = mk();
+  const b = bg.getContext('2d'), g = fig.getContext('2d');
+
+  b.save(); b.scale(4, 4);
+  if (!occupied) {
+    b.fillStyle = '#1d2126'; b.fillRect(30, 6, 14, 34);
+    b.fillStyle = '#2b3038'; b.fillRect(32, 8, 10, 30);
+    b.fillStyle = '#e8e8e8'; b.fillRect(35, 12, 4, 3);
+    b.fillStyle = '#2b3038'; b.fillRect(14, 34, 20, 6);
   }
-  sitCache[key] = cv;
-  return cv;
+  chairCommon(b);
+  b.restore();
+
+  if (occupied) {
+    if (face === 'left') {
+      g.save(); g.scale(4, 4); sitC(g, c, frame); g.restore();
+      detailSit(g, c, frame);
+    } else {
+      g.save(); g.translate(192, 0); g.scale(-4, 4); sitC(g, c, frame); g.restore();
+      g.save(); g.translate(192, 0); g.scale(-1, 1); detailSit(g, c, frame); g.restore();
+    }
+    pixelOutline(fig);
+  }
+
+  const out = mk();
+  const o = out.getContext('2d');
+  o.drawImage(bg, 0, 0);
+  o.drawImage(fig, 0, 0);
+  sitCache[key] = out;
+  return out;
 }
 
 function drawWaveArm(g, colorIdx, time) {
@@ -492,7 +714,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.15.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.16.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
