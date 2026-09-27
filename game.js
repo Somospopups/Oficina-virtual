@@ -110,15 +110,73 @@ const CHAR_DEF = {
 };
 function charOf(key) { return CHAR_DEF[key] || CHAR_DEF.ger; }
 
-// ---------- Sprites de pie (32x44) ----------
+
+// ---------- Detalle fino (grilla 2x): caras, barbas, telas, cierres ----------
+function detailStand(g, c, dir, frame) {
+  const A = (col, al) => { g.fillStyle = col; g.globalAlpha = al == null ? 1 : al; };
+  if (dir === 'down') {
+    A('#ffffff'); g.fillRect(25, 21, 3, 4); g.fillRect(37, 21, 3, 4);
+    A('#26221e'); g.fillRect(26, 22, 2, 3); g.fillRect(38, 22, 2, 3);
+    A(c.hair); g.fillRect(24, 18, 5, 1); g.fillRect(36, 18, 5, 1);
+  } else if (dir === 'left') {
+    A('#ffffff'); g.fillRect(24, 21, 3, 4); A('#26221e'); g.fillRect(24, 22, 2, 3); A(c.hair); g.fillRect(23, 18, 5, 1);
+  } else if (dir === 'right') {
+    A('#ffffff'); g.fillRect(38, 21, 3, 4); A('#26221e'); g.fillRect(39, 22, 2, 3); A(c.hair); g.fillRect(37, 18, 5, 1);
+  }
+  if (c.hairStyle === 'spiky') { A('#7a5a3a'); g.fillRect(23, 7, 2, 6); g.fillRect(29, 5, 2, 8); g.fillRect(35, 7, 2, 6); }
+  else if (c.hairStyle === 'full') { A('#33333c'); g.fillRect(24, 7, 10, 2); }
+  else { A('#454e5a'); g.fillRect(31, 7, 2, 8); g.fillRect(30, 5, 4, 2); A('#6a7480'); g.fillRect(19, 17, 26, 1); }
+  if (c.beardStyle === 'full') {
+    A('#000000', 0.25); for (let y = 26; y <= 36; y += 3) for (let x = 24; x <= 40; x += 4) g.fillRect(x, y, 1, 1);
+    A('#2a2a30'); g.fillRect(28, 26, 8, 1);
+  } else if (dir !== 'up') {
+    A(c.beard, 0.8);
+    if (dir === 'down') { for (let x = 26; x <= 38; x += 2) g.fillRect(x, 31, 1, 1); g.fillRect(30, 34, 4, 1); }
+    else if (dir === 'left') { g.fillRect(21, 29, 1, 3); g.fillRect(23, 28, 1, 2); }
+    else { g.fillRect(41, 29, 1, 3); g.fillRect(39, 28, 1, 2); }
+  }
+  g.globalAlpha = 1;
+  const bx = (c.wide ? 7 : 8) * 2, bw = (c.wide ? 18 : 16) * 2;
+  A('#000000', 0.35); g.fillRect(bx + 8, 36, bw - 16, 1);
+  A('#000000', 0.25); g.fillRect(bx - 4, 40, 4, 1); g.fillRect(bx + bw, 40, 4, 1);
+  if (c.jacket) {
+    A('#5a6470'); g.fillRect(31, 38, 2, 24);
+    A('#d8dce2'); g.fillRect(31, 42, 2, 4);
+    A('#d8dce2'); g.fillRect(28, 40, 2, 8); g.fillRect(34, 40, 2, 8);
+    A('#c88a10'); g.fillRect(bx + 2, 56, 5, 1); g.fillRect(bx + bw - 7, 56, 5, 1);
+  }
+  A('#3a5a85'); g.fillRect(21, 66, 1, 12); g.fillRect(42, 66, 1, 12);
+  if (c.sole) { A('#ffffff', 0.9); g.fillRect(22, 81, 4, 1); g.fillRect(38, 81, 4, 1); }
+  g.globalAlpha = 1;
+}
+function detailSit(g, c, frame) {
+  const A = (col, al) => { g.fillStyle = col; g.globalAlpha = al == null ? 1 : al; };
+  A('#ffffff'); g.fillRect(35, 29, 3, 4); A('#26221e'); g.fillRect(35, 30, 2, 3); A(c.hair); g.fillRect(34, 26, 5, 1);
+  if (c.hairStyle === 'spiky') { A('#7a5a3a'); g.fillRect(35, 17, 2, 6); g.fillRect(41, 15, 2, 8); }
+  else if (c.hairStyle === 'full') { A('#33333c'); g.fillRect(36, 17, 10, 2); }
+  else { A('#454e5a'); g.fillRect(45, 13, 2, 8); g.fillRect(43, 11, 4, 2); A('#6a7480'); g.fillRect(33, 19, 20, 1); }
+  if (c.beardStyle === 'full') {
+    A('#000000', 0.25); for (let y = 26; y <= 40; y += 3) for (let x = 32; x <= 44; x += 3) g.fillRect(x, y, 1, 1);
+    A('#2a2a30'); g.fillRect(34, 34, 6, 1);
+  } else {
+    A(c.beard, 0.8); for (let x = 34; x <= 44; x += 2) g.fillRect(x, 39, 1, 1); g.fillRect(36, 42, 6, 1);
+  }
+  A(c.skinD); g.fillRect(2, 60 + (frame ? 0 : 2), 6, 1); g.fillRect(4, 68 + (frame ? 2 : 0), 6, 1);
+  if (c.jacket) { A('#d8dce2'); g.fillRect(32, 62, 2, 8); g.fillRect(36, 62, 2, 8); A('#5a6470'); g.fillRect(29, 62, 2, 18); }
+  A('#000000', 0.15); g.fillRect(30, 74, 6, 1); g.fillRect(36, 80, 6, 1);
+  g.globalAlpha = 1;
+}
+
+// ---------- Sprites de pie (64x88: grilla fina) ----------
 const spriteCache = {};
 function getSprite(charKey, dir, frame) {
   const key = `s${charKey}_${dir}_${frame}`;
   if (spriteCache[key]) return spriteCache[key];
   const c = charOf(charKey);
   const cv = document.createElement('canvas');
-  cv.width = 32; cv.height = 44;
+  cv.width = 64; cv.height = 88;
   const g = cv.getContext('2d');
+  g.scale(2, 2); // misma silueta calibrada, dibujada al doble de resolución
   const step = frame === 1;
   const bx = c.wide ? 7 : 8, bw = c.wide ? 18 : 16; // torso
   // piernas y zapatos
@@ -185,6 +243,8 @@ function getSprite(charKey, dir, frame) {
     if (c.beardStyle !== 'full') { g.fillStyle = '#b06a4a'; g.fillRect(14, 14, 4, 1); }
   } else if (dir === 'left') { g.fillStyle = '#26221e'; g.fillRect(12, 10, 2, 3); }
   else if (dir === 'right') { g.fillStyle = '#26221e'; g.fillRect(18, 10, 2, 3); }
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  detailStand(g, c, dir, frame);
   spriteCache[key] = cv;
   return cv;
 }
@@ -305,7 +365,7 @@ function getSitSprite(charKey, face, occupied, frame = 0) {
   const key = `vC_k${charKey}_${face}_${occupied ? 1 : 0}_${frame}`;
   if (sitCache[key]) return sitCache[key];
   const cv = document.createElement('canvas');
-  cv.width = 48; cv.height = 56;
+  cv.width = 96; cv.height = 112;
   const g = cv.getContext('2d');
   const c = charOf(charKey);
   const draw = (gg) => {
@@ -319,8 +379,13 @@ function getSitSprite(charKey, face, occupied, frame = 0) {
     }
     sitC(gg, c, frame);
   };
-  if (face === 'left') draw(g);
-  else { g.translate(48, 0); g.scale(-1, 1); draw(g); }
+  if (face === 'left') {
+    g.save(); g.scale(2, 2); draw(g); g.restore();
+    if (occupied) detailSit(g, c, frame);
+  } else {
+    g.save(); g.translate(96, 0); g.scale(-2, 2); draw(g); g.restore();
+    if (occupied) { g.save(); g.translate(96, 0); g.scale(-1, 1); detailSit(g, c, frame); g.restore(); }
+  }
   sitCache[key] = cv;
   return cv;
 }
@@ -374,7 +439,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.13.1 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.14.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
