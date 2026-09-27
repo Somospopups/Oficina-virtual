@@ -247,13 +247,33 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #videoPanel.dragging .vp-head { cursor: grabbing; }
 
 /* Ventana flotante: se despega del rincón y va al centro, arrastrable por el
-   encabezado. Es lo que se usa en la TV del local, que mira en espectador. */
+   encabezado y redimensionable por los tiradores, como una ventana de Windows.
+   Es lo que se usa en la TV del local, que mira en espectador. El tamaño lo fija
+   el JS con width/height en px; estos son los valores por defecto. */
 #videoPanel.float {
-  left: 50%; top: 50%; right: auto; width: min(660px, 92vw);
+  left: 50%; top: 50%; right: auto; width: 660px; height: 430px;
+  max-width: 96vw; max-height: 94vh;
   transform: translate(-50%, -50%); z-index: 50;
   box-shadow: 0 10px 34px rgba(0, 0, 0, 0.6);
 }
-#videoPanel.float.big { width: min(1180px, 96vw); }
+/* Al flotar manda el alto que se elija, no la proporción 16:9 del rincón. El
+   player se acomoda solo con barras negras si la caja queda de otra proporción. */
+#videoPanel.float #videoBox { aspect-ratio: auto; flex: 1 1 auto; min-height: 0; }
+
+/* Tiradores de tamaño. Solo existen flotando: en el rincón el tamaño lo manda el
+   CSS, así que no hay nada que arrastrar. */
+.vp-grip, .vp-grip-r, .vp-grip-b { position: absolute; z-index: 3; }
+#videoPanel:not(.float) .vp-grip,
+#videoPanel:not(.float) .vp-grip-r,
+#videoPanel:not(.float) .vp-grip-b { display: none; }
+.vp-grip { right: 0; bottom: 0; width: 18px; height: 18px; cursor: nwse-resize; }
+.vp-grip-r { right: 0; top: 24px; bottom: 18px; width: 9px; cursor: ew-resize; }
+.vp-grip-b { left: 24px; right: 18px; bottom: 0; height: 9px; cursor: ns-resize; }
+.vp-grip::after {
+  content: ''; position: absolute; right: 4px; bottom: 4px; width: 8px; height: 8px;
+  border-right: 2px solid #4a5878; border-bottom: 2px solid #4a5878;
+}
+.vp-grip-r:hover, .vp-grip-b:hover, .vp-grip:hover { background: rgba(255, 215, 106, 0.10); }
 
 
 

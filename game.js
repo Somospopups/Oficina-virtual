@@ -823,7 +823,7 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.34.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.35.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1551,27 +1551,54 @@ function showPanel(it) {
   if (tap) tap.classList.toggle('hidden', it.kind === 'drive');
   aplicarFloat();
 }
-// Estado de la ventana: flotante y grande. Son COSAS LOCALES a propósito, no se
+// Estado de la ventana: flotante y tamaño. Son COSAS LOCALES a propósito, no se
 // difunden por la red. La oficina 2D no es una pantalla compartida: cada uno la ve
 // en su monitor, así que cada uno la agranda como le sirva. En la TV del local
 // sirve para ponerla grande, y en la PC del DJ queda en el rincón.
-let videoFloat = false, videoBig = false;
+const VP_MIN_W = 240, VP_MIN_H = 190;
+const VP_DEF_W = 660, VP_DEF_H = 430;
+let videoFloat = false, videoBig = false, videoW = VP_DEF_W, videoH = VP_DEF_H;
+function aplicarTamano() {
+  const p = document.getElementById('videoPanel');
+  if (!p) return;
+  if (!videoFloat) { p.style.width = ''; p.style.height = ''; return; }
+  const maxW = Math.max(VP_MIN_W, window.innerWidth - 16);
+  const maxH = Math.max(VP_MIN_H, window.innerHeight - 16);
+  videoW = Math.min(Math.max(VP_MIN_W, videoW), maxW);
+  videoH = Math.min(Math.max(VP_MIN_H, videoH), maxH);
+  p.style.width = videoW + 'px';
+  p.style.height = videoH + 'px';
+}
 function aplicarFloat() {
   const p = document.getElementById('videoPanel');
   if (!p) return;
   p.classList.toggle('float', videoFloat);
-  p.classList.toggle('big', videoFloat && videoBig);
   const bf = document.getElementById('videoFloat');
   if (bf) {
     bf.classList.toggle('on', videoFloat);
     bf.title = videoFloat ? 'Volver a la esquina' : 'Ventana flotante para que la vea toda la oficina';
   }
+  aplicarTamano();
 }
 function setVideoFloat(v) {
   videoFloat = !!v;
   if (!videoFloat) videoBig = false;
+  // Al volver a flotar se recentra: si quedó arrastrada a una esquina, el left/top
+  // en linea lo dejarian corrida.
+  const p = document.getElementById('videoPanel');
+  if (p && v) { p.style.left = ''; p.style.top = ''; p.style.right = ''; p.style.transform = ''; }
   aplicarFloat();
-  if (videoFloat) toast('🪟 Ventana flotante · arrastrala por la barra de arriba');
+  if (videoFloat) toast('🪟 Ventana flotante · arrastrala y estirala por los bordes');
+}
+// El botón grande es un preset, no un teto: después los tiradores mandan y cada
+// uno queda con el tamaño que quiso.
+function setVideoBig(big) {
+  videoBig = !!big;
+  if (big) {
+    videoW = Math.min(1180, window.innerWidth - 40);
+    videoH = Math.round(Math.min(videoW * 0.62, window.innerHeight - 120));
+  } else { videoW = VP_DEF_W; videoH = VP_DEF_H; }
+  aplicarTamano();
 }
 function videoSync() {
   const it = music.item;
@@ -2398,7 +2425,7 @@ function init() {
   if (bTap) bTap.onclick = () => { bTap.classList.add('hidden'); playerCmd('playVideo'); };
   const bFloat = document.getElementById('videoFloat'); if (bFloat) bFloat.onclick = () => setVideoFloat(!videoFloat);
   const bBig = document.getElementById('videoBig');
-  if (bBig) bBig.onclick = () => { if (!videoFloat) setVideoFloat(true); else { videoBig = !videoBig; aplicarFloat(); } };
+  if (bBig) bBig.onclick = () => { if (!videoFloat) setVideoFloat(true); else setVideoBig(!videoBig); };
   // Arrastre de la ventana flotante. Recién se separa del centro en el primer
   // movimiento, porque hasta entonces la coloca el transform translate(-50%,-50%)
   // y si se le fixara left/top de entrada quedaría corrida.
@@ -2434,6 +2461,36 @@ function init() {
     };
     vHead.addEventListener('pointerup', fin);
     vHead.addEventListener('pointercancel', fin);
+  }
+  // Redimensionar, como una ventana: tirador en el borde derecho, en el inferior y
+  // en la esquina. Solo crecen hacia la derecha y hacia abajo, así que el borde
+  // izquierdo y el de arriba quedan clavados donde estaban. Al agarrar cualquier
+  // tirador se sueltan también el transform y el centrado, porque si no la caja
+  // saltaría mientras se mide contra el rect real.
+  if (videoPanel) {
+    let rs = null;
+    videoPanel.querySelectorAll('.vp-grip-r, .vp-grip-b, .vp-grip').forEach((g) => {
+      g.addEventListener('pointerdown', (e) => {
+        const r = videoPanel.getBoundingClientRect();
+        videoPanel.style.left = r.left + 'px';
+        videoPanel.style.top = r.top + 'px';
+        videoPanel.style.right = 'auto';
+        videoPanel.style.transform = 'none';
+        rs = { dir: g.dataset.dir, x: e.clientX, y: e.clientY, w: r.width, h: r.height };
+        try { g.setPointerCapture(e.pointerId); } catch { /* sin capture */ }
+        e.preventDefault(); e.stopPropagation();
+      });
+      g.addEventListener('pointermove', (e) => {
+        if (!rs) return;
+        if (rs.dir.indexOf('e') >= 0) videoW = rs.w + (e.clientX - rs.x);
+        if (rs.dir.indexOf('s') >= 0) videoH = rs.h + (e.clientY - rs.y);
+        aplicarTamano();
+      });
+      const finR = (e) => { if (rs) { rs = null; try { g.releasePointerCapture(e.pointerId); } catch { /* ya liberado */ } } };
+      g.addEventListener('pointerup', finR);
+      g.addEventListener('pointercancel', finR);
+      g.addEventListener('dblclick', (e) => { e.stopPropagation(); setVideoBig(!videoBig); });
+    });
   }
   const attachmentClose = document.getElementById('attachmentClose');
   if (attachmentClose) attachmentClose.onclick = closeAttachmentPreview;
