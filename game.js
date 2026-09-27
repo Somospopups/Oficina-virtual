@@ -51,71 +51,12 @@ function lerpColor(a, b, t) {
   const A = hex2rgb(a), B = hex2rgb(b);
   return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`;
 }
+// Sube o baja un color hacia blanco/negro. t>0 aclara, t<0 oscurece. Es la base
+// de los degradados del sentado: cada superficie se modela con su tono, sus
+// luces y sus sombras, igual que en los PNG de referencia.
+function tone(hex, t) { return lerpColor(hex, t > 0 ? '#ffffff' : '#000000', Math.abs(t)); }
 function depthScale(y) { return lerp(3.1, 20, clamp((y - FLOOR.yTop) / (FLOOR.yBot - FLOOR.yTop), 0, 1)); }
 function sitScale(y) { return lerp(4.8, 9.8, clamp((y - 560) / 190, 0, 1)); }
-
-// ---------- Volumetría y contorno (estilo chibi 2.5D) ----------
-// Sube o baja un color hacia blanco/negro. t>0 aclara, t<0 oscurece.
-function tone(hex, t) { return lerpColor(hex, t > 0 ? '#ffffff' : '#000000', Math.abs(t)); }
-
-// Rectángulo con volumen: luz en el borde superior+izquierdo, sombra en el
-// inferior+derecho, más una banda de sombra en la base. Es el helper que separa
-// el arte plano de la referencia, donde cada superficie se modela con 2-3 tonos.
-// depth = intensidad de esa banda inferior (0 la omite).
-function vol(g, x, y, w, h, base, o) {
-  const p = o || {};
-  g.fillStyle = base; g.fillRect(x, y, w, h);
-  // En colores muy oscuros (la remera negra de Ger) un bisel de 15% no se ve:
-  // subimos la luz y bajamos la sombra según la luminancia del color base.
-  const rgb = hex2rgb(base);
-  const lum = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
-  const k = lum < 70 ? 0.22 : 0.15;
-  g.fillStyle = p.light || tone(base, k);
-  g.fillRect(x, y, w, 1); g.fillRect(x, y, 1, h);
-  g.fillStyle = p.dark || tone(base, lum < 70 ? -0.14 : -0.24);
-  g.fillRect(x, y + h - 1, w, 1); g.fillRect(x + w - 1, y, 1, h);
-  if (p.depth) {
-    const bh = Math.max(1, Math.round(h * 0.3));
-    g.fillStyle = tone(base, -p.depth);
-    g.fillRect(x + 1, y + h - 1 - bh, w - 2, bh);
-  }
-}
-
-// Overlay de sombra: para lo que queda en penumbra (bajo el mentón, bajo el
-// brazo al cuerpo, entre los muslos).
-function shade(g, x, y, w, h, alpha, col) {
-  g.fillStyle = col || '#000000';
-  g.globalAlpha = alpha;
-  g.fillRect(x, y, w, h);
-  g.globalAlpha = 1;
-}
-
-// Contorno negro de 1px alrededor de la silueta. Se hace por píxel real (fuera
-// de la grilla) porque es un detalle fino, igual que en la referencia. Se corre al
-// final, con el sprite ya completo, así que ve la forma exacta.
-function pixelOutline(cv, col) {
-  const g = cv.getContext('2d');
-  const W = cv.width, H = cv.height;
-  const img = g.getImageData(0, 0, W, H);
-  const d = img.data;
-  // Hay que leer SIEMPRE del snapshot original. Si leyéramos de d mientras lo
-  // escribimos, cada píxel recién pintado contaría como vecino y el contorno
-  // crecería hacia afuera en cadena, rellenando el hueco entre las partes.
-  const snap = new Uint8ClampedArray(d);
-  const solid = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : snap[(y * W + x) * 4 + 3] > 8 ? 1 : 0);
-  const ink = hex2rgb(col || '#151119');
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      if (solid(x, y)) continue;
-      if (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1)) {
-        const i = (y * W + x) * 4;
-        d[i] = ink[0]; d[i + 1] = ink[1]; d[i + 2] = ink[2]; d[i + 3] = 255;
-      }
-    }
-  }
-  g.putImageData(img, 0, 0);
-  return cv;
-}
 
 // ---------- Ciclo día/noche (hora real) ----------
 const SKY_STOPS = [
@@ -166,10 +107,13 @@ const ROSTER = [
   { dni: '31923010', name: 'Facu', char: 'facu', seat: 2 },
   { dni: '34186736', name: 'Ovni', char: 'ovni', seat: 3 },
 ];
+// Paleta muestreada de los PNG de referencia (sprites/*.png), no aproximada a ojo:
+// así el chibi de grilla (fallback), el sentado y los PNG comparten los mismos
+// tonos y no se nota de dónde salió cada uno.
 const CHAR_DEF = {
-  ger:  { skin: '#f0c8a0', skinD: '#d9a878', hair: '#5a3a24', beard: '#7a5a3a', beardStyle: 'goatee', shirt: '#1a1a1e', pants: '#4a6a94', shoe: '#22262e', sole: '#e8e8e8', wide: false, hairStyle: 'spiky', dot: '#8a6a4a' },
-  facu: { skin: '#eebf96', skinD: '#d09a6a', hair: '#1c1c22', beard: '#17171c', beardStyle: 'full',  shirt: '#3f6fa8', pants: '#4a6a94', shoe: '#6b4a2b', sole: null,      wide: true,  hairStyle: 'full',  dot: '#3f6fa8' },
-  ovni: { skin: '#f0c8a0', skinD: '#d9a878', hair: '#3a2c20', beard: '#2a2a30', beardStyle: 'goatee', shirt: '#e8a020', pants: '#22262e', shoe: '#e8e8e8', sole: '#9aa2ae', wide: false, hairStyle: 'cap',   dot: '#e8a020', jacket: true },
+  ger:  { skin: '#f5b984', skinD: '#d69a68', hair: '#2a1a12', beard: '#3a2418', beardStyle: 'goatee', shirt: '#201e24', pants: '#4c6886', shoe: '#141418', sole: '#d8d8dc', wide: false, hairStyle: 'spiky', dot: '#8a6a4a' },
+  facu: { skin: '#f0a876', skinD: '#d08c5c', hair: '#0d0d12', beard: '#0d0d12', beardStyle: 'full',  shirt: '#2e6198', pants: '#537793', shoe: '#5a4432', sole: null,      wide: true,  hairStyle: 'full',  dot: '#2e6198' },
+  ovni: { skin: '#f7b985', skinD: '#d89e6a', hair: '#1a1512', beard: '#241c18', beardStyle: 'goatee', shirt: '#fcb306', pants: '#25232d', shoe: '#e8e8e8', sole: '#9aa2ae', wide: false, hairStyle: 'cap',   dot: '#fcb306', jacket: true },
 };
 function charOf(key) { return CHAR_DEF[key] || CHAR_DEF.ger; }
 
@@ -248,96 +192,10 @@ function detailStand(g, c, dir, frame) {
   }
   g.globalAlpha = 1;
 }
-// Detalle fino del sentado. Todo esto se dibuja en píxeles reales del canvas
-// (192x224) y no en la grilla lógica 4x: los ojos miden 10-13px y multiplicados
-// por 4 quedarían como manchas blancas de 40px.
-function detailSit(g, c, frame) {
-  const bob = frame ? 4 : 0;   // x4, igual que el desfase de la grilla
-
-  // Ojo en píxeles reales: esclerótica -> iris -> pupila -> brillo. El iris se
-  // lleva la mayor parte (como en la referencia) y la esclerótica queda de
-  // orla; al revés se lee como un bloque blanco vacío.
-  const eyePx = (x, y, w, h) => {
-    g.fillStyle = '#efe9df'; g.fillRect(x, y + bob, w, h);
-    const iw = Math.round(w * 0.68), ih = Math.round(h * 0.68);
-    g.fillStyle = '#5a7a9e'; g.fillRect(x + 2, y + 2 + bob, iw, ih);
-    const pw = Math.max(2, Math.round(iw * 0.55)), ph = Math.max(2, Math.round(ih * 0.6));
-    g.fillStyle = '#181116'; g.fillRect(x + 2 + ((iw - pw) >> 1), y + 2 + bob + ((ih - ph) >> 1), pw, ph);
-    g.fillStyle = '#ffffff'; g.fillRect(x + 3, y + 3 + bob, 2, 2);
-  };
-  const strand = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y + bob, w, h); };
-
-  // ---------- ojos: el cercano más grande que el lejano, eso arma el 3/4 ----------
-  eyePx(66, 81, 10, 11);   // ojo lejano
-  eyePx(90, 78, 13, 14);   // ojo cercano
-
-  // ---------- cejas: 2px, con el lejano un pelín más alto ----------
-  g.fillStyle = tone(c.hair, -0.16); g.fillRect(66, 76 + bob, 10, 2);
-  g.fillStyle = tone(c.hair, -0.16); g.fillRect(90, 73 + bob, 13, 2);
-  g.fillStyle = tone(c.hair, 0.1);   g.fillRect(66, 76 + bob, 3, 1);
-
-  // ---------- nariz: la punta asoma por el borde derecho ----------
-  g.fillStyle = tone(c.skin, 0.12);  g.fillRect(118, 92 + bob, 6, 4);
-  g.fillStyle = tone(c.skin, -0.36); g.fillRect(118, 96 + bob, 4, 2);
-  g.fillStyle = tone(c.skin, -0.22); g.fillRect(115, 94 + bob, 3, 1);
-
-  // ---------- boca: una insinuación dentro de la barba, no un bloque ----------
-  if (c.beardStyle === 'full') {
-    g.fillStyle = '#c8bfb2'; g.fillRect(85, 100 + bob, 8, 1);
-    g.fillStyle = '#17121a'; g.fillRect(84, 101 + bob, 10, 2);
-  } else {
-    g.fillStyle = '#6b3f36'; g.fillRect(86, 100 + bob, 7, 2);
-    g.fillStyle = '#4a2b26'; g.fillRect(86, 102 + bob, 7, 1);
-  }
-
-  // ---------- pelo: volumen con 2-3 mechones grandes, no rayas ----------
-  if (c.hairStyle === 'spiky') {
-    strand(70, 60, 3, 9, tone(c.hair, 0.16));
-    strand(84, 57, 3, 12, tone(c.hair, 0.16));
-    strand(102, 62, 2, 7, tone(c.hair, -0.3));
-  } else if (c.hairStyle === 'full') {
-    strand(68, 60, 3, 10, tone(c.hair, 0.14));
-    strand(82, 57, 3, 13, tone(c.hair, 0.14));
-    strand(101, 63, 2, 7, tone(c.hair, -0.34));
-  } else {
-    strand(64, 51, 15, 2, tone('#5a6470', 0.24));   // brillo de la gorra
-    strand(64, 70, 32, 2, '#3f4750');                // costura del ala
-  }
-
-  // ---------- barba: masa con volumen; mechones solo en los costados ----------
-  if (c.beardStyle === 'full') {
-    strand(60, 99, 3, 13, tone(c.beard, 0.16));
-    strand(108, 99, 3, 13, tone(c.beard, -0.22));
-  } else {
-    strand(64, 99, 3, 11, tone(c.beard, 0.18));
-    strand(110, 99, 3, 11, tone(c.beard, -0.2));
-  }
-
-  // ---------- ropa: pliegues, costura, brillos ----------
-  if (c.jacket) {
-    g.fillStyle = '#eef2f8'; g.fillRect(72, 126 + bob, 2, 4);      // brillo del cierre
-    g.fillStyle = '#5a6470'; g.fillRect(106, 122 + bob, 2, 26);    // costura del hoodie
-    g.fillStyle = '#8a94a2'; g.fillRect(74, 122 + bob, 2, 26);
-  } else {
-    g.fillStyle = tone(c.shirt, 0.2);
-    g.fillRect(68, 130 + bob, 10, 2); g.fillRect(104, 134 + bob, 8, 2);
-    g.fillStyle = tone(c.shirt, -0.28);
-    g.fillRect(80, 150 + bob, 8, 2); g.fillRect(96, 154 + bob, 6, 2);
-  }
-  g.fillStyle = tone(c.pants, 0.26); g.fillRect(80, 168 + bob, 12, 2);   // costura del jean
-  g.fillStyle = tone(c.pants, -0.36); g.fillRect(56, 178 + bob, 10, 2);
-
-  // ---------- brillo del monitor sobre el hombro y la sien ----------
-  g.fillStyle = '#9fc0ff'; g.globalAlpha = 0.11;
-  g.fillRect(121, 120 + bob, 2, 34);
-  g.fillRect(106, 74 + bob, 14, 2);
-  g.globalAlpha = 1;
-}
-
 // ---------- Sprites de referencia (PNG) ----------
 // Los 3 personajes vienen recortados de la foto de referencia del equipo. Son
 // digital painting, no pixel art: reescalan mejor con smoothing que con
-// nearest-neighbor, así que NO pasan por la grilla de 4x ni por pixelOutline.
+// nearest-neighbor, así que NO pasan por la grilla de 4x.
 const charAssets = {};   // charKey -> { down, left, right, up }
 let assetsReady = false;
 
@@ -468,251 +326,406 @@ function getSprite(charKey, dir, frame) {
   return cv;
 }
 
-// ---------- Personajes sentados: variantes (48x56) ----------
-// SIT_VARIANT: 'A' gamer pro | 'B' hoodie | 'C' perfil realista (OFICIAL) | 'D' chibi
-let SIT_VARIANT = 'C';
+// ---------- Personajes sentados: curvas y degradados ----------
+// El chibi de grilla (getSprite) queda como fallback si algún PNG no carga. El
+// sentado NO usa grilla: se dibuja con curvas y degradados para que tenga el
+// mismo acabado que los PNG de referencia, que son digital painting y no pixel
+// art. Por eso tampoco lleva un contorno de línea: acá el borde oscuro es el
+// lado en sombra de la forma.
 
-function chairCommon(g) {
-  vol(g, 8, 37, 5, 12, '#2b3038');        // costados del respaldo
-  vol(g, 36, 37, 5, 12, '#2b3038');
-  vol(g, 12, 38, 26, 4, '#333a44');       // travesaño, pasa por detrás de la espalda
-  vol(g, 12, 41, 28, 6, '#3a4048', { depth: 0.3 }); // asiento
-  vol(g, 24, 47, 4, 5, '#2b3038');        // columna
-  g.fillStyle = '#14171b';                // base en cruz + ruedas
-  g.fillRect(14, 51, 24, 2); g.fillRect(14, 51, 2, 4); g.fillRect(36, 51, 2, 4); g.fillRect(24, 53, 4, 2);
-  g.fillStyle = '#4a525c'; g.fillRect(12, 41, 28, 1);
-}
-function sitA(g, shirt, hair, frame) {
-  g.fillStyle = '#1d2126'; g.fillRect(30, 6, 14, 34);
-  g.fillStyle = '#2b3038'; g.fillRect(32, 8, 10, 30);
-  g.fillStyle = '#14171b'; g.fillRect(32, 10, 10, 2); g.fillRect(32, 16, 10, 2);
-  g.fillStyle = '#e8e8e8'; g.fillRect(35, 12, 4, 3);
-  const bob = frame ? 1 : 0;
-  g.fillStyle = '#39424e'; g.fillRect(12, 40, 14, 6); // muslos (los pies van bajo el escritorio: no se dibujan)
-  g.fillStyle = shirt; g.fillRect(14, 26 + bob, 18, 15);
-  g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(14, 36 + bob, 18, 5);
-  g.fillStyle = shirt;
-  g.fillRect(6, 30 + bob + (frame ? 0 : 2), 12, 4);
-  g.fillRect(8, 34 + bob + (frame ? 2 : 0), 12, 4);
-  g.fillStyle = '#f0c8a0';
-  g.fillRect(2, 30 + bob + (frame ? 0 : 2), 4, 4);
-  g.fillRect(4, 34 + bob + (frame ? 2 : 0), 4, 4);
-  g.fillStyle = '#f0c8a0'; g.fillRect(16, 10 + bob, 14, 14);
-  g.fillStyle = hair; g.fillRect(18, 8 + bob, 12, 4); g.fillRect(26, 10 + bob, 4, 8);
-  g.fillStyle = '#14161c'; g.fillRect(16, 8 + bob, 14, 3); g.fillRect(22, 12 + bob, 5, 6);
-  g.fillRect(16, 18 + bob, 6, 2); g.fillRect(14, 18 + bob, 2, 3);
-  g.fillStyle = '#26221e'; g.fillRect(18, 16 + bob, 2, 2);
-  chairCommon(g);
-}
-function sitB(g, shirt, hair, frame) {
-  const sway = frame ? 1 : 0;
-  g.fillStyle = '#1d2126'; g.fillRect(8, 18, 6, 26); g.fillRect(34, 18, 6, 26);
-  g.fillStyle = '#2b3038'; g.fillRect(9, 20, 4, 22); g.fillRect(35, 20, 4, 22);
-  g.fillStyle = shirt; g.fillRect(12, 24 + sway, 24, 18);
-  g.fillStyle = 'rgba(0,0,0,0.20)'; g.fillRect(12, 36 + sway, 24, 6);
-  g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(16, 22 + sway, 16, 5);
-  g.fillStyle = shirt;
-  g.fillRect(8, 26 + sway + (frame ? 0 : 1), 5, 8);
-  g.fillRect(35, 26 + sway + (frame ? 1 : 0), 5, 8);
-  g.fillStyle = hair; g.fillRect(16, 8 + sway, 16, 15);
-  g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(18, 10 + sway, 12, 3);
-  g.fillStyle = '#14161c'; g.fillRect(16, 6 + sway, 16, 3); g.fillRect(13, 12 + sway, 4, 7); g.fillRect(31, 12 + sway, 4, 7);
-  chairCommon(g);
-}
-// Cabeza chibi: octógono (esquinas achaflanadas 2px) para que lea redonda en vez
-// de cuadrada, más volumen suave (luz arriba-izquierda, sombra abajo-derecha).
-// k controla cuánto se dibuja la sombra propia: 0 para la base, 0.5 encima.
-function headShape(g, x, y, w, h, col, k) {
-  g.fillStyle = col;
-  g.fillRect(x + 2, y, w - 4, h);
-  g.fillRect(x + 1, y + 1, w - 2, h - 2);
-  g.fillRect(x, y + 2, w, h - 4);
-  const f = k || 0;
-  if (!f) return;
-  g.fillStyle = tone(col, 0.13 * f);
-  g.fillRect(x + 2, y, w - 4, 1);
-  g.fillRect(x + 1, y + 1, 1, h - 3);
-  g.fillStyle = tone(col, -0.18 * f);
-  g.fillRect(x + 2, y + h - 2, w - 4, 2);
-  g.fillRect(x + w - 2, y + 1, 1, h - 3);
+// Rectángulo de esquinas redondeadas, vía path.
+function rr(g, x, y, w, h, r) {
+  const k = Math.min(r, w / 2, h / 2);
+  g.beginPath();
+  g.moveTo(x + k, y);
+  g.lineTo(x + w - k, y);
+  g.quadraticCurveTo(x + w, y, x + w, y + k);
+  g.lineTo(x + w, y + h - k);
+  g.quadraticCurveTo(x + w, y + h, x + w - k, y + h);
+  g.lineTo(x + k, y + h);
+  g.quadraticCurveTo(x, y + h, x, y + h - k);
+  g.lineTo(x, y + k);
+  g.quadraticCurveTo(x, y, x + k, y);
+  g.closePath();
 }
 
-// Mechones: triángulos que crecen desde la base del pelo hacia arriba. Se usan
-// en lugar de columnas sueltas, que se leen como púas pegadas.
-function tufts(g, x, y, w, col, n, depth) {
-  for (let i = 0; i < n; i++) {
-    const tx = x + Math.round((i * (w - 1)) / (n - 1));
-    const h = depth - (i % 2);
-    g.fillStyle = col;
-    g.fillRect(tx, y - h + 1, 1, h);
-    g.fillRect(tx - 1, y - h + 2, 1, h - 1);
-    g.fillRect(tx + 1, y - h + 2, 1, h - 1);
-  }
+function ell(g, cx, cy, rx, ry, rot) {
+  g.beginPath();
+  g.ellipse(cx, cy, Math.max(0.5, rx), Math.max(0.5, ry), rot || 0, 0, Math.PI * 2);
 }
 
-//OFICIAL: perfil 3/4 realista, manos SOBRE el teclado. Estilo chibi 2.5D.
-function sitC(g, c, frame) {
-  const bob = frame ? 1 : 0; // micro cabeceo mientras tipea
+// Degradado radial para superficies redondeadas. La luz entra por arriba-izquierda,
+// igual que en la foto. Son 5 paradas y no 3 a propósito: con menos, cada superficie
+// se lee como una mancha de dos tonos y el conjunto vuelve a parecer plano.
+function gRad(g, cx, cy, r, col, opt) {
+  const o = opt || {};
+  const lz = o.luz == null ? 0.3 : o.luz;
+  const sb = o.sombra == null ? 0.3 : o.sombra;
+  const gr = g.createRadialGradient(cx - r * lz, cy - r * lz * 1.15, r * 0.05, cx, cy, r * 1.08);
+  gr.addColorStop(0, tone(col, 0.3));
+  gr.addColorStop(0.22, tone(col, 0.13));
+  gr.addColorStop(0.52, col);
+  gr.addColorStop(0.78, tone(col, -0.13));
+  gr.addColorStop(1, tone(col, -sb));
+  return gr;
+}
 
-  chairCommon(g);
+// Degradado lineal para superficies planas (torso, brazos, jean).
+function gLin(g, x0, y0, x1, y1, col, opt) {
+  const o = opt || {};
+  const f = o.fuerza == null ? 1 : o.fuerza;
+  const gr = g.createLinearGradient(x0, y0, x1, y1);
+  gr.addColorStop(0, tone(col, 0.22 * f));
+  gr.addColorStop(0.3, tone(col, 0.08 * f));
+  gr.addColorStop(0.55, col);
+  gr.addColorStop(1, tone(col, -0.28 * f));
+  return gr;
+}
 
-  // ---------- monitor: es adonde mira ----------
-  vol(g, 33, 3 + bob, 12, 12, '#20242c');
-  g.fillStyle = '#16241a'; g.fillRect(34, 4 + bob, 10, 10);
-  g.fillStyle = '#4caf6d'; g.fillRect(35, 5 + bob, 5, 1); g.fillRect(35, 7 + bob, 7, 1); g.fillRect(35, 9 + bob, 4, 1);
-  g.fillStyle = '#8ff0a2'; g.fillRect(35, 5 + bob, 3, 1);
-  g.fillStyle = '#2b3038'; g.fillRect(34, 14 + bob, 10, 2);
-  vol(g, 37, 16 + bob, 4, 18, '#2b3038');
-  vol(g, 34, 34 + bob, 11, 3, '#2b3038');
-  // teclado
-  vol(g, 34, 37, 12, 4, '#464e58');
+// El "contorno": no es una línea negra como en el chibi. En la referencia el borde
+// oscuro es el lado en sombra del propio material, así que el stroke lleva el tono
+// del material con alpha en vez de negro puro.
+function borde(g, col, w) {
+  g.lineWidth = w || 2;
+  g.strokeStyle = tone(col, -0.5);
+  g.globalAlpha = 0.5;
+  g.stroke();
+  g.globalAlpha = 1;
+}
+
+const SIT_W = 300, SIT_H = 352;
+
+// ---------- Escenario: silla y monitor (van aparte, sin contorno) ----------
+function sitEscenario(g) {
+  rr(g, 42, 172, 40, 108, 16);
+  g.fillStyle = gLin(g, 42, 172, 82, 280, '#2f353d', { fuerza: 0.9 });
+  g.fill();
+  rr(g, 48, 262, 150, 34, 12);
+  g.fillStyle = gLin(g, 48, 262, 198, 296, '#3d444d');
+  g.fill();
+  rr(g, 116, 296, 26, 26, 6);
+  g.fillStyle = gLin(g, 116, 296, 142, 322, '#2b3038');
+  g.fill();
+  g.fillStyle = '#14171b';
+  g.beginPath(); g.ellipse(129, 330, 82, 11, 0, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(129, 330, 15, 10, 0, 0, Math.PI * 2); g.fill();
+
+  rr(g, 198, 42, 76, 92, 8);
+  g.fillStyle = gLin(g, 198, 42, 274, 134, '#22262e');
+  g.fill();
+  rr(g, 207, 51, 58, 74, 4);
+  g.fillStyle = '#16241a'; g.fill();
+  g.fillStyle = '#4caf6d';
+  g.fillRect(213, 59, 30, 4); g.fillRect(213, 69, 44, 4); g.fillRect(213, 79, 24, 4);
+  g.fillStyle = '#8ff0a2'; g.fillRect(213, 59, 16, 4);
+  g.globalAlpha = 0.18; g.fillStyle = '#9fc0ff';
+  g.fillRect(207, 51, 58, 20); g.globalAlpha = 1;   // reflejo en el cristal
+  rr(g, 226, 134, 22, 140, 6);
+  g.fillStyle = gLin(g, 226, 134, 248, 274, '#2f353d');
+  g.fill();
+  rr(g, 202, 268, 70, 16, 6);
+  g.fillStyle = gLin(g, 202, 268, 272, 284, '#333a44');
+  g.fill();
+  rr(g, 204, 288, 76, 22, 5);
+  g.fillStyle = gLin(g, 204, 288, 280, 310, '#4a525c');
+  g.fill();
   g.fillStyle = '#6a7480';
-  g.fillRect(35, 38, 4, 1); g.fillRect(40, 38, 4, 1); g.fillRect(35, 39, 9, 1);
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 6; j++) g.fillRect(210 + i * 24, 293 + j * 5, 18, 3);
+}
 
-  // ---------- brazo lejano (el del fondo, apenas asoma) ----------
-  g.fillStyle = c.shirt; g.fillRect(15, 30 + bob, 4, 6);
-  g.fillStyle = tone(c.shirt, -0.3); g.fillRect(15, 34 + bob, 4, 2);
-  vol(g, 17, 36 + bob, 6, 3, c.skinD);   // mano al fondo
+// ---------- El personaje ----------
+// Perfil 3/4 mirando a la derecha, sentado frente al monitor. La cabeza ronda el
+// 40% del alto del cuerpo, que es lo que le da el aire chibi de la referencia.
+function sitC(g, c, frame) {
+  const bob = frame ? 2 : 0;              // micro cabeceo al tipear
+  const hx = 150, hy = 92 + bob;          // centro de la cabeza
+  const hrx = 50, hry = 54;
 
-  // ---------- cuadril / muslos (sentado, van hacia atrás) ----------
-  vol(g, 13, 40 + bob, 15, 6, c.pants, { depth: 0.32 });
-  g.fillStyle = c.pants; g.fillRect(10, 43 + bob, 5, 4);
-  g.fillStyle = tone(c.pants, -0.3); g.fillRect(10, 46 + bob, 5, 1);
-  g.fillStyle = tone(c.pants, 0.22); g.fillRect(15, 41 + bob, 11, 1);   // luz en el muslo
+  // ---------- muslos: se van hacia atrás (izquierda) ----------
+  g.beginPath();
+  g.moveTo(196, 246 + bob);
+  g.quadraticCurveTo(190, 292 + bob, 150, 298 + bob);
+  g.lineTo(96, 300 + bob);
+  g.quadraticCurveTo(72, 296 + bob, 74, 274 + bob);
+  g.quadraticCurveTo(80, 250 + bob, 110, 246 + bob);
+  g.closePath();
+  g.fillStyle = gLin(g, 74, 246 + bob, 196, 300 + bob, c.pants);
+  g.fill(); borde(g, c.pants, 2);
+  g.strokeStyle = tone(c.pants, -0.35); g.lineWidth = 3; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(112, 262 + bob); g.quadraticCurveTo(104, 280 + bob, 112, 294 + bob); g.stroke();
+
+  // ---------- brazo lejano (se asoma por detrás del torso) ----------
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(104, 190 + bob);
+  g.quadraticCurveTo(120, 240 + bob, 168, 268 + bob);
+  g.lineWidth = 24; g.strokeStyle = tone(c.shirt, -0.3); g.stroke();
+  g.lineWidth = 21; g.strokeStyle = tone(c.shirt, -0.12); g.stroke();
+  ell(g, 176, 272 + bob, 12, 10);
+  g.fillStyle = gRad(g, 176, 272 + bob, 13, c.skin, { sombra: 0.28 }); g.fill();
 
   // ---------- torso ----------
-  // Hombros anchos y redondeados arriba del bloque, para que no lea como un
-  // rectángulo plano.
-  g.fillStyle = c.shirt; g.fillRect(15, 29 + bob, 15, 3);
-  vol(g, 14, 31 + bob, 17, 12, c.shirt, { depth: 0.26 });
-  g.fillStyle = tone(c.shirt, 0.16); g.fillRect(15, 30 + bob, 15, 1);
-  // dos pliegues suaves: en la remera negra el volumen puro no se ve, así que
-  // el relieve se marca con reflejos en vez de sombras.
-  g.fillStyle = tone(c.shirt, 0.12); g.fillRect(18, 35 + bob, 5, 1);
-  g.fillStyle = tone(c.shirt, 0.12); g.fillRect(24, 38 + bob, 4, 1);
-  if (c.jacket) {
-    // hoodie gris en el medio con las dos solapas de la campera abierta encima
-    g.fillStyle = '#7e8894'; g.fillRect(18, 30 + bob, 9, 12);
-    g.fillStyle = '#a8b2be'; g.fillRect(19, 31 + bob, 1, 6);
-    g.fillStyle = '#5a6470'; g.fillRect(26, 30 + bob, 1, 12);
-    g.fillStyle = '#c88a10'; g.fillRect(16, 30 + bob, 2, 12);   // solapa izquierda
-    g.fillStyle = '#e8a820'; g.fillRect(16, 30 + bob, 1, 12);
-    g.fillStyle = '#c88a10'; g.fillRect(27, 30 + bob, 2, 12);   // solapa derecha
-    g.fillStyle = '#b87c08'; g.fillRect(28, 30 + bob, 1, 12);
-  }
-  shade(g, 14, 35 + bob, 3, 8, 0.2);     // sombra del brazo izquierdo
-  shade(g, 28, 35 + bob, 3, 8, 0.2);     // sombra del brazo derecho
-  g.fillStyle = tone(c.shirt, -0.3); g.fillRect(17, 34 + bob, 1, 6);   // costuras de armpila
-  g.fillStyle = tone(c.shirt, -0.3); g.fillRect(28, 34 + bob, 1, 6);
+  const torsoPath = () => {
+    g.beginPath();
+    g.moveTo(120, 158 + bob);
+    g.quadraticCurveTo(150, 148 + bob, 180, 158 + bob);
+    g.quadraticCurveTo(202, 168 + bob, 200, 196 + bob);
+    g.lineTo(194, 252 + bob);
+    g.quadraticCurveTo(190, 264 + bob, 176, 266 + bob);
+    g.lineTo(126, 266 + bob);
+    g.quadraticCurveTo(112, 264 + bob, 108, 252 + bob);
+    g.lineTo(102, 196 + bob);
+    g.quadraticCurveTo(100, 168 + bob, 120, 158 + bob);
+    g.closePath();
+  };
+  torsoPath();
+  g.fillStyle = gLin(g, 102, 150 + bob, 200, 266 + bob, c.shirt);
+  g.fill(); borde(g, c.shirt, 2);
 
-  // ---------- brazo cercano: del hombro al teclado ----------
-  g.fillStyle = c.shirt; g.fillRect(27, 30 + bob, 4, 4);
-  g.fillStyle = c.shirt; g.fillRect(29, 33 + bob, 4, 3);
-  g.fillStyle = tone(c.shirt, 0.22); g.fillRect(27, 30 + bob, 4, 1);
-  // mano: nudillos arriba, dedos abajo apoyados en el teclado
-  g.fillStyle = c.skin; g.fillRect(31, 36 + bob, 5, 2);
-  g.fillStyle = c.skinD; g.fillRect(31, 38 + bob, 5, 1);
-  g.fillStyle = tone(c.skin, -0.3); g.fillRect(32, 38 + bob, 1, 1);
-  g.fillStyle = tone(c.skin, -0.3); g.fillRect(34, 38 + bob, 1, 1);
+  if (c.jacket) {
+    rr(g, 130, 156 + bob, 42, 112, 8);
+    g.fillStyle = gLin(g, 130, 156 + bob, 172, 268 + bob, '#7e8894');
+    g.fill();
+    g.strokeStyle = '#5a6470'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(168, 160 + bob); g.lineTo(168, 264 + bob); g.stroke();
+    g.strokeStyle = '#a8b2be'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(136, 164 + bob); g.quadraticCurveTo(133, 210 + bob, 137, 256 + bob); g.stroke();
+    g.strokeStyle = '#e8ecf2'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(145, 162 + bob); g.quadraticCurveTo(143, 190 + bob, 146, 208 + bob); g.stroke();
+    g.beginPath(); g.moveTo(160, 162 + bob); g.quadraticCurveTo(163, 188 + bob, 159, 206 + bob); g.stroke();
+    g.beginPath();
+    g.moveTo(120, 158 + bob); g.quadraticCurveTo(126, 160 + bob, 130, 166 + bob);
+    g.lineTo(132, 266 + bob); g.quadraticCurveTo(122, 266 + bob, 116, 264 + bob); g.closePath();
+    g.fillStyle = gLin(g, 116, 158 + bob, 132, 266 + bob, '#e8a820'); g.fill();
+    g.beginPath();
+    g.moveTo(180, 158 + bob); g.quadraticCurveTo(174, 160 + bob, 170, 166 + bob);
+    g.lineTo(168, 266 + bob); g.quadraticCurveTo(178, 266 + bob, 184, 264 + bob); g.closePath();
+    g.fillStyle = gLin(g, 168, 158 + bob, 184, 266 + bob, '#c88a10'); g.fill();
+  } else {
+    g.strokeStyle = tone(c.shirt, 0.22); g.lineWidth = 3;
+    g.beginPath(); g.moveTo(122, 196 + bob); g.quadraticCurveTo(130, 214 + bob, 124, 232 + bob); g.stroke();
+    g.beginPath(); g.moveTo(180, 204 + bob); g.quadraticCurveTo(174, 222 + bob, 180, 240 + bob); g.stroke();
+    g.strokeStyle = tone(c.shirt, -0.32);
+    g.beginPath(); g.moveTo(136, 252 + bob); g.quadraticCurveTo(152, 256 + bob, 168, 252 + bob); g.stroke();
+  }
+
+  // oclusión de contacto: el brazo y la cintura proyectan sombra sobre el torso.
+  // Sin esto las piezas quedan pegadas como calcomanías, que es lo que más delata
+  // un dibujo plano frente a uno pintado.
+  g.save();
+  torsoPath(); g.clip();
+  g.globalAlpha = 0.3; g.fillStyle = '#000000';
+  ell(g, 190, 190 + bob, 30, 34); g.fill();
+  g.globalAlpha = 0.22;
+  ell(g, 128, 262 + bob, 34, 18); g.fill();
+  g.globalAlpha = 1;
+  g.restore();
 
   // ---------- cuello ----------
-  g.fillStyle = c.skinD; g.fillRect(20, 26 + bob, 5, 4);
-  shade(g, 20, 26 + bob, 5, 2, 0.35);     // penumbra del mentón
+  rr(g, 134, 138 + bob, 34, 30, 8);
+  g.fillStyle = gRad(g, 151, 152 + bob, 22, c.skinD, { sombra: 0.3 }); g.fill();
 
   // ---------- cabeza ----------
-  // Piel: 19x16 en x=12..30, y=12..27. Arriba hasta y=19 es frente/casco, los
-  // ojos van en y=20..23 y la barba arranca en y=24: nunca se pisan.
-  headShape(g, 12, 12 + bob, 19, 16, c.skin, 1);
-  g.fillStyle = c.skinD; g.fillRect(12, 21 + bob, 2, 3);          // oreja del lado lejano
-  g.fillStyle = tone(c.skin, -0.32); g.fillRect(12, 22 + bob, 1, 1);
-  shade(g, 14, 25 + bob, 16, 2, 0.2);                            // mentón en penumbra
+  ell(g, hx, hy, hrx, hry);
+  g.fillStyle = gRad(g, hx, hy, hrx * 1.15, c.skin, { luz: 0.32, sombra: 0.32 });
+  g.fill(); borde(g, c.skin, 2);
+  // oreja del lado lejano: chiquita y al borde, no una ampolla en la mejilla
+  ell(g, hx - hrx * 0.92, hy + hry * 0.2, 6, 9);
+  g.fillStyle = tone(c.skin, -0.1); g.fill();
+  g.strokeStyle = tone(c.skin, -0.42); g.lineWidth = 1.4; g.globalAlpha = 0.5; g.stroke(); g.globalAlpha = 1;
+  // la mandíbula proyecta sombra sobre el cuello
+  g.save();
+  ell(g, hx, hy, hrx, hry); g.clip();
+  g.globalAlpha = 0.28; g.fillStyle = '#000000';
+  ell(g, hx, hy + hry * 1.12, hrx * 0.92, hry * 0.4); g.fill();
+  g.globalAlpha = 1;
+  g.restore();
 
-  // pelo / gorra
-  const hy = 19 + bob;   // base del pelo: la frente queda visible
+  // ---------- pelo / gorra ----------
+  const pelo = c.hair;
+  const brilloPelo = () => {
+    g.save(); g.clip();
+    g.globalAlpha = 0.28; g.fillStyle = tone(pelo, 0.5);
+    ell(g, hx - hrx * 0.32, hy - hry * 0.78, hrx * 0.5, hry * 0.18, -0.2); g.fill();
+    g.globalAlpha = 1; g.restore();
+  };
   if (c.hairStyle === 'spiky') {
-    headShape(g, 12, hy - 6, 19, 8, c.hair, 0.5);
-    tufts(g, 15, hy - 6, 13, c.hair, 3, 3);
-    g.fillStyle = c.hair; g.fillRect(12, hy - 3, 2, 5); g.fillRect(30, hy - 3, 2, 5);
+    g.beginPath();
+    g.moveTo(hx - hrx * 1.04, hy + hry * 0.12);
+    g.quadraticCurveTo(hx - hrx * 1.08, hy - hry * 0.98, hx - hrx * 0.2, hy - hry * 1.04);
+    g.quadraticCurveTo(hx + hrx * 0.55, hy - hry * 1.08, hx + hrx * 1.02, hy - hry * 0.38);
+    g.quadraticCurveTo(hx + hrx * 0.94, hy + hry * 0.06, hx + hrx * 0.66, hy - hry * 0.2);
+    g.quadraticCurveTo(hx + hrx * 0.1, hy - hry * 0.44, hx - hrx * 0.46, hy - hry * 0.18);
+    g.quadraticCurveTo(hx - hrx * 0.82, hy - hry * 0.02, hx - hrx * 1.04, hy + hry * 0.12);
+    g.closePath();
+    g.fillStyle = gRad(g, hx, hy - hry * 0.72, hrx * 1.05, pelo, { luz: 0.34, sombra: 0.36 }); g.fill();
+    g.strokeStyle = tone(pelo, -0.45); g.lineWidth = 2; g.globalAlpha = 0.45; g.stroke(); g.globalAlpha = 1;
+    brilloPelo();
+    // mechones cortos, pegados al casquete. Altos y separados parecen cuernos.
+    g.fillStyle = pelo;
+    for (const [dx, dy, r] of [[-0.66, -0.92, 5], [-0.24, -1.0, 6], [0.2, -1.0, 5.5], [0.62, -0.86, 4.5]]) {
+      g.beginPath();
+      g.moveTo(hx + hrx * dx, hy + hry * dy + r);
+      g.quadraticCurveTo(hx + hrx * dx - r * 0.7, hy + hry * dy - r * 0.5, hx + hrx * dx + r * 0.4, hy + hry * dy - r * 0.8);
+      g.quadraticCurveTo(hx + hrx * dx + r, hy + hry * dy - r * 0.2, hx + hrx * dx + r, hy + hry * dy + r);
+      g.closePath(); g.fill();
+    }
   } else if (c.hairStyle === 'full') {
-    headShape(g, 12, hy - 6, 19, 8, c.hair, 0.5);
-    tufts(g, 15, hy - 6, 13, c.hair, 3, 2);
-    g.fillStyle = c.hair; g.fillRect(12, hy - 4, 3, 8); g.fillRect(29, hy - 4, 2, 8);
-  } else { // gorra gris, visera atrás
-    headShape(g, 11, hy - 7, 21, 9, '#5a6470', 0.5);
-    tufts(g, 16, hy - 6, 11, '#5a6470', 2, 1);
-    g.fillStyle = '#454e5a'; g.fillRect(11, hy - 1, 21, 2);   // ala de la gorra
-    g.fillStyle = '#3a424c'; g.fillRect(30, hy - 3, 3, 3);   // visera atrás
-    g.fillStyle = '#7a848f'; g.fillRect(14, hy - 6, 7, 1);   // brillo
-    g.fillStyle = c.hair; g.fillRect(14, hy + 1, 2, 4); g.fillRect(29, hy + 1, 2, 4);
+    g.beginPath();
+    g.moveTo(hx - hrx * 1.08, hy + hry * 0.42);
+    g.quadraticCurveTo(hx - hrx * 1.16, hy - hry * 1.08, hx, hy - hry * 1.1);
+    g.quadraticCurveTo(hx + hrx * 1.16, hy - hry * 1.08, hx + hrx * 1.08, hy + hry * 0.38);
+    g.quadraticCurveTo(hx + hrx * 0.92, hy - hry * 0.04, hx + hrx * 0.6, hy - hry * 0.24);
+    g.quadraticCurveTo(hx, hy - hry * 0.52, hx - hrx * 0.58, hy - hry * 0.24);
+    g.quadraticCurveTo(hx - hrx * 0.9, hy - hry * 0.04, hx - hrx * 1.08, hy + hry * 0.42);
+    g.closePath();
+    g.fillStyle = gRad(g, hx, hy - hry * 0.72, hrx * 1.05, pelo, { luz: 0.34, sombra: 0.36 }); g.fill();
+    g.strokeStyle = tone(pelo, -0.45); g.lineWidth = 2; g.globalAlpha = 0.45; g.stroke(); g.globalAlpha = 1;
+    brilloPelo();
+  } else {
+    g.beginPath();
+    g.moveTo(hx - hrx * 1.05, hy - hry * 0.02);
+    g.quadraticCurveTo(hx - hrx * 1.1, hy - hry * 1.12, hx, hy - hry * 1.14);
+    g.quadraticCurveTo(hx + hrx * 1.1, hy - hry * 1.12, hx + hrx * 1.05, hy - hry * 0.02);
+    g.closePath();
+    g.fillStyle = gRad(g, hx, hy - hry * 0.7, hrx, '#4d5763', { luz: 0.34, sombra: 0.32 }); g.fill();
+    g.strokeStyle = tone('#4d5763', -0.45); g.lineWidth = 2; g.globalAlpha = 0.45; g.stroke(); g.globalAlpha = 1;
+    g.beginPath();
+    g.moveTo(hx - hrx * 1.02, hy - hry * 0.1);
+    g.quadraticCurveTo(hx - hrx * 1.5, hy - hry * 0.2, hx - hrx * 1.36, hy - hry * 0.45);
+    g.quadraticCurveTo(hx - hrx * 1.15, hy - hry * 0.3, hx - hrx * 1.02, hy - hry * 0.42);
+    g.closePath();
+    g.fillStyle = gLin(g, hx - hrx * 1.5, hy - hry * 0.45, hx - hrx * 1.0, hy, '#3f4750');
+    g.fill();
+    g.fillStyle = pelo;
+    g.beginPath(); g.moveTo(hx - hrx * 0.78, hy - hry * 0.2);
+    g.quadraticCurveTo(hx - hrx * 0.84, hy + hry * 0.3, hx - hrx * 0.66, hy + hry * 0.4);
+    g.quadraticCurveTo(hx - hrx * 0.6, hy + hry * 0.1, hx - hrx * 0.62, hy - hry * 0.2);
+    g.closePath(); g.fill();
   }
 
-  // ---------- barba (siempre bajo los ojos) ----------
+  // ---------- cejas: gruesas y curvas. Finas se leen de caricatura ----------
+  const ceja = (x0, y0, x1, y1, amp) => {
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 - amp, x1, y1);
+    g.strokeStyle = tone(c.hair, 0.05); g.lineWidth = 6; g.lineCap = 'round';
+    g.stroke();
+  };
+  ceja(hx - 30, hy - 8, hx - 12, hy - 10, 3);
+  ceja(hx + 6, hy - 11, hx + 28, hy - 8, 4);
+
+  // ---------- ojos: chiquitos a propósito, como en la referencia ----------
+  const ojo = (ex, ey, rw, rh) => {
+    ell(g, ex, ey, rw, rh);
+    g.fillStyle = '#e8e2d8'; g.fill();
+    g.strokeStyle = tone(c.skin, -0.45); g.lineWidth = 1.4; g.globalAlpha = 0.55; g.stroke(); g.globalAlpha = 1;
+    ell(g, ex + rw * 0.12, ey + rh * 0.06, rw * 0.66, rh * 0.8);
+    g.fillStyle = '#4a6480'; g.fill();
+    ell(g, ex + rw * 0.12, ey + rh * 0.06, rw * 0.34, rh * 0.52);
+    g.fillStyle = '#151017'; g.fill();
+    ell(g, ex - rw * 0.24, ey - rh * 0.36, rw * 0.2, rh * 0.22);
+    g.fillStyle = '#ffffff'; g.fill();
+  };
+  ojo(hx - 19, hy + 7, 7, 5.5);
+  ojo(hx + 16, hy + 4, 9, 7);
+
+  // ---------- nariz: un botón en el borde derecho ----------
+  g.beginPath();
+  g.moveTo(hx + hrx * 0.8, hy + hry * 0.22);
+  g.quadraticCurveTo(hx + hrx * 0.95, hy + hry * 0.32, hx + hrx * 0.78, hy + hry * 0.4);
+  g.closePath();
+  g.fillStyle = tone(c.skin, -0.04); g.fill();
+  g.strokeStyle = tone(c.skin, -0.45); g.lineWidth = 1.4; g.globalAlpha = 0.5; g.stroke(); g.globalAlpha = 1;
+
+  // ---------- barba ----------
   if (c.beardStyle === 'full') {
-    headShape(g, 14, 24 + bob, 15, 5, c.beard, 0.6);
-    g.fillStyle = tone(c.beard, 0.24); g.fillRect(17, 25 + bob, 6, 1);
+    g.beginPath();
+    g.moveTo(hx - hrx * 0.95, hy - hry * 0.05);
+    g.quadraticCurveTo(hx - hrx * 0.9, hy + hry * 0.95, hx + hrx * 0.15, hy + hry * 1.04);
+    g.quadraticCurveTo(hx + hrx * 0.98, hy + hry * 0.92, hx + hrx * 1.0, hy - hry * 0.05);
+    g.quadraticCurveTo(hx + hrx * 0.4, hy + hry * 0.36, hx - hrx * 0.4, hy + hry * 0.3);
+    g.closePath();
+    g.fillStyle = gRad(g, hx, hy + hry * 0.5, hrx, c.beard, { luz: 0.3, sombra: 0.34 });
+    g.fill();
+    g.strokeStyle = tone(c.beard, -0.4); g.lineWidth = 2; g.globalAlpha = 0.45; g.stroke(); g.globalAlpha = 1;
+    g.strokeStyle = '#17121a'; g.lineWidth = 3; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(hx - 6, hy + hry * 0.56); g.lineTo(hx + 12, hy + hry * 0.56); g.stroke();
   } else {
-    // Goatee: mentón redondeado + bigote separado por la boca. Con dos barras
-    // rectas (bigote + mentón) se leía como una banda horizontal cruzando la cara.
-    headShape(g, 17, 25 + bob, 13, 4, c.beard, 0.6);
-    g.fillStyle = c.beard; g.fillRect(19, 24 + bob, 8, 1);
-    g.fillStyle = tone(c.beard, 0.22); g.fillRect(19, 25 + bob, 4, 1);
+    g.beginPath();
+    g.moveTo(hx - 16, hy + hry * 0.46);
+    g.quadraticCurveTo(hx, hy + hry * 0.36, hx + 16, hy + hry * 0.46);
+    g.quadraticCurveTo(hx, hy + hry * 0.6, hx - 16, hy + hry * 0.46);
+    g.closePath();
+    g.fillStyle = tone(c.beard, 0.1); g.fill();
+    g.beginPath();
+    g.moveTo(hx - 20, hy + hry * 0.64);
+    g.quadraticCurveTo(hx - 18, hy + hry * 1.02, hx + 4, hy + hry * 1.06);
+    g.quadraticCurveTo(hx + 26, hy + hry * 1.0, hx + 22, hy + hry * 0.62);
+    g.quadraticCurveTo(hx, hy + hry * 0.78, hx - 20, hy + hry * 0.64);
+    g.closePath();
+    g.fillStyle = gRad(g, hx, hy + hry * 0.85, 24, c.beard, { luz: 0.28, sombra: 0.32 });
+    g.fill();
+    g.strokeStyle = tone(c.beard, -0.4); g.lineWidth = 2; g.globalAlpha = 0.45; g.stroke(); g.globalAlpha = 1;
+    g.strokeStyle = '#7a4a40'; g.lineWidth = 2.5; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(hx - 4, hy + hry * 0.62); g.lineTo(hx + 10, hy + hry * 0.62); g.stroke();
   }
-}
-function sitD(g, shirt, hair, frame) {
-  const hop = frame ? 1 : 0;
-  g.fillStyle = '#1d2126'; g.fillRect(30, 12, 14, 30);
-  g.fillStyle = '#2b3038'; g.fillRect(32, 14, 10, 26);
-  g.fillStyle = '#e8e8e8'; g.fillRect(34, 18, 3, 2); g.fillRect(38, 18, 2, 2);
-  g.fillStyle = shirt; g.fillRect(16, 30 + hop, 16, 12);
-  g.fillStyle = shirt; g.fillRect(6, 33 + hop + (frame ? 0 : 1), 12, 4);
-  g.fillStyle = '#f0c8a0'; g.fillRect(3, 33 + hop + (frame ? 0 : 1), 4, 4);
-  g.fillStyle = '#f0c8a0'; g.fillRect(10, 6 + hop, 24, 24);
-  g.fillStyle = hair; g.fillRect(12, 4 + hop, 22, 6); g.fillRect(28, 6 + hop, 6, 10);
-  g.fillStyle = '#26221e'; g.fillRect(15, 16 + hop, 4, 6);
-  g.fillStyle = '#ffffff'; g.fillRect(16, 17 + hop, 2, 2);
-  g.fillStyle = '#f28b8b'; g.fillRect(12, 23 + hop, 3, 2);
-  g.fillStyle = '#b06a4a'; g.fillRect(18, 25 + hop, 3, 1);
-  chairCommon(g);
+
+  // ---------- brazo cercano: del hombro al teclado, con codo ----------
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath();
+  g.moveTo(182, 178 + bob);
+  g.quadraticCurveTo(212, 210 + bob, 222, 250 + bob);
+  g.lineWidth = 30; g.strokeStyle = tone(c.shirt, -0.34); g.stroke();
+  g.lineWidth = 26; g.strokeStyle = c.shirt; g.stroke();
+  g.lineWidth = 8; g.strokeStyle = tone(c.shirt, 0.18); g.globalAlpha = 0.5;
+  g.beginPath(); g.moveTo(174, 172 + bob); g.quadraticCurveTo(204, 204 + bob, 214, 244 + bob); g.stroke();
+  g.globalAlpha = 1;
+  g.beginPath();
+  g.moveTo(222, 250 + bob);
+  g.quadraticCurveTo(230, 272 + bob, 238, 286 + bob);
+  g.lineWidth = 24; g.strokeStyle = tone(c.skin, -0.3); g.stroke();
+  g.lineWidth = 21; g.strokeStyle = c.skin; g.stroke();
+  ell(g, 244, 292 + bob, 17, 12, -0.2);
+  g.fillStyle = gRad(g, 244, 292 + bob, 18, c.skin, { sombra: 0.3 }); g.fill();
+  g.strokeStyle = tone(c.skin, -0.4); g.lineWidth = 2; g.globalAlpha = 0.5; g.stroke(); g.globalAlpha = 1;
+  g.strokeStyle = tone(c.skin, -0.34); g.lineWidth = 2;
+  for (let i = 0; i < 3; i++) {
+    g.beginPath();
+    g.moveTo(238 + i * 6, 296 + bob);
+    g.lineTo(241 + i * 6, 302 + bob);
+    g.stroke();
+  }
 }
 
 const sitCache = {};
 function getSitSprite(charKey, face, occupied, frame = 0) {
-  const key = `vC_k${charKey}_${face}_${occupied ? 1 : 0}_${frame}`;
+  const key = `vD_k${charKey}_${face}_${occupied ? 1 : 0}_${frame}`;
   if (sitCache[key]) return sitCache[key];
-  const c = charOf(charKey);
-  const mk = () => { const cv = document.createElement('canvas'); cv.width = 192; cv.height = 224; return cv; };
 
-  // El escenario (silla + monitor) y el personaje van en canvas separados: el
-  // contorno de 1px se aplica solo a la silueta humana, porque la silla y el
-  // monitor son parte del lugar y no deben quedar "delineados".
-  const bg = mk(), fig = mk();
-  const b = bg.getContext('2d'), g = fig.getContext('2d');
+  const out = document.createElement('canvas');
+  out.width = SIT_W; out.height = SIT_H;
+  const o = out.getContext('2d');
 
-  b.save(); b.scale(4, 4);
-  if (!occupied) {
-    b.fillStyle = '#1d2126'; b.fillRect(30, 6, 14, 34);
-    b.fillStyle = '#2b3038'; b.fillRect(32, 8, 10, 30);
-    b.fillStyle = '#e8e8e8'; b.fillRect(35, 12, 4, 3);
-    b.fillStyle = '#2b3038'; b.fillRect(14, 34, 20, 6);
-  }
-  chairCommon(b);
-  b.restore();
+  // Escenario (silla + monitor) aparte: no lleva borde, es parte del lugar.
+  const bg = document.createElement('canvas');
+  bg.width = SIT_W; bg.height = SIT_H;
+  sitEscenario(bg.getContext('2d'));
+  o.drawImage(bg, 0, 0);
 
   if (occupied) {
+    const fig = document.createElement('canvas');
+    fig.width = SIT_W; fig.height = SIT_H;
+    const g = fig.getContext('2d');
     if (face === 'left') {
-      g.save(); g.scale(4, 4); sitC(g, c, frame); g.restore();
-      detailSit(g, c, frame);
+      sitC(g, charOf(charKey), frame);
     } else {
-      g.save(); g.translate(192, 0); g.scale(-4, 4); sitC(g, c, frame); g.restore();
-      g.save(); g.translate(192, 0); g.scale(-1, 1); detailSit(g, c, frame); g.restore();
+      g.translate(SIT_W, 0); g.scale(-1, 1);
+      sitC(g, charOf(charKey), frame);
     }
-    pixelOutline(fig);
+    o.drawImage(fig, 0, 0);
   }
 
-  const out = mk();
-  const o = out.getContext('2d');
-  o.drawImage(bg, 0, 0);
-  o.drawImage(fig, 0, 0);
   sitCache[key] = out;
   return out;
 }
@@ -766,7 +779,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.17.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.18.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1805,8 +1818,11 @@ function render() {
       const ss = sitScale(p.y);
       const sframe = Math.floor(now / 280) % 2;
       const spr = getSitSprite(p.char || 'ger', p.x < VW / 2 ? 'left' : 'right', true, sframe);
-      const w = 41 * ss, h = 48 * ss;
-      ctx.imageSmoothingEnabled = false;   // el sentado es pixel art de grilla
+      // Igual que en el de pie: la altura en pantalla no cambia, el ancho sale de
+      // la proporción real del lienzo (ya no es la grilla 4x, son 300x352).
+      const h = 48 * ss, w = h * (spr.width / spr.height);
+      ctx.imageSmoothingEnabled = true;              // ver nota arriba del setTransform
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
       topY = p.y - h; shR = 15 * ss; fs = Math.round(3.1 * ss);
     } else {
