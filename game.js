@@ -243,15 +243,28 @@ function keyMagenta(src) {
 function loadCharAssets() {
   const keys = Object.keys(CHAR_DEF);
   return Promise.all(keys.map((k) => new Promise((res) => {
+    const loadSeat = () => {
+      const sit = new Image();
+      sit.onload = () => {
+        if (!charAssets[k]) charAssets[k] = {};
+        charAssets[k].sit = sit;
+        for (const cacheKey of Object.keys(sitCache)) {
+          if (cacheKey.startsWith(`vD_k${k}_`)) delete sitCache[cacheKey];
+        }
+        res();
+      };
+      sit.onerror = () => res(); // el sentado anterior queda como fallback
+      sit.src = `sprites/${k}_sit.png?v=1.22.0`;
+    };
     const finish = (src) => {
       const r = flipCanvas(src);
       charAssets[k] = { down: src, left: r, right: r, up: oscurecer(src) };
-      res();
+      loadSeat();
     };
     const loadLegacy = () => {
       const im = new Image();
       im.onload = () => finish(im);
-      im.onerror = () => res();   // si falta el PNG, se sigue con el sprite por código
+      im.onerror = () => { loadSeat(); }; // los sprites por código siguen disponibles
       im.src = `sprites/${k}.png`;
     };
     const fino = new Image();
@@ -273,7 +286,7 @@ function loadCharAssets() {
 const spriteCache = {};
 function getSprite(charKey, dir, frame) {
   // Si cargó el PNG de referencia, manda ese: es el aspecto pedido.
-  if (assetsReady && charAssets[charKey]) return charAssets[charKey][dir] || charAssets[charKey].down;
+  if (assetsReady && charAssets[charKey] && charAssets[charKey].down) return charAssets[charKey][dir] || charAssets[charKey].down;
   const key = `s${charKey}_${dir}_${frame}`;
   if (spriteCache[key]) return spriteCache[key];
   const c = charOf(charKey);
@@ -744,7 +757,18 @@ function getSitSprite(charKey, face, occupied, frame = 0) {
     const fig = document.createElement('canvas');
     fig.width = SIT_W; fig.height = SIT_H;
     const g = fig.getContext('2d');
-    if (face === 'left') {
+    const seated = charAssets[charKey] && charAssets[charKey].sit;
+    if (seated) {
+      // Usa la misma identidad/ropa del sprite parado. La pose fue dibujada
+      // para esta estación: manos abajo, a la altura del teclado (y≈288).
+      const y = 26 + (frame ? 1 : 0); // micro-bob que conserva el tipeo animado
+      if (face === 'left') {
+        g.drawImage(seated, 48, y, 220, 286);
+      } else {
+        g.translate(SIT_W, 0); g.scale(-1, 1);
+        g.drawImage(seated, 48, y, 220, 286);
+      }
+    } else if (face === 'left') {
       sitC(g, charOf(charKey), frame);
     } else {
       g.translate(SIT_W, 0); g.scale(-1, 1);
@@ -806,7 +830,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.21.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.22.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1531,7 +1555,7 @@ function previewChar(charKey) {
   // grilla. Los de arriba llevan antialiasing y reescalan bien con smoothing; los
   // de abajo son pixel art duro y necesitan nearest-neighbor. Por eso el modo se
   // decide acá y no en el render de la escena.
-  g.imageSmoothingEnabled = !!(charKey && assetsReady && charAssets[charKey]);
+  g.imageSmoothingEnabled = !!(charKey && assetsReady && charAssets[charKey] && charAssets[charKey].down);
   g.clearRect(0, 0, pv.width, pv.height);
   if (!charKey) return;
   const spr = getSprite(charKey, 'down', 0);
@@ -1858,7 +1882,7 @@ function render() {
       // el ancho sale de la proporción real del sprite: los PNG de referencia son
       // mucho más esbeltos que el chibi de la grilla de 4x.
       const h = 44 * s, w = h * (spr.width / spr.height);
-      const conAsset = assetsReady && !!charAssets[p.char || 'ger'];
+      const conAsset = assetsReady && !!(charAssets[p.char || 'ger'] && charAssets[p.char || 'ger'].down);
       ctx.imageSmoothingEnabled = conAsset;              // ver nota arriba del setTransform
       if (conAsset) ctx.imageSmoothingQuality = 'high';
 
