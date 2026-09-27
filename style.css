@@ -331,24 +331,38 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #netPanel .bad { color: #ff8a8a; }
 #clock { cursor: pointer; }
 
-/* Fila de chat con botones */
-#chatRow { display: flex; gap: 4px; align-items: center; padding: 6px; border-top: 2px solid #232b3d; }
-#chatRow button { background: #1b2230; border: 2px solid #2c3550; border-radius: 6px; color: #cdd5e4; font-size: 12px; padding: 8px 9px; cursor: pointer; flex: 0 0 auto; }
-#chatRow button:hover { background: #26304a; }
-#chatRow #chatInput { flex: 1 1 auto; min-width: 0; border: 2px solid #3b4560 !important; padding: 8px 10px !important; font-size: 10px !important; }
-#micBtn.rec { background: #7a1f1f; border-color: #ff5a5a; animation: recPulse 1s infinite; }
-@keyframes recPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+/* ---- Fila de chat estilo WhatsApp: una sola pastilla redondeada ---- */
+[hidden] { display: none !important; }
+#chatRow { display: flex; align-items: center; padding: 6px; border-top: 2px solid #232b3d; }
+#chatPill {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 0;
+  background: #1b2230; border: 2px solid #2c3550; border-radius: 16px; padding: 2px 3px;
+}
+#chatPill button {
+  background: transparent; border: none; border-radius: 12px; color: #aab3c5;
+  font-size: 12px; padding: 7px 6px; cursor: pointer; flex: 0 0 auto; line-height: 1;
+}
+#chatPill button:hover { background: #26304a; }
+#chatRow #chatInput {
+  flex: 1 1 auto; min-width: 0; width: auto; background: transparent;
+  border: none !important; outline: none; padding: 8px 5px !important; font-size: 10px !important;
+}
 #micBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
-#sendBtn.hidden, #micBtn.hidden { display: none; }
+#micBtn.rec { color: #ff5a5a !important; }
+@keyframes recPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
-/* Barra de grabación estilo WhatsApp: reemplaza al input mientras grabás */
-#recBar { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 0 4px; font-size: 8px; color: #cdd5e4; }
-#recBar.hidden { display: none; }
-#recDot { color: #ff5a5a; animation: recPulse 1s infinite; }
-#recTime { color: #ffffff; }
+/* Barra de grabacion: reemplaza el input dentro de la pastilla mientras grabas */
+#recBar { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 5px; padding: 0 2px 0 6px; font-size: 8px; color: #cdd5e4; overflow: hidden; }
+#recDot { color: #ff5a5a; animation: recPulse 1s infinite; flex: 0 0 auto; }
+#recTime { color: #ffffff; flex: 0 0 auto; }
 #recHint { color: #7d87a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; }
-#recTrash.hidden { display: none; }
-#chatRow.recording #chatInput, #chatRow.recording #attBtn, #chatRow.recording #sendBtn { display: none; }
+#chatRow.recording #chatInput, #chatRow.recording #attBtn, #chatRow.recording #emojiBtn, #chatRow.recording #sendBtn { display: none !important; }
+
+/* Picker de emojis, arriba de la pastilla */
+#emojiPicker { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px; background: #141a26; border-top: 2px solid #232b3d; }
+#emojiPicker button { background: transparent; border: none; border-radius: 8px; font-size: 14px; padding: 5px; cursor: pointer; line-height: 1; }
+#emojiPicker button:hover { background: #26304a; }
+
 #attChip { display: flex; align-items: center; gap: 6px; padding: 6px 8px; font-size: 8px; color: #9fb0cc; background: #10141d; }
 #attChip.hidden { display: none; }
 #attChip img { width: 34px; height: 34px; object-fit: cover; border: 1px solid #3b4560; }
@@ -368,10 +382,11 @@ body.desktop-rails #chatLog {
   height: auto; min-height: 0; flex: 1 1 auto;
   padding: 11px 10px; font-size: 10px; line-height: 2;
 }
-body.desktop-rails #chatRow { gap: 3px; padding: 4px; }
-body.desktop-rails #chatRow button { padding: 6px 5px; font-size: 10px; }
+body.desktop-rails #chatRow { padding: 4px; }
+body.desktop-rails #chatPill { padding: 1px 2px; }
+body.desktop-rails #chatPill button { padding: 6px 4px; font-size: 11px; }
 body.desktop-rails #chatRow #chatInput {
-  flex: 1 1 90px; min-width: 0; font-size: 9px !important; padding: 7px 5px !important;
+  flex: 1 1 60px; min-width: 0; font-size: 9px !important; padding: 7px 3px !important;
 }
 body.desktop-rails #topbar {
   width: calc(var(--desktop-rail-width) - 24px);

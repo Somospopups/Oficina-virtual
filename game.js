@@ -1230,7 +1230,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v42 · 27/09/2026';
+const VERSION = 'v43 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2169,9 +2169,10 @@ function updateSendMic() {
   if (!sb || !mb) return;
   if (mediaRec && mediaRec.state === 'recording') return; // durante la grabación manda recUI
   const hasContent = !!((chatInput && chatInput.value.trim()) || pendingAtt);
-  sb.classList.toggle('hidden', !hasContent);
-  mb.classList.toggle('hidden', hasContent);
+  sb.hidden = !hasContent;
+  mb.hidden = hasContent;
 }
+function hideEmojiPicker() { const p = document.getElementById('emojiPicker'); if (p) p.hidden = true; }
 function fmtRecTime(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 // Muestra/oculta la barra de grabación (reemplaza el input, como en WhatsApp).
 function recUI(on) {
@@ -2180,15 +2181,16 @@ function recUI(on) {
   const mb = document.getElementById('micBtn');
   if (!row || !bar) return;
   row.classList.toggle('recording', on);
-  bar.classList.toggle('hidden', !on);
+  bar.hidden = !on;
   if (on) {
+    hideEmojiPicker();
     const t = document.getElementById('recTime');
     if (t) t.textContent = '0:00';
     if (recTimerInt) clearInterval(recTimerInt);
     recTimerInt = setInterval(() => { const tt = document.getElementById('recTime'); if (tt) tt.textContent = fmtRecTime(Date.now() - recT0); }, 200);
-    if (trash) trash.classList.add('hidden');
-    if (hint) hint.textContent = '‹ deslizá para cancelar · ↑ fijar';
-    if (mb) mb.classList.remove('hidden');
+    if (trash) trash.hidden = true;
+    if (hint) hint.textContent = '‹ cancelar · ↑ fijar';
+    if (mb) mb.hidden = false;
   } else {
     if (recTimerInt) { clearInterval(recTimerInt); recTimerInt = null; }
     recLocked = false;
@@ -2203,8 +2205,8 @@ function recLock() {
   recLocked = true;
   const trash = document.getElementById('recTrash'), hint = document.getElementById('recHint');
   const mb = document.getElementById('micBtn');
-  if (trash) trash.classList.remove('hidden');
-  if (hint) hint.textContent = 'grabando… ➤ envía';
+  if (trash) trash.hidden = false;
+  if (hint) hint.textContent = 'grabando…';
   if (mb) mb.textContent = '➤';
 }
 function cancelRec() { if (mediaRec && mediaRec.state === 'recording') { recSend = false; mediaRec.stop(); } }
@@ -2316,8 +2318,8 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (document.activeElement === chatInput) {
-    if (e.key === 'Enter') { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; chatInput.blur(); updateSendMic(); e.preventDefault(); }
-    if (e.key === 'Escape') { chatInput.value = ''; chatInput.blur(); updateSendMic(); e.preventDefault(); }
+    if (e.key === 'Enter') { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; chatInput.blur(); hideEmojiPicker(); updateSendMic(); e.preventDefault(); }
+    if (e.key === 'Escape') { chatInput.value = ''; chatInput.blur(); hideEmojiPicker(); updateSendMic(); e.preventDefault(); }
     return; // al escribir en el chat no se mueven el personaje ni la página
   }
   if (!state.joined) return;
@@ -3059,10 +3061,22 @@ function init() {
   }
 
   const sendBtn = document.getElementById('sendBtn');
-  if (sendBtn) sendBtn.onclick = () => { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; updateSendMic(); };
+  if (sendBtn) sendBtn.onclick = () => { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; hideEmojiPicker(); updateSendMic(); };
   const attBtn = document.getElementById('attBtn');
   const fileInput = document.getElementById('fileInput');
   if (attBtn && fileInput) { attBtn.onclick = () => fileInput.click(); fileInput.onchange = onFilePicked; }
+  // Picker de emojis estilo WhatsApp (versión pixel, cortita y al pie)
+  const emojiBtn = document.getElementById('emojiBtn'), emojiPicker = document.getElementById('emojiPicker');
+  if (emojiBtn && emojiPicker) {
+    const EMOJIS = ['😀', '😂', '😅', '😉', '😊', '😍', '😎', '🤔', '😴', '😢', '😡', '🙃', '👍', '👎', '👏', '🙏', '💪', '🔥', '🎉', '❤️', '☕', '🍕', '💻', '🐛', '🚀', '✅'];
+    emojiPicker.innerHTML = EMOJIS.map((e) => `<button type="button">${e}</button>`).join('');
+    emojiBtn.onclick = () => { emojiPicker.hidden = !emojiPicker.hidden; };
+    emojiPicker.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      chatInput.value = (chatInput.value + b.textContent).slice(0, 200);
+      chatInput.focus(); updateSendMic();
+    });
+  }
   // Mic estilo WhatsApp: mantener apretado graba, soltar envía, deslizar a la
   // izquierda cancela, deslizar hacia arriba fija la grabación (manos libres).
   const micBtn = document.getElementById('micBtn');

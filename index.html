@@ -48,12 +48,16 @@
   <div id="chatPanel">
     <div id="chatLog"></div>
     <div id="attChip" class="hidden"></div>
+    <div id="emojiPicker" hidden></div>
     <div id="chatRow">
-      <button id="attBtn" title="Adjuntar imagen">📎</button>
-      <input id="chatInput" maxlength="200" placeholder="Escribí acá…  /w nombre msg = privado" autocomplete="off">
-      <div id="recBar" class="hidden"><span id="recDot">⏺</span><span id="recTime">0:00</span><span id="recHint">‹ deslizá para cancelar · ↑ fijar</span><button id="recTrash" class="hidden" title="Cancelar grabación">🗑</button></div>
-      <button id="sendBtn" class="hidden" title="Enviar">➤</button>
-      <button id="micBtn" title="Mantené apretado para grabar · deslizá ← para cancelar · ↑ para fijar">🎤</button>
+      <div id="chatPill">
+        <button id="attBtn" title="Adjuntar imagen">📎</button>
+        <button id="emojiBtn" title="Emojis">🙂</button>
+        <input id="chatInput" maxlength="200" placeholder="Escribí un mensaje" autocomplete="off">
+        <div id="recBar" hidden><span id="recDot">⏺</span><span id="recTime">0:00</span><span id="recHint">‹ cancelar · ↑ fijar</span><button id="recTrash" hidden title="Cancelar grabación">🗑</button></div>
+        <button id="sendBtn" hidden title="Enviar">➤</button>
+        <button id="micBtn" title="Mantené apretado para grabar · deslizá ← para cancelar · ↑ para fijar">🎤</button>
+      </div>
     </div>
     <input type="file" id="fileInput" accept="image/*" style="display:none">
   </div>
