@@ -221,22 +221,6 @@ function oscurecer(src) {
   return cv;
 }
 
-function keyMagenta(src) {
-  // saca el fondo magenta de los PNG finos; si las estadísticas no cierran, devuelve null
-  const cv = document.createElement('canvas');
-  cv.width = src.width; cv.height = src.height;
-  const g = cv.getContext('2d');
-  g.drawImage(src, 0, 0);
-  const d = g.getImageData(0, 0, cv.width, cv.height);
-  const p = d.data; let clear = 0;
-  for (let i = 0; i < p.length; i += 4) {
-    if (p[i] > 180 && p[i + 2] > 180 && p[i + 1] < 120) { p[i + 3] = 0; clear++; }
-  }
-  const ratio = clear / (p.length / 4);
-  if (ratio < 0.15 || ratio > 0.95) return null;
-  g.putImageData(d, 0, 0);
-  return cv;
-}
 function loadCharAssets() {
   const keys = Object.keys(CHAR_DEF);
   return Promise.all(keys.map((k) => new Promise((res) => {
@@ -255,25 +239,19 @@ function loadCharAssets() {
       sit.onerror = () => res(); // el sentado anterior queda como fallback
       sit.src = `sprites/${k}_sit.png?v=1.24.0`;
     };
-    const finish = (src) => {
-      const r = flipCanvas(src);
-      charAssets[k] = { down: src, left: r, right: r, up: oscurecer(src) };
+    // Los de pie son recortes de "Oficina Virtual/De pie.jpg": el diseño aprobado
+    // (chibi, cuerpo entero, sneakers a la vista). Antes se cargaba primero un
+    // *_fino.png, que era otra variante: mucho más detalle, pero otra cara (cabeza
+    // desproporcionada, ojos grandes, piercings) y con los pies cortados por el
+    // borde del lienzo. Ese camino ya no se usa.
+    const im = new Image();
+    im.onload = () => {
+      const r = flipCanvas(im);
+      charAssets[k] = { down: im, left: r, right: r, up: oscurecer(im) };
       loadSeat();
     };
-    const loadLegacy = () => {
-      const im = new Image();
-      im.onload = () => finish(im);
-      im.onerror = () => { loadSeat(); }; // los sprites por código siguen disponibles
-      im.src = `sprites/${k}.png`;
-    };
-    const fino = new Image();
-    fino.onload = () => {
-      let keyed = null;
-      try { keyed = keyMagenta(fino); } catch { keyed = null; }
-      if (keyed) finish(keyed); else loadLegacy();
-    };
-    fino.onerror = loadLegacy;
-    fino.src = `sprites/${k}_fino.png`;
+    im.onerror = () => { loadSeat(); }; // los sprites por código siguen disponibles
+    im.src = `sprites/${k}.png?v=1.32.0`;
   }))).then(() => {
     assetsReady = true;
     const p = document.getElementById('avatarPreview');
@@ -845,7 +823,7 @@ const attachmentModalTitle = document.getElementById('attachmentModalTitle');
 const attachmentPreviewBox = document.getElementById('attachmentPreview');
 const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
-const VERSION = 'v1.31.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.32.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2101,13 +2079,22 @@ function render() {
       ctx.drawImage(spr, p.x - w / 2, p.y - h + bob, w, h);
       topY = p.y - h; shR = 15 * ss; fs = Math.round(3.1 * ss);
     } else {
-      const s = depthScale(p.y);
       const spr = getSprite(p.char || 'ger', p.dir || 'down', 0);
+      const conAsset = assetsReady && !!(charAssets[p.char || 'ger'] && charAssets[p.char || 'ger'].down);
       // La altura en pantalla no cambia respecto al sprite por código (44*s), pero
       // el ancho sale de la proporción real del sprite: los PNG de referencia son
       // mucho más esbeltos que el chibi de la grilla de 4x.
+      //
+      // Tope de altura: los PNG de referencia miden ~500px de alto, así que
+      // reescalados por encima de su tamaño natural se ven blandos. La escala de
+      // profundidad sigue mandando hasta llegar a 1:1 y después el personaje deja de
+      // crecer. Los pies quedan siempre en p.y, así que sigue plantado en el piso, y
+      // como shR y fs salen de la misma s, la sombra y el nombre encajan con el
+      // tamaño nuevo. El tope es solo para los PNG: el chibi de la grilla es de
+      // 128x176 y su look pixelado se banca cualquier escala.
+      const sRaw = depthScale(p.y);
+      const s = conAsset ? Math.min(sRaw, spr.height / 44) : sRaw;
       const h = 44 * s, w = h * (spr.width / spr.height);
-      const conAsset = assetsReady && !!(charAssets[p.char || 'ger'] && charAssets[p.char || 'ger'].down);
       ctx.imageSmoothingEnabled = conAsset;              // ver nota arriba del setTransform
       if (conAsset) ctx.imageSmoothingQuality = 'high';
 
