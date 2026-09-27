@@ -500,3 +500,14 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
      quedar debajo. */
   #musicPanel { left: 8px; right: auto; top: 92px; width: min(240px, calc(100vw - 16px)); }
 }
+
+/* ---- Botones del margen derecho: todos del mismo tamaño y alineados ----
+   Va al final del archivo a propósito: pisa los paddings sueltos que cada botón
+   traía (y los de las media queries), así la columna queda pareja. */
+#callBar { align-items: flex-end; }
+#micCallBtn, #shareBtn, #callListen, #musicBtn {
+  box-sizing: border-box; width: 38px; height: 38px; padding: 0 !important;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px !important; line-height: 1;
+}
+#callVolBox { box-sizing: border-box; height: 38px; }
