@@ -30,6 +30,9 @@ body { font-family: 'Press Start 2P', monospace; color: #e8e6df; }
   box-shadow: 0 0 0 3px rgba(255, 215, 106, 0.25); color: #ffe9a8 !important;
 }
 #dniInput::placeholder { color: #55617a; letter-spacing: 1px; font-size: 9px; }
+#dniInput { margin-bottom: 24px; }
+#joinBtn { margin-top: 4px; }
+#dniError:empty { margin: 0; }
 #dniInput, #chatInput {
   font-family: inherit; font-size: 11px; color: #fff;
   background: #10141d; border: 3px solid #3b4560; outline: none;
