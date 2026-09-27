@@ -703,27 +703,31 @@ function getSitSprite(charKey, face, occupied, frame = 0) {
   const key = `vD_k${charKey}_${face}_${occupied ? 1 : 0}_${frame}`;
   if (sitCache[key]) return sitCache[key];
 
+  const SS = 2; // supersampling: los píxeles del sentado, mitad de grandes
   const out = document.createElement('canvas');
-  out.width = SIT_W; out.height = SIT_H;
+  out.width = SIT_W * SS; out.height = SIT_H * SS;
   const o = out.getContext('2d');
+  o.scale(SS, SS);
 
   // Escenario (silla + monitor) aparte: no lleva borde, es parte del lugar.
   const bg = document.createElement('canvas');
-  bg.width = SIT_W; bg.height = SIT_H;
-  sitEscenario(bg.getContext('2d'));
-  o.drawImage(bg, 0, 0);
+  bg.width = SIT_W * SS; bg.height = SIT_H * SS;
+  const bgg = bg.getContext('2d'); bgg.scale(SS, SS);
+  sitEscenario(bgg);
+  o.drawImage(bg, 0, 0, SIT_W, SIT_H);
 
   if (occupied) {
     const fig = document.createElement('canvas');
-    fig.width = SIT_W; fig.height = SIT_H;
+    fig.width = SIT_W * SS; fig.height = SIT_H * SS;
     const g = fig.getContext('2d');
     if (face === 'left') {
+      g.setTransform(SS, 0, 0, SS, 0, 0);
       sitC(g, charOf(charKey), frame);
     } else {
-      g.translate(SIT_W, 0); g.scale(-1, 1);
+      g.setTransform(-SS, 0, 0, SS, SIT_W * SS, 0);
       sitC(g, charOf(charKey), frame);
     }
-    o.drawImage(fig, 0, 0);
+    o.drawImage(fig, 0, 0, SIT_W, SIT_H);
   }
 
   sitCache[key] = out;
@@ -779,7 +783,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.19.1 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.20.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
