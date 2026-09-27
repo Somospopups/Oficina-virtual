@@ -374,7 +374,7 @@ const hintBox = document.getElementById('hint');
 const toastBox = document.getElementById('toast');
 const helpOverlay = document.getElementById('help');
 const clockBox = document.getElementById('clock');
-const VERSION = 'v1.13.0 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
+const VERSION = 'v1.13.1 · 27/09/2026'; // fuente de verdad de la versión (vive en game.js)
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -550,7 +550,7 @@ function busSend(o) {
       const sig = await busSign(id, busKey);
       busSent++;
       const evt = JSON.stringify(['EVENT', { id, pubkey: myPub, created_at: created, kind: 20001, tags, content, sig }]);
-      for (const s of busSockets.slice(0, 3)) { try { if (s.ws.readyState === 1) s.ws.send(evt); } catch { /* relay caído */ } }
+      for (const s of busSockets) { try { if (s.ws.readyState === 1) s.ws.send(evt); } catch { /* relay caído */ } }
     } catch (e) { busErr = String((e && e.message) || e); }
   })();
 }
@@ -581,6 +581,13 @@ window.addEventListener('pagehide', () => { if (state.joined) send({ type: 'bye'
 // latido independiente de la animación: con la pestaña en segundo plano el navegador
 // congela los cuadros, pero este intervalo sigue avisando "sigo acá" cada 4 s
 setInterval(() => { if (state.joined) sendMoveNow(); }, 4000);
+let lastRelayWarn = 0;
+setInterval(() => {
+  if (USE_P2P && state.joined && busSockets.length === 0 && Date.now() - lastRelayWarn > 30000) {
+    lastRelayWarn = Date.now();
+    toast('⚠️ Sin relays P2P: tu oficina está en modo local. Revisá Shields/bloqueadores o la conexión.');
+  }
+}, 10000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && state.joined) sendMoveNow(); });
 
 const seenNonces = new Set();
