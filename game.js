@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v76 · 27/09/2026';
+const VERSION = 'v77 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3408,11 +3408,11 @@ function update(dt) {
 const CAT_SEG = 26000;
 const cat = { x: 612, y: 560, dir: 1, petBy: null, petUntil: 0, heartsUntil: 0 };
 function catPlan(nowMs, nocturno) {
-  if (nocturno) return { goal: { x: 610, y: 512 }, pose: 'sleep' };  // de noche duerme junto al ventanal
+  if (nocturno) return { goal: { x: 622, y: 706 }, pose: 'sleep' };  // de noche duerme en medio del pasillo, bien visible
   const i = Math.floor(nowMs / CAT_SEG);
   const r = rnd(i, 29, 3);
-  if (r < 0.30) return { goal: { x: 585 + rnd(i, 31, 7) * 60, y: 505 + rnd(i, 37, 1) * 45 }, pose: 'sleep' };  // siesta al solcito
-  const y = lerp(FLOOR.yTop + 60, FLOOR.yBot - 130, rnd(i, 17, 9));
+  if (r < 0.30) return { goal: { x: 575 + rnd(i, 31, 7) * 80, y: 590 + rnd(i, 37, 1) * 80 }, pose: 'sleep' };  // siesta al solcito
+  const y = lerp(FLOOR.yTop + 130, FLOOR.yBot - 110, rnd(i, 17, 9));
   const t2 = (y - FLOOR.yTop) / (FLOOR.yBot - FLOOR.yTop);
   const xl = lerp(FLOOR.xlTop, FLOOR.xlBot, t2) + 46;
   const xr = lerp(FLOOR.xrTop, FLOOR.xrBot, t2) - 46;
@@ -3448,7 +3448,7 @@ function catAplicarMimo(id) {
 }
 function drawCat(now, nocturno) {
   const pose = catFrame(nocturno);
-  const u = clamp(depthScale(cat.y) / 12, 0.5, 1.7) * 2.0;
+  const u = clamp(depthScale(cat.y) / 12, 0.65, 1.8) * 2.6;
   const g = ctx;
   g.fillStyle = 'rgba(0,0,0,0.22)';
   g.beginPath(); g.ellipse(cat.x, cat.y + 1.5 * u, 7.5 * u, 2.2 * u, 0, 0, Math.PI * 2); g.fill();
