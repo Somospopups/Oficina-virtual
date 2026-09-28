@@ -1671,7 +1671,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v72 · 27/09/2026';
+const VERSION = 'v73 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3368,34 +3368,14 @@ function render() {
   drawSky(now, hf, sky);
   ctx.drawImage(skyCv, WIN.x, WIN.y);
 
-  // Reflejo del ventanal en el piso. La mancha clara viene PINTADA en el PNG
-  // de fondo, o sea que era "de día" a toda hora. De noche primero se
-  // multiplica un azul oscuro (eso mata el brillo de verdad, un velo encima
-  // no alcanzaba) y después se pinta el degradé del cielo del momento
-  // INVERTIDO: cerca del ventanal se refleja el horizonte, lejos el cielo
-  // alto. Amanecer/atardecer quedan naranjas, la noche azul profundo.
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(509, 458); ctx.lineTo(719, 458); ctx.lineTo(820, 700); ctx.lineTo(410, 700);
-  ctx.closePath(); ctx.clip();
-  if (sky.amb > 0.01) {
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.globalAlpha = Math.min(1, sky.amb * 2.4);
-    ctx.fillStyle = '#2b3350';
-    ctx.fillRect(410, 458, 410, 242);
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 1;
-  }
   if (sky.patchA > 0.02) {
-    const rf = ctx.createLinearGradient(0, 458, 0, 700);
-    rf.addColorStop(0, sky.bot);
-    rf.addColorStop(1, sky.top);
-    ctx.globalAlpha = Math.min(0.5, sky.patchA + sky.amb * 0.35);
-    ctx.fillStyle = rf;
-    ctx.fillRect(410, 458, 410, 242);
+    ctx.globalAlpha = sky.patchA;
+    ctx.fillStyle = sky.patch;
+    ctx.beginPath();
+    ctx.moveTo(509, 458); ctx.lineTo(719, 458); ctx.lineTo(820, 700); ctx.lineTo(410, 700);
+    ctx.closePath(); ctx.fill();
     ctx.globalAlpha = 1;
   }
-  ctx.restore();
 
   if (sky.amb > 0.01) {
     ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
