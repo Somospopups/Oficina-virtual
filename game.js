@@ -1633,7 +1633,7 @@ bgImg.onload = () => {
   bgReady = true;
   backdropDirty = true;
 };
-bgImg.src = 'bg_deep2.png';
+bgImg.src = 'bg_deep2.png?v=2';  // v=2: se borró la maceta del sill (ahí va la cafetera)
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v85 · 28/09/2026';
+const VERSION = 'v86 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2871,6 +2871,25 @@ function seatNear(x, y, r = 110) {
   for (const s of SEATS) { const d = Math.hypot(s.x - x, s.y - y); if (d < bd) { bd = d; best = s; } }
   return best;
 }
+function seatLibreCerca() {
+  const me = state.players.get(state.myId);
+  if (!me || me.seated || !state.joined) return null;
+  const s = seatNear(me.x, me.y);
+  return s && !seatOwner(s, state.myId) ? s : null;
+}
+function sentarseE() {
+  // E = botón de acción: sentarse en el escritorio cercano (ya no es automático)
+  const me = state.players.get(state.myId);
+  if (!me || me.seated) return false;
+  const seat = seatNear(me.x, me.y);
+  if (!seat) return false;
+  const occ = seatOwner(seat, state.myId);
+  if (occ) { toast(`🪑 Ese puesto es de ${occ.name}`); return true; }
+  me.seated = true; me.dir = seat.face; me.x = seat.x; me.y = seat.y;
+  me.moving = false; me.tx = me.x; me.ty = me.y;
+  sendMoveNow();
+  return true;
+}
 function seatOwner(s, exceptId) {
   for (const p of state.players.values()) {
     if (p.id !== exceptId && p.seated && Math.hypot(p.x - s.x, p.y - s.y) < 50) return p;
@@ -2934,7 +2953,12 @@ window.addEventListener('keydown', (e) => {
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 3) { setStatus(STATUS_KEYS[n - 1]); return; }
   if (n === 4) { doZumbido(); return; }
-  if (key === 'e') { if (cafeCerca()) cafeTomar(); else catMimar(); return; }
+  if (key === 'e') {
+    // Botón de acción, por prioridad: cafetera > escritorio > Michi
+    if (cafeCerca()) cafeTomar();
+    else if (!sentarseE()) catMimar();
+    return;
+  }
   const emoteMap = { z: '👋', x: '😂', c: '🎉', v: '👍', b: '🤔', n: '🔥' };
   const em = emoteMap[key];
   if (em) { send({ type: 'emote', id: state.myId, emote: em }); const me = state.players.get(state.myId); if (me) { me.emote = em; me.emoteUntil = performance.now() + 3000; } return; }
@@ -3387,21 +3411,8 @@ function update(dt) {
       me.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
       me.moving = true;
     } else {
+      // Ya no hay auto-sentado: sentarse es con E cerca de un escritorio.
       me.moving = false;
-      if (!me.seated) {
-        const seat = seatNear(me.x, me.y);
-        if (seat) {
-          const occ = seatOwner(seat, state.myId);
-          if (occ) {
-            const t = performance.now();
-            if (!me.seatWarn || t - me.seatWarn > 4000) { me.seatWarn = t; toast(`🪑 Ese puesto es de ${occ.name}`); }
-          } else {
-            me.seated = true; me.dir = seat.face; me.x = seat.x; me.y = seat.y;
-            sendMoveNow();
-            lastSend = performance.now();
-          }
-        }
-      }
     }
     me.tx = me.x; me.ty = me.y;
 
@@ -3444,6 +3455,9 @@ function update(dt) {
   } else if (state.joined && cafeCerca()) {
     hintBox.innerHTML = `☕ <b>Cafetera</b> — <span class="key">E</span> tomar un cafecito`;
     hintBox.classList.add('show');
+  } else if (state.joined && seatLibreCerca()) {
+    hintBox.innerHTML = `🪑 <b>Escritorio</b> — <span class="key">E</span> sentarte`;
+    hintBox.classList.add('show');
   } else if (state.joined && catCerca()) {
     hintBox.innerHTML = `🐈 <b>Michi</b> — <span class="key">E</span> acariciar`;
     hintBox.classList.add('show');
@@ -3455,7 +3469,7 @@ function update(dt) {
 // ella tomás un café: buff de velocidad por 25 s y tacita al lado del
 // personaje. El evento 'cafe' viaja por el bus para que todos vean el buff
 // ajeno y la máquina preparando.
-const CAFE = { x: 564, y: 462, brewUntil: 0 };
+const CAFE = { x: 512, y: 462, brewUntil: 0 };
 const CAFE_MS = 25000;
 function cafeCerca() {
   const me = state.players.get(state.myId);
@@ -3477,7 +3491,7 @@ const cafeImg = new Image();
 cafeImg.src = 'sprites/cafetera.png?v=1';
 function drawCafetera(now) {
   const g = ctx;
-  const bx = CAFE.x, by = 393;  // apoyada sobre la biblioteca, bajo el ventanal
+  const bx = CAFE.x, by = 389;  // sobre el sill del ventanal, donde estaba la maceta
   const brewing = performance.now() < CAFE.brewUntil;
   if (cafeImg.complete && cafeImg.naturalWidth) {
     const h = 40, w = h * (cafeImg.naturalWidth / cafeImg.naturalHeight);
