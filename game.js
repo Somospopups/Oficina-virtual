@@ -479,11 +479,11 @@ function renderCamStrip() {
   const otros = [...state.players.values()]
     .filter((p) => p.id && p.id !== state.myId)
     .sort((a, b) => ((rtcCamPeers.get(b.id) ? 1 : 0) - (rtcCamPeers.get(a.id) ? 1 : 0)) || String(a.name).localeCompare(String(b.name)))
-    .slice(0, 2);
-  const slots = [
-    { name: 'Vos', me: true },
-    ...otros.map((p) => ({ id: p.id, name: p.name })),
-  ];
+    .slice(0, state.spectating ? 3 : 2);
+  // El espectador no tiene cuadro propio: ve a los (hasta) 3 de la oficina.
+  const slots = state.spectating
+    ? otros.map((p) => ({ id: p.id, name: p.name }))
+    : [{ name: 'Vos', me: true }, ...otros.map((p) => ({ id: p.id, name: p.name }))];
   while (slots.length < 3) slots.push(null);
   slots.forEach((s, i) => {
     const el = strip.children[i];
@@ -580,7 +580,7 @@ function rtcPar(peer) {
     try { p.camSender = p.pc.addTrack(rtcCamTrack, rtcCamStream); } catch { /* sin track */ }
   }
   pc.onicecandidate = (e) => {
-    if (e.candidate) send({ type: 'rtc-ice', to: peer, cand: e.candidate.toJSON(), from: state.myId });
+    if (e.candidate) send({ type: 'rtc-ice', to: peer, cand: e.candidate.toJSON(), from: state.myId, spec: (state.spectating || String(peer).startsWith('0tv')) ? 1 : undefined });
   };
   // El audio va al <audio> suelto; el video a la ventana que ya usa YouTube.
   pc.ontrack = (e) => {
@@ -605,10 +605,34 @@ function rtcPar(peer) {
 async function rtcOfrecer(peer) {
   const p = rtcPar(peer);
   try {
+    // El espectador no emite nada: pide canales de solo recepción (audio,
+    // cámara y pantalla) antes de ofertar, si no la oferta sale vacía.
+    if (state.spectating && !p.specRx) {
+      p.specRx = true;
+      try {
+        p.pc.addTransceiver('audio', { direction: 'recvonly' });
+        p.pc.addTransceiver('video', { direction: 'recvonly' });
+        p.pc.addTransceiver('video', { direction: 'recvonly' });
+      } catch { /* navegador viejo */ }
+    }
     const of = await p.pc.createOffer();
     await p.pc.setLocalDescription(of);
-    send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId });
+    send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, spec: state.spectating ? 1 : undefined });
   } catch { /* se reconecta solo con el siguiente hello */ }
+}
+
+// Contestar una oferta que viene DIRIGIDA a mí (espectadores): acá el par se
+// clava por el id del REMITENTE, que es único, así no pisa ninguna conexión
+// entre jugadores.
+async function rtcContestarDe(peer, sdp) {
+  const p = rtcPar(peer);
+  try {
+    await p.pc.setRemoteDescription(sdp);
+    for (const c of p.pendingIce.splice(0)) { try { await p.pc.addIceCandidate(c); } catch { /* viejo */ } }
+    const an = await p.pc.createAnswer();
+    await p.pc.setLocalDescription(an);
+    send({ type: 'rtc-answer', to: peer, sdp: p.pc.localDescription, from: state.myId, spec: 1 });
+  } catch { /* renegociar */ }
 }
 
 async function rtcContestar(peer, sdp) {
@@ -1465,7 +1489,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v61 · 27/09/2026';
+const VERSION = 'v62 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1790,7 +1814,7 @@ function handleMsg(msg) {
       }
       break;
     case 'welcome':
-      state.myId = state.spectating ? null : msg.id;
+      state.myId = state.spectating ? state.myId : msg.id;
       for (const p of msg.players) upsertRemote(p, true);
       renderPlayerList();
       break;
@@ -1809,9 +1833,19 @@ function handleMsg(msg) {
     // repetidas. Por eso hay un dedupe propio por par y tipo: una oferta
     // renegociada a mitad de camino es lo que más rompe una conexión.
     case 'rtc-hello': {
+      // Si el que saluda es un espectador (id '0tv...'), los que tienen algo
+      // prendido se lo re-anuncian para que pueda conectarse aunque haya
+      // entrado tarde. Idempotente para el resto.
+      if (String(msg.from || '').startsWith('0tv')) {
+        if (rtcCamOn && rtcCamStream) send({ type: 'rtc-cam', on: true, from: state.myId, sid: rtcCamStream.id });
+        if (rtcComparto) send({ type: 'rtc-share', on: true, from: state.myId });
+        if (rtcOn) send({ type: 'rtc-hello', mic: true, from: state.myId });
+        break;
+      }
       rtcMic.set(msg.from, !!msg.mic);
       if (msg.mic) {
-        if (rtcOn && rtcIniciyo(msg.from)) rtcOfrecer(msg.from); else rtcPar(msg.from);
+        if ((rtcOn || state.spectating) && rtcIniciyo(msg.from) && !rtcMesh.has(msg.from)) rtcOfrecer(msg.from);
+        else rtcPar(msg.from);
       } else if (!rtcConectaCon(msg.from)) {
         // Cerró el micro y no queda cámara ni pantalla de por medio: se corta.
         rtcSalirDePeer(msg.from);
@@ -1825,14 +1859,28 @@ function handleMsg(msg) {
       renderPlayerList(); renderCallUI();
       break;
     }
-    case 'rtc-offer': if (!rtcVisto(msg)) rtcContestar(msg.to, msg.sdp); break;
-    case 'rtc-answer': if (!rtcVisto(msg)) rtcIceRespuesta(msg); break;
-    case 'rtc-ice': if (!rtcVisto(msg)) rtcIce(msg.to, msg.cand); break;
+    case 'rtc-offer':
+      if (rtcVisto(msg)) break;
+      // Las ofertas "spec" (de/para espectadores) van dirigidas: solo las
+      // procesa el destinatario y el par se clava por el id del remitente.
+      if (msg.spec) { if (msg.to === state.myId) rtcContestarDe(msg.from, msg.sdp); }
+      else rtcContestar(msg.to, msg.sdp);
+      break;
+    case 'rtc-answer':
+      if (rtcVisto(msg)) break;
+      if (msg.spec && msg.to !== state.myId) break;
+      rtcIceRespuesta(msg);
+      break;
+    case 'rtc-ice':
+      if (rtcVisto(msg)) break;
+      if (msg.spec) { if (msg.to === state.myId) rtcIce(msg.from, msg.cand); }
+      else rtcIce(msg.to, msg.cand);
+      break;
     case 'rtc-bye': if (!rtcVisto(msg)) rtcSalirDePeer(msg.from); break;
     case 'rtc-share': {
       if (msg.on) {
         rtcComparte.set(msg.from, true);
-        if (rtcConectaCon(msg.from) && rtcIniciyo(msg.from)) rtcOfrecer(msg.from);
+        if (rtcConectaCon(msg.from) && rtcIniciyo(msg.from) && !rtcMesh.has(msg.from)) rtcOfrecer(msg.from);
         else rtcPar(msg.from);
         rtcResolverVideos(msg.from);
         renderCallUI();
@@ -1846,7 +1894,7 @@ function handleMsg(msg) {
       if (msg.on) {
         rtcCamPeers.set(msg.from, true);
         if (msg.sid) rtcCamSid.set(msg.from, msg.sid);
-        if (rtcConectaCon(msg.from) && rtcIniciyo(msg.from)) rtcOfrecer(msg.from);
+        if (rtcConectaCon(msg.from) && rtcIniciyo(msg.from) && !rtcMesh.has(msg.from)) rtcOfrecer(msg.from);
         else rtcPar(msg.from);
         rtcResolverVideos(msg.from);
       } else {
@@ -2841,8 +2889,15 @@ async function verifySpectatorPin(pin) {
   return hex === SPECTATOR_PIN_HASH;
 }
 function enterSpectatorMode() {
-  state.spectating = true; state.joined = false; state.myId = null; state.myName = '';
+  state.spectating = true; state.joined = false; state.myName = '';
+  // Identidad WebRTC propia (invisible para la oficina): con id el espectador
+  // puede INICIAR conexiones y recibir cámaras, pantalla y audio. El prefijo
+  // '0tv' lo hace iniciador siempre (ordena antes que cualquier nombre) y
+  // permite reconocerlo para no ensuciar la malla de los jugadores.
+  state.myId = '0tv' + Math.random().toString(36).slice(2, 7);
   document.body.classList.add('spectator-mode');
+  // Toc toc: los que ya tienen cámara/pantalla/micro prendido se re-anuncian.
+  send({ type: 'rtc-hello', mic: false, from: state.myId });
   joinOverlay.classList.add('hidden');
   const musicPanel = document.getElementById('musicPanel'); if (musicPanel) musicPanel.classList.add('hidden');
   // Mensajes públicos ya estaban en el chat; agrega también los /w recibidos antes del PIN.
