@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v79 · 27/09/2026';
+const VERSION = 'v80 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3406,7 +3406,7 @@ function update(dt) {
 // lugar para todos SIN mandar mensajes. Lo único que viaja por el bus es la
 // caricia ('cat-pet'), que lo pone a seguir un rato al que lo mimó.
 const CAT_SEG = 26000;
-const cat = { x: 612, y: 560, dir: 1, petBy: null, petUntil: 0, heartsUntil: 0 };
+const cat = { x: 612, y: 560, dir: 1, petBy: null, petUntil: 0, heartsUntil: 0, lastMiau: 0 };
 function catPlan(nowMs, nocturno) {
   if (nocturno) return { goal: { x: 622, y: 706 }, pose: 'sleep' };  // de noche duerme en medio del pasillo, bien visible
   const i = Math.floor(nowMs / CAT_SEG);
@@ -3446,8 +3446,31 @@ function catAplicarMimo(id) {
   cat.heartsUntil = performance.now() + 3000;
   beep(430, 0.05); setTimeout(() => beep(350, 0.07), 130);  // ronroneo cortito
 }
+function catMiau() {
+  // Maullido sintetizado: sube ("mia...") y baja ("...au")
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), gn = audioCtx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(480, t0);
+    o.frequency.exponentialRampToValueAtTime(830, t0 + 0.16);
+    o.frequency.exponentialRampToValueAtTime(310, t0 + 0.55);
+    gn.gain.setValueAtTime(0.0001, t0);
+    gn.gain.exponentialRampToValueAtTime(0.045, t0 + 0.06);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.6);
+    o.connect(gn); gn.connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + 0.65);
+  } catch { /* sin audio */ }
+}
 function drawCat(now, nocturno) {
   const pose = catFrame(nocturno);
+  // Maullido de vez en cuando (determinístico por reloj: todos lo ven/escuchan a la vez).
+  // Ventana de 9 s; ~15% de probabilidad → un miau por minuto aprox. Dormido no maúlla.
+  const miauBkt = Math.floor(Date.now() / 9000);
+  const miauT = Date.now() - miauBkt * 9000;
+  const maullando = pose !== 'sleep' && rnd(miauBkt, 53, 11) < 0.15 && miauT < 1400;
+  if (maullando && cat.lastMiau !== miauBkt) { cat.lastMiau = miauBkt; catMiau(); }
   const u = clamp(depthScale(cat.y) / 12, 0.65, 1.8) * 4.6;
   const g = ctx;
   g.fillStyle = 'rgba(0,0,0,0.22)';
@@ -3501,6 +3524,17 @@ function drawCat(now, nocturno) {
     g.fillStyle = '#cfe3ff';
     g.font = `${Math.round(6 * u)}px monospace`;
     g.fillText('z', cat.x + 8 * u, cat.y - (10 + zt * 8) * u);
+    g.globalAlpha = 1;
+  }
+  if (maullando) {
+    const k = miauT / 1400;
+    g.globalAlpha = 0.95 * (1 - k * k);
+    g.font = `bold ${Math.round(6.5 * u)}px monospace`;
+    g.strokeStyle = 'rgba(0,0,0,0.65)'; g.lineWidth = 3;
+    g.fillStyle = '#ffd9a0';
+    const mx = cat.x - 11 * u, my = cat.y - (18 + k * 4) * u;
+    g.strokeText('miau~', mx, my);
+    g.fillText('miau~', mx, my);
     g.globalAlpha = 1;
   }
 }
