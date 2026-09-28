@@ -247,11 +247,21 @@ let rtcStream = null, rtcTrack = null, rtcOn = false, rtcAviso = false, rtcBloqu
 let rtcPantalla = null, rtcPantallaTrack = null, rtcComparto = false, rtcReneg = false;
 const rtcComparte = new Map();  // peerId -> true si está compartiendo pantalla
 
+// ---------- Cámaras ----------
+// Mismo criterio que la pantalla: no es una red nueva, es otro track de video
+// sobre la malla que ya existe. Se distingue de la pantalla por el id del
+// MediaStream, que viaja en el aviso 'rtc-cam' (el msid se conserva entre pares).
+let rtcCamStream = null, rtcCamTrack = null, rtcCamOn = false;
+const rtcCamPeers = new Map();  // peerId -> true si tiene la cámara prendida
+const rtcCamSid = new Map();    // peerId -> id del stream de su cámara
+const rtcCamVivo = new Map();   // peerId -> MediaStream recibido de su cámara
+const rtcVideoPend = new Map(); // peerId -> [streams de video sin clasificar aún]
+
 // Con quién tiene que haber conexión: si yo hablo, o me comparten el micro, o me
 // comparten la pantalla. Ojo: esto es lo que hace que compartir pantalla funcione
 // aunque nadie tenga el micro abierto.
 function rtcConectaCon(peer) {
-  return rtcOn || rtcComparto || !!rtcMic.get(peer) || !!rtcComparte.get(peer);
+  return rtcOn || rtcComparto || rtcCamOn || !!rtcMic.get(peer) || !!rtcComparte.get(peer) || !!rtcCamPeers.get(peer);
 }
 
 function rtcNombreDe(peer) {
@@ -317,6 +327,8 @@ async function rtcRenegociar() {
       try {
         const yaEsta = rtcPantallaTrack && p.pc.getSenders().some((s) => s.track === rtcPantallaTrack);
         if (rtcPantallaTrack && !yaEsta) p.pc.addTrack(rtcPantallaTrack, rtcPantalla);
+        const camEsta = rtcCamTrack && p.pc.getSenders().some((s) => s.track === rtcCamTrack);
+        if (rtcCamTrack && !camEsta) p.pc.addTrack(rtcCamTrack, rtcCamStream);
         const of = await p.pc.createOffer();
         await p.pc.setLocalDescription(of);
         send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, reneg: 1 });
@@ -361,6 +373,115 @@ function rtcOcultarPantalla() {
   renderCallUI();
 }
 
+// ---------- Cámaras: prender, apagar y mostrar ----------
+async function rtcCamToggle() { if (rtcCamOn) rtcCamApagar(); else rtcCamPrender(); }
+async function rtcCamPrender() {
+  if (rtcCamOn) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('📷 Este navegador no deja usar la cámara.'); return; }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 480 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: false,
+    });
+  } catch { toast('📷 No se pudo abrir la cámara. Revisá el permiso del navegador.'); return; }
+  rtcCamStream = stream;
+  rtcCamTrack = stream.getVideoTracks()[0];
+  if (!rtcCamTrack) { rtcCamApagar(); return; }
+  rtcCamOn = true;
+  rtcCamTrack.onended = () => rtcCamApagar();
+  send({ type: 'rtc-cam', on: true, from: state.myId, sid: rtcCamStream.id });
+  rtcConectarConTodos();
+  renderCallUI(); renderCamStrip();
+  await rtcRenegociar();
+  toast('📷 Cámara prendida: se ve en los cuadrados de la derecha.');
+}
+function rtcCamApagar() {
+  const track = rtcCamTrack;
+  if (track) { try { track.stop(); } catch { /* ya estaba */ } }
+  rtcCamStream = null; rtcCamTrack = null;
+  if (!rtcCamOn) return;
+  rtcCamOn = false;
+  send({ type: 'rtc-cam', on: false, from: state.myId });
+  for (const p of rtcMesh.values()) {
+    try {
+      if (track) p.pc.getSenders().forEach((s) => { if (s.track === track) p.pc.removeTrack(s); });
+    } catch { /* ya cerrado */ }
+  }
+  renderCallUI(); renderCamStrip();
+  rtcRenegociar();
+}
+// Un video entrante puede ser cámara o pantalla: se decide por el id del stream
+// que anunció el 'rtc-cam'. Si el aviso todavía no llegó, queda pendiente y se
+// resuelve cuando llega (rtcResolverVideos).
+function rtcVideoEntrante(peer, stream) {
+  if (rtcCamSid.get(peer) === stream.id) { rtcCamVer(peer, stream); return; }
+  if (rtcComparte.get(peer)) { rtcVerPantalla(peer, stream); return; }
+  const arr = rtcVideoPend.get(peer) || [];
+  arr.push(stream); rtcVideoPend.set(peer, arr);
+}
+function rtcResolverVideos(peer) {
+  const arr = rtcVideoPend.get(peer);
+  if (!arr || !arr.length) return;
+  const resto = [];
+  for (const st of arr) {
+    if (rtcCamSid.get(peer) === st.id) rtcCamVer(peer, st);
+    else if (rtcComparte.get(peer)) rtcVerPantalla(peer, st);
+    else resto.push(st);
+  }
+  if (resto.length) rtcVideoPend.set(peer, resto); else rtcVideoPend.delete(peer);
+}
+function rtcCamVer(peer, stream) {
+  rtcCamVivo.set(peer, stream);
+  renderCamStrip();
+}
+// Tira de 3 cuadrados iguales en el margen derecho: vos + dos compañeros.
+// Los <video> viven en el DOM y solo se les cambia el srcObject cuando hace
+// falta, así el que ya está reproduciendo no parpadea en cada re-render.
+function renderCamStrip() {
+  const strip = document.getElementById('camStrip');
+  if (!strip) return;
+  const alguna = rtcCamOn || rtcCamPeers.size > 0;
+  strip.hidden = !alguna;
+  if (!alguna) return;
+  while (strip.children.length < 3) {
+    const d = document.createElement('div');
+    d.className = 'cam-slot off';
+    const v = document.createElement('video');
+    v.autoplay = true; v.playsInline = true; v.muted = true;
+    const off = document.createElement('div'); off.className = 'cam-off'; off.textContent = '📷 apagada';
+    const nom = document.createElement('div'); nom.className = 'cam-name';
+    d.append(v, off, nom);
+    strip.appendChild(d);
+  }
+  const otros = [...state.players.values()]
+    .filter((p) => p.id && p.id !== state.myId)
+    .sort((a, b) => ((rtcCamPeers.get(b.id) ? 1 : 0) - (rtcCamPeers.get(a.id) ? 1 : 0)) || String(a.name).localeCompare(String(b.name)))
+    .slice(0, 2);
+  const slots = [
+    { name: 'Vos', me: true },
+    ...otros.map((p) => ({ id: p.id, name: p.name })),
+  ];
+  while (slots.length < 3) slots.push(null);
+  slots.forEach((s, i) => {
+    const el = strip.children[i];
+    const v = el.querySelector('video');
+    const nom = el.querySelector('.cam-name');
+    const off = el.querySelector('.cam-off');
+    if (!s) {
+      if (v.srcObject) v.srcObject = null;
+      el.classList.add('off'); el.classList.remove('me');
+      nom.textContent = ''; off.textContent = '·';
+      return;
+    }
+    const stream = s.me ? (rtcCamOn ? rtcCamStream : null) : (rtcCamVivo.get(s.id) || null);
+    if (v.srcObject !== stream) { v.srcObject = stream; if (stream) v.play().catch(() => {}); }
+    el.classList.toggle('off', !stream);
+    el.classList.toggle('me', !!s.me);
+    nom.textContent = s.name;
+    off.textContent = '📷 apagada';
+  });
+}
+
 // El que tiene el id más chico alfabéticamente inicia. Así nunca se cruzan dos
 // ofertas del mismo par a la vez, que es lo que rompe las conexiones (glare).
 // Sin id propio no se inicia nunca: comparar '' contra cualquier cosa da true y
@@ -387,12 +508,16 @@ function rtcPar(peer) {
   if (rtcPantallaTrack) {
     try { p.pc.addTrack(rtcPantallaTrack, rtcPantalla); } catch { /* sin track */ }
   }
+  // Ídem la cámara: si ya estaba prendida, la conexión nace con el track puesto.
+  if (rtcCamTrack) {
+    try { p.pc.addTrack(rtcCamTrack, rtcCamStream); } catch { /* sin track */ }
+  }
   pc.onicecandidate = (e) => {
     if (e.candidate) send({ type: 'rtc-ice', to: peer, cand: e.candidate.toJSON(), from: state.myId });
   };
   // El audio va al <audio> suelto; el video a la ventana que ya usa YouTube.
   pc.ontrack = (e) => {
-    if (e.track.kind === 'video') rtcVerPantalla(peer, e.streams[0] || new MediaStream([e.track]));
+    if (e.track.kind === 'video') rtcVideoEntrante(peer, e.streams[0] || new MediaStream([e.track]));
     else rtcConectarAudio(peer, e.streams[0] || new MediaStream([e.track]));
   };
   pc.onconnectionstatechange = () => {
@@ -567,6 +692,7 @@ async function rtcAbrir() {
 let rtcAvisoHecho = false;
 function rtcCerrar() {
   if (rtcComparto) rtcDejarDeCompartir();
+  if (rtcCamOn) rtcCamApagar();
   if (rtcTrack) { try { rtcTrack.stop(); } catch { /* ya estaba */ } }
   rtcStream = null; rtcTrack = null; rtcOn = false;
   send({ type: 'rtc-hello', mic: false, from: state.myId });
@@ -587,6 +713,8 @@ function rtcSalirDePeer(peer) {
   rtcRefrescarBloqueo();
   const partia = rtcComparte.delete(peer);
   rtcMic.delete(peer); rtcNivel.delete(peer);
+  rtcCamPeers.delete(peer); rtcCamSid.delete(peer); rtcCamVivo.delete(peer); rtcVideoPend.delete(peer);
+  renderCamStrip();
   // Si se va el que compartía, se cae la ventana: si no queda clavada mostrando la
   // última imagen de su pantalla.
   if (partia && !rtcComparto) rtcOcultarPantalla();
@@ -620,6 +748,12 @@ function renderCallUI() {
     b.classList.toggle('on', rtcOn);
     b.style.opacity = rtcOn ? '1' : '0.65';
     b.title = rtcOn ? 'Micro abierto: queda así hasta que lo cierres' : 'Abrir el micro de la oficina (tecla M)';
+  }
+  const cb = document.getElementById('camBtn');
+  if (cb) {
+    cb.classList.toggle('on', rtcCamOn);
+    cb.style.opacity = rtcCamOn ? '1' : '0.65';
+    cb.title = rtcCamOn ? 'Cámara prendida: tocá para apagarla' : 'Prender tu cámara: se ve en los cuadrados de la derecha';
   }
   const sh = document.getElementById('shareBtn');
   if (sh) {
@@ -1241,7 +1375,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v48 · 27/09/2026';
+const VERSION = 'v49 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1294,10 +1428,12 @@ function layoutDesktopAudio() {
   const panel = document.getElementById('musicPanel');
   const call = document.getElementById('callBar');
   if (!button || !panel) return;
+  const strip = document.getElementById('camStrip');
   if (!document.body.classList.contains('desktop-rails')) {
     button.style.top = ''; button.style.right = ''; button.style.left = '';
     panel.style.top = ''; panel.style.right = ''; panel.style.left = '';
     if (call) { call.style.top = ''; call.style.right = ''; call.style.bottom = ''; }
+    if (strip) { strip.style.top = ''; strip.style.right = ''; }
     return;
   }
   const list = document.getElementById('playerList');
@@ -1311,6 +1447,16 @@ function layoutDesktopAudio() {
     call.style.right = (12 + buttonW + 6) + 'px';
   }
   panel.style.top = (top + buttonH + 8) + 'px'; panel.style.right = '12px'; panel.style.left = 'auto';
+  // La tira de cámaras arranca debajo de la fila de botones; si el panel de la
+  // radio está abierto, se corre debajo de él para no taparse.
+  if (strip) {
+    let st = top + buttonH + 8;
+    if (!panel.classList.contains('hidden')) {
+      const ph = panel.getBoundingClientRect().height || 0;
+      st += ph + 8;
+    }
+    strip.style.top = st + 'px'; strip.style.right = '12px';
+  }
 }
 
 function connect() {
@@ -1565,11 +1711,25 @@ function handleMsg(msg) {
         rtcComparte.set(msg.from, true);
         if (rtcConectaCon(msg.from) && rtcIniciyo(msg.from)) rtcOfrecer(msg.from);
         else rtcPar(msg.from);
+        rtcResolverVideos(msg.from);
         renderCallUI();
       } else {
         rtcComparte.delete(msg.from);
         if (!rtcComparte.size) rtcOcultarPantalla();
       }
+      break;
+    }
+    case 'rtc-cam': {
+      if (msg.on) {
+        rtcCamPeers.set(msg.from, true);
+        if (msg.sid) rtcCamSid.set(msg.from, msg.sid);
+        if (rtcConectaCon(msg.from) && rtcIniciyo(msg.from)) rtcOfrecer(msg.from);
+        else rtcPar(msg.from);
+        rtcResolverVideos(msg.from);
+      } else {
+        rtcCamPeers.delete(msg.from); rtcCamSid.delete(msg.from); rtcCamVivo.delete(msg.from);
+      }
+      renderCamStrip();
       break;
     }
     case 'left':
@@ -2155,7 +2315,7 @@ function updateMpNow() {
   else if (music.playing) el.textContent = `Sonando para todos: ${kindLabel(it.kind)} · ${it.id}`;
   else el.textContent = `Pausado: ${kindLabel(it.kind)} · ${it.id}`;
 }
-function mpToggle() { const p = document.getElementById('musicPanel'); if (p) p.classList.toggle('hidden'); }
+function mpToggle() { const p = document.getElementById('musicPanel'); if (p) p.classList.toggle('hidden'); layoutDesktopAudio(); }
 function setWantVideo(v) {
   wantVideo = !!v;
   const a = document.getElementById('mpAudio'), b = document.getElementById('mpView');
@@ -2340,6 +2500,7 @@ function renderPlayerList() {
     }).join('');
   renderCallUI();
   layoutDesktopAudio();
+  renderCamStrip();
 }
 
 // ---------- Movimiento en perspectiva ----------
@@ -3019,6 +3180,7 @@ function init() {
   // Llamada de la oficina: micro, pantalla y volumen
   const bMic = document.getElementById('micCallBtn'); if (bMic) bMic.onclick = rtcToggle;
   const bShare = document.getElementById('shareBtn'); if (bShare) bShare.onclick = rtcCompartir;
+  const bCam = document.getElementById('camBtn'); if (bCam) bCam.onclick = rtcCamToggle;
   const cVol = document.getElementById('callVol');
   if (cVol) cVol.oninput = rtcCallVolumen;
   const bFloat = document.getElementById('videoFloat'); if (bFloat) bFloat.onclick = () => setVideoFloat(!videoFloat);

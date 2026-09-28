@@ -206,6 +206,9 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #micCallBtn { font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
 #micCallBtn:hover { background: #1f2736; }
 #micCallBtn.on { background: #2a1420; border-color: #e05252; color: #ff8f8f; }
+#camBtn { font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+#camBtn:hover { background: #1f2736; }
+#camBtn.on { background: #14261a; border-color: #7ee787; color: #7ee787; }
 #shareBtn { font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
 #shareBtn:hover { background: #1f2736; }
 #shareBtn.on { background: #14261a; border-color: #7ee787; color: #7ee787; }
@@ -472,6 +475,7 @@ body.spectator-mode #attChip,
 body.spectator-mode #statusBar,
 body.spectator-mode #hint,
 body.spectator-mode #stick,
+body.spectator-mode #camBtn,
 body.spectator-mode #musicBtn,
 body.spectator-mode #musicPanel { display: none !important; }
 body.spectator-mode #musicPanel { display: none !important; }
@@ -504,7 +508,7 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
    Va al final del archivo a propósito: pisa los paddings sueltos que cada botón
    traía (y los de las media queries), así la columna queda pareja. */
 #callBar { align-items: flex-end; }
-#micCallBtn, #shareBtn, #musicBtn {
+#micCallBtn, #camBtn, #shareBtn, #musicBtn {
   box-sizing: border-box; width: 38px; height: 38px; padding: 0 !important;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 14px !important; line-height: 1;
@@ -514,3 +518,30 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
 /* En desktop-rails la barra de llamada va arriba a la derecha, en fila,
    justo debajo del panel de jugadores (top/right los pone layoutDesktopAudio). */
 body.desktop-rails #callBar { flex-direction: row; align-items: center; gap: 6px; }
+
+
+/* ---- Cámaras del equipo: 3 cuadrados iguales en el margen derecho ---- */
+#camStrip {
+  position: fixed; right: 8px; top: 110px; z-index: 44;
+  display: flex; flex-direction: column; gap: 8px;
+  width: 110px;
+}
+body.desktop-rails #camStrip { width: calc(var(--desktop-rail-width) - 24px); }
+.cam-slot {
+  position: relative; width: 100%; aspect-ratio: 1 / 1; overflow: hidden;
+  background: #0b0f17; border: 3px solid #0c0f16; box-shadow: 0 0 0 2px #3b4560;
+}
+.cam-slot video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-slot.me video { transform: scaleX(-1); } /* espejo, como se espera de la propia cara */
+.cam-slot.off video { display: none; }
+.cam-slot .cam-off {
+  position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+  font-size: 8px; color: #55607a; text-align: center;
+}
+.cam-slot.off .cam-off { display: flex; }
+.cam-slot .cam-name {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 4px 6px;
+  font-size: 7px; color: #fff; background: rgba(10, 12, 18, 0.75);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cam-slot.off .cam-name:empty { display: none; }
