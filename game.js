@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v81 · 28/09/2026';
+const VERSION = 'v82 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3259,8 +3259,11 @@ function drawSky(now, hf, sky) {
   if (hf >= 6 && hf <= 19) {
     const t = (hf - 6) / 13;
     const sx = t * W, sy = H * 0.75 - Math.sin(Math.PI * t) * H * 0.55;
+    // Con cielo cubierto el sol apenas se adivina detrás de las nubes
+    g.globalAlpha = clima.ok ? Math.max(0.06, 1 - clima.nubes * 0.92) : 1;
     g.fillStyle = 'rgba(255,215,106,0.35)'; g.beginPath(); g.arc(sx, sy, 8, 0, 7); g.fill();
     g.fillStyle = '#ffd76a'; g.beginPath(); g.arc(sx, sy, 4, 0, 7); g.fill();
+    g.globalAlpha = 1;
   } else {
     const hn = (hf >= 19 ? hf - 19 : hf + 5) / 11;
     const mx = hn * W, my = H * 0.7 - Math.sin(Math.PI * hn) * H * 0.5;
@@ -3273,6 +3276,15 @@ function drawSky(now, hf, sky) {
     const cy = 8 + i * 10;
     g.fillStyle = `rgba(255,255,255,${cloudA.toFixed(2)})`;
     g.fillRect(cx, cy, 24, 4); g.fillRect(cx + 4, cy - 2, 14, 2); g.fillRect(cx + 6, cy + 4, 12, 2);
+  }
+  // Cielo encapotado: velo gris sobre cielo y sol según la cobertura REAL de
+  // nubes; con lluvia/tormenta el gris es más oscuro y plomizo.
+  if (clima.ok && clima.nubes > 0.25) {
+    const tw = climaTipo();
+    const plomizo = tw === 'tormenta' || tw === 'lluvia' || tw === 'llovizna';
+    const a = clima.nubes * (plomizo ? 0.72 : 0.55) * (1 - sky.star * 0.55);
+    g.fillStyle = plomizo ? `rgba(86,94,110,${a.toFixed(2)})` : `rgba(150,158,170,${a.toFixed(2)})`;
+    g.fillRect(0, 0, W, H);
   }
   const night = sky.star;
   for (const b of BUILDINGS) {
@@ -3289,13 +3301,13 @@ function drawSky(now, hf, sky) {
   // ---- Clima real por encima del skyline (y debajo del marco) ----
   if (clima.ok) {
     const tipo = climaTipo();
-    const extra = Math.round(clima.nubes * 6);
-    const oscura = tipo === 'tormenta' || tipo === 'lluvia';
+    const extra = Math.round(clima.nubes * 10);
+    const oscura = tipo === 'tormenta' || tipo === 'lluvia' || tipo === 'llovizna';
     for (let i = 0; i < extra; i++) {
-      const cx = ((now * (0.006 + i * 0.001) + i * 47) % (W + 60)) - 30;
-      const cy = 4 + rnd(i, 51, 8) * (H * 0.45);
-      g.fillStyle = oscura ? 'rgba(70,78,96,0.75)' : `rgba(226,232,240,${(0.45 + clima.nubes * 0.3).toFixed(2)})`;
-      g.fillRect(cx, cy, 30, 5); g.fillRect(cx + 5, cy - 3, 18, 3); g.fillRect(cx + 8, cy + 5, 16, 3);
+      const cx = ((now * (0.005 + i * 0.0012) + i * 53) % (W + 80)) - 40;
+      const cy = 3 + rnd(i, 51, 8) * (H * 0.5);
+      g.fillStyle = oscura ? 'rgba(64,72,88,0.8)' : `rgba(214,220,230,${(0.5 + clima.nubes * 0.3).toFixed(2)})`;
+      g.fillRect(cx, cy, 44, 6); g.fillRect(cx + 7, cy - 3, 28, 3); g.fillRect(cx + 10, cy + 6, 24, 3);
     }
     if (tipo === 'niebla') {
       g.fillStyle = 'rgba(190,198,208,0.30)'; g.fillRect(0, 0, W, H);
