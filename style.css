@@ -568,3 +568,14 @@ body.desktop-rails .cam-slot { height: auto; flex: 0 0 calc((100% - 20px) / 3); 
 #attBtn, #emojiBtn, #micBtn, #recTrash {
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif;
 }
+
+/* Botoncitos de cada cuadro de cámara: cámara y micro */
+.cam-ctls { position: absolute; top: 6px; right: 6px; display: flex; gap: 5px; z-index: 2; }
+.cc {
+  width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; font-size: 12px; line-height: 1; cursor: pointer; border-radius: 8px;
+  background: rgba(10, 13, 20, 0.72); border: 2px solid #2c3550; color: #cdd5e4;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif;
+}
+.cc:hover { background: rgba(38, 48, 74, 0.9); }
+.cc.on { border-color: #7ee787; }

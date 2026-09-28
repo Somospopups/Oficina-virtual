@@ -256,6 +256,8 @@ const rtcCamPeers = new Map();  // peerId -> true si tiene la cámara prendida
 const rtcCamSid = new Map();    // peerId -> id del stream de su cámara
 const rtcCamVivo = new Map();   // peerId -> MediaStream recibido de su cámara
 const rtcVideoPend = new Map(); // peerId -> [streams de video sin clasificar aún]
+const rtcCamOculto = new Set(); // cámaras remotas que elegí no ver (solo local)
+const rtcMuteLocal = new Set(); // compañeros silenciados solo para mí
 
 // Con quién tiene que haber conexión: si yo hablo, o me comparten el micro, o me
 // comparten la pantalla. Ojo: esto es lo que hace que compartir pantalla funcione
@@ -450,7 +452,11 @@ function renderCamStrip() {
     v.autoplay = true; v.playsInline = true; v.muted = true;
     const off = document.createElement('div'); off.className = 'cam-off'; off.textContent = '📷 apagada';
     const nom = document.createElement('div'); nom.className = 'cam-name';
-    d.append(v, off, nom);
+    const ct = document.createElement('div'); ct.className = 'cam-ctls';
+    const bc = document.createElement('button'); bc.type = 'button'; bc.className = 'cc cc-cam';
+    const bm = document.createElement('button'); bm.type = 'button'; bm.className = 'cc cc-mic';
+    ct.append(bc, bm);
+    d.append(v, off, nom, ct);
     strip.appendChild(d);
   }
   const otros = [...state.players.values()]
@@ -467,18 +473,59 @@ function renderCamStrip() {
     const v = el.querySelector('video');
     const nom = el.querySelector('.cam-name');
     const off = el.querySelector('.cam-off');
+    const ct = el.querySelector('.cam-ctls');
+    const bc = el.querySelector('.cc-cam');
+    const bm = el.querySelector('.cc-mic');
     if (!s) {
       if (v.srcObject) v.srcObject = null;
       el.classList.add('off'); el.classList.remove('me');
       nom.textContent = ''; off.textContent = '·';
+      if (ct) ct.hidden = true;
       return;
     }
-    const stream = s.me ? (rtcCamOn ? rtcCamStream : null) : (rtcCamVivo.get(s.id) || null);
+    if (ct) ct.hidden = false;
+    const stream = s.me
+      ? (rtcCamOn ? rtcCamStream : null)
+      : (rtcCamOculto.has(s.id) ? null : (rtcCamVivo.get(s.id) || null));
     if (v.srcObject !== stream) { v.srcObject = stream; if (stream) v.play().catch(() => {}); }
     el.classList.toggle('off', !stream);
     el.classList.toggle('me', !!s.me);
     nom.textContent = s.name;
-    off.textContent = '📷 apagada';
+    if (s.me) {
+      // Mi cuadro: prendo/apago MI cámara y MI micro de la oficina.
+      off.textContent = '📷 apagada';
+      bc.textContent = '📷'; bc.classList.toggle('on', rtcCamOn);
+      bc.title = rtcCamOn ? 'Apagar tu cámara' : 'Prender tu cámara';
+      bc.onclick = (e) => { e.stopPropagation(); rtcCamToggle(); };
+      bm.textContent = rtcOn ? '🎤' : '🔇'; bm.classList.toggle('on', rtcOn);
+      bm.title = rtcOn ? 'Cerrar tu micro' : 'Abrir tu micro';
+      bm.onclick = (e) => { e.stopPropagation(); rtcToggle(); };
+    } else {
+      // Cuadro de un compañero: apagar acá es SOLO local (dejar de verlo u
+      // oírlo yo); su cámara y micro reales no se tocan.
+      const id = s.id;
+      const oculta = rtcCamOculto.has(id);
+      off.textContent = oculta ? '📷 oculta por vos' : '📷 apagada';
+      bc.textContent = '📷'; bc.classList.toggle('on', !oculta && !!rtcCamVivo.get(id));
+      bc.title = oculta ? 'Volver a ver su cámara' : 'Dejar de ver su cámara (solo para vos)';
+      bc.onclick = (e) => {
+        e.stopPropagation();
+        if (rtcCamOculto.has(id)) rtcCamOculto.delete(id); else rtcCamOculto.add(id);
+        renderCamStrip();
+      };
+      const muteado = rtcMuteLocal.has(id);
+      const suMic = !!rtcMic.get(id);
+      bm.textContent = muteado ? '🔇' : '🎤';
+      bm.classList.toggle('on', suMic && !muteado);
+      bm.title = muteado ? 'Volver a escucharlo' : (suMic ? 'Silenciarlo (solo para vos)' : 'No tiene el micro abierto');
+      bm.onclick = (e) => {
+        e.stopPropagation();
+        if (rtcMuteLocal.has(id)) rtcMuteLocal.delete(id); else rtcMuteLocal.add(id);
+        const viv = rtcVivo.get(id);
+        if (viv) { try { viv.audio.muted = rtcMuteLocal.has(id); } catch { /* ya no está */ } }
+        renderCamStrip();
+      };
+    }
   });
   layoutDesktopAudio(); // recalcular alturas ahora que los cuadros existen
 }
@@ -599,8 +646,8 @@ function rtcRefrescarBloqueo() {
   rtcBloqueado = hayPausado;
   renderCallUI();
 }
-function rtcReintentar(audio) {
-  audio.muted = false;
+function rtcReintentar(audio, peer) {
+  audio.muted = peer !== undefined ? rtcMuteLocal.has(peer) : false;
   audio.volume = rtcVolumen();
   return audio.play().then(() => true).catch(() => false);
 }
@@ -613,7 +660,7 @@ function rtcDesbloquearPorGesto() {
     const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
     if (ctx.state === 'suspended') ctx.resume();
   } catch { /* medir el nivel es opcional */ }
-  Promise.allSettled([...rtcVivo.values()].map((v) => rtcReintentar(v.audio))).then(() => rtcRefrescarBloqueo());
+  Promise.allSettled([...rtcVivo.entries()].map(([peer, v]) => rtcReintentar(v.audio, peer))).then(() => rtcRefrescarBloqueo());
 }
 window.addEventListener('pointerdown', rtcDesbloquearPorGesto, true);
 window.addEventListener('keydown', rtcDesbloquearPorGesto, true);
@@ -625,11 +672,13 @@ function rtcConectarAudio(peer, stream) {
     // El companero puede renegociar el stream. Si el <audio> quedo en pausa por el
     // bloqueo del navegador, hay que volver a pedir el play: si no, este audio se
     // queda mudo para siempre.
-    if (v.audio.paused) rtcReintentar(v.audio).then(() => rtcRefrescarBloqueo());
+    if (v.audio.paused) rtcReintentar(v.audio, peer).then(() => rtcRefrescarBloqueo());
+    v.audio.muted = rtcMuteLocal.has(peer);
   }
   else {
     const a = document.createElement('audio');
     a.autoplay = true; a.playsInline = true;
+    a.muted = rtcMuteLocal.has(peer);
     a.srcObject = stream;
     // Chrome bloquea el audio si la pagina no tuvo gesto. Como estos <audio>
     // aparecen despues de entrar, a veces hay que pedir un click.
@@ -770,6 +819,7 @@ function renderCallUI() {
   if (vb) vb.classList.toggle('hidden', !rtcOn && !rtcVivo.size);
   const pl = document.getElementById('playerList');
   if (pl) pl.classList.toggle('mic-off', !rtcOn && !rtcVivo.size);
+  renderCamStrip(); // que los botoncitos de cada cuadro reflejen mic/cámara al toque
 }
 
 function loadCharAssets() {
@@ -1376,7 +1426,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v52 · 27/09/2026';
+const VERSION = 'v53 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
