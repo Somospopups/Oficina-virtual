@@ -1123,14 +1123,14 @@ function loadCharAssets() {
     im.onload = () => {
       const r = flipCanvas(im);
       charAssets[k] = { down: im, left: r, right: r, up: oscurecer(im) };
-      if (k === 'milo') {
-        // Milo tiene espalda REAL dibujada (no la silueta oscurecida)
+      if (k === 'milo' || k === 'ger') {
+        // Milo y Ger tienen espalda REAL dibujada (no la silueta oscurecida)
         const esp = new Image();
-        esp.onload = () => { charAssets.milo.up = esp; };
-        esp.src = 'sprites/milo_up.png?v=1';
+        esp.onload = () => { charAssets[k].up = esp; };
+        esp.src = `sprites/${k}_up.png?v=1`;
       }
       // Ovni y Facu: caminata muñeco-de-papel desde su propio PNG (misma
-      // calidad exacta). Ger ya tiene su ciclo aprobado y Milo su hoja.
+      // calidad exacta). Ger y Milo tienen su propia hoja con las 4 direcciones.
       if (k !== 'ger' && k !== 'milo') walkAssets[k] = { down: buildPasoFrames(im) };
       loadSeat();
     };
@@ -3622,7 +3622,14 @@ const walkAssets = {};
 {
   const img = (n) => { const i = new Image(); i.src = `sprites/${n}.png?v=1`; return i; };
   const g2 = img('ger_walk2'), g3 = img('ger_walk3'), g4 = img('ger_walk4');
-  walkAssets.ger = { down: [g2, g3, g4, g3] };
+  const gl1 = img('ger_wl1'), gl2 = img('ger_wl2'), gl3 = img('ger_wl3');
+  const gr1 = img('ger_wr1'), gr2 = img('ger_wr2'), gr3 = img('ger_wr3');
+  walkAssets.ger = {
+    down: [g2, g3, g4, g3],
+    up: [img('ger_wu1'), img('ger_wu2')],
+    left: [gl1, gl2, gl3, gl2],
+    right: [gr1, gr2, gr3, gr2],
+  };
   const l1 = img('milo_wl1'), l2 = img('milo_wl2'), l3 = img('milo_wl3');
   const r1 = img('milo_wr1'), r2 = img('milo_wr2'), r3 = img('milo_wr3');
   walkAssets.milo = {
