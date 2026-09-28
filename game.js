@@ -1058,7 +1058,7 @@ function renderCallUI() {
     sh.disabled = ocupado;
     sh.style.opacity = rtcComparto ? '1' : (ocupado ? '0.35' : '0.65');
     sh.title = ocupado ? 'Ya hay alguien compartiendo pantalla'
-      : (rtcComparto ? 'Dejar de compartir (tecla S)' : 'Compartir tu pantalla con los de la oficina (tecla S)');
+      : (rtcComparto ? 'Dejar de compartir' : 'Compartir tu pantalla con los de la oficina');
   }
   const vb = document.getElementById('callVolBox');
   if (vb) vb.classList.toggle('hidden', !rtcOn && !rtcVivo.size);
@@ -1600,13 +1600,6 @@ function getSitSprite(charKey, face, occupied, frame = 0) {
   return out;
 }
 
-function drawWaveArm(g, colorIdx, time) {
-  const shirt = SHIRT_COLORS[colorIdx % 8];
-  const osc = Math.sin(time * 0.015) > 0 ? 0 : 2;
-  g.fillStyle = shirt; g.fillRect(26 + osc, 12, 2, 10);
-  g.fillStyle = '#f0c8a0'; g.fillRect(26 + osc, 10, 2, 2);
-}
-
 // ---------- Estado / DOM ----------
 const state = { myId: null, myName: '', myColor: 0, players: new Map(), joined: false, spectating: false };
 const spectatorWhisperBacklog = [];
@@ -1671,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v73 · 27/09/2026';
+const VERSION = 'v74 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1714,7 +1707,6 @@ function myPublic() {
     id: me.id, name: me.name, char: me.char, color: me.color, x: me.x, y: me.y, dir: me.dir,
     moving: me.moving, seated: me.seated, status: me.status, joinTs: state.joinTs || 0,
     bubble: me.bubble, bubbleUntil: me.bubbleUntil, emote: me.emote, emoteUntil: me.emoteUntil,
-    wave: me.wave, waveUntil: me.waveUntil,
   };
 }
 function sendMoveNow() { const p = myPublic(); if (p) send(Object.assign({ type: 'move' }, p)); }
@@ -2125,12 +2117,8 @@ function handleMsg(msg) {
     case 'status': { const p = state.players.get(msg.id); if (p) p.status = msg.status; renderPlayerList(); break; }
     case 'emote': { const p = state.players.get(msg.id); if (p) { p.emote = msg.emote; p.emoteUntil = performance.now() + 3000; } break; }
     case 'nudge': { if (!dedupe(msg)) localZumb(msg.from || 'Alguien', false, msg.id); break; }
-    case 'wave': {
-      const p = state.players.get(msg.id);
-      if (p) { p.wave = true; p.waveUntil = performance.now() + 1500; }
-      if (msg.at && msg.at === state.myName) { addChat(null, `${p ? p.name : 'Alguien'} te saludó 👋`, 'system'); beep(740, 0.09); }
-      break;
-    }
+    // 'wave' eliminado: el saludo de cercanía quedaba feo. Los mensajes de
+    // clientes viejos caen al vacío sin romper nada.
     case 'profile': { const p = state.players.get(msg.id); if (p) { p.name = msg.name; p.char = msg.char || p.char; p.color = msg.color; } renderPlayerList(); break; }
     case 'auth-fail':
       ejectSelf(msg.reason === 'dup' ? '⚠️ Ese DNI ya está en la oficina (doble sesión).' : '⛔ DNI no autorizado.');
@@ -2938,21 +2926,15 @@ window.addEventListener('keydown', (e) => {
   if (key === 'h') { helpOverlay.classList.toggle('hidden'); return; }
     if (key === 'p') { mpToggle(); return; }
     if (key === 'm') { rtcToggle(); return; }
-    if (key === 's') { rtcCompartir(); return; }
+    // OJO: nada de atajos con W/A/S/D — son las teclas de movimiento.
+    // Compartir pantalla va solo por el botón 💻.
   if (e.key === 'Escape') { helpOverlay.classList.add('hidden'); return; }
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 3) { setStatus(STATUS_KEYS[n - 1]); return; }
   if (n === 4) { doZumbido(); return; }
-  const emoteMap = { z: '👋', x: '😂', c: '🎉', v: '👍', b: '🤔', n: '🔥', m: '☕' };
+  const emoteMap = { z: '👋', x: '😂', c: '🎉', v: '👍', b: '🤔', n: '🔥' };
   const em = emoteMap[key];
   if (em) { send({ type: 'emote', id: state.myId, emote: em }); const me = state.players.get(state.myId); if (me) { me.emote = em; me.emoteUntil = performance.now() + 3000; } return; }
-  if (key === 'f') {
-    const near = nearestPlayer();
-    send({ type: 'wave', id: state.myId, at: near ? near.name : null });
-    const me = state.players.get(state.myId);
-    if (me) { me.wave = true; me.waveUntil = performance.now() + 1500; }
-    if (near) { addChat(null, `Saludaste a ${near.name} 👋`, 'system'); beep(600, 0.06); }
-  }
 }, true);
 window.addEventListener('keyup', (e) => {
   keys[e.key.toLowerCase()] = false;
@@ -3325,7 +3307,7 @@ function update(dt) {
 
   const near = nearestPlayer();
   if (near) {
-    hintBox.innerHTML = `Cerca de <b>${esc(near.name)}</b> — <span class="key">F</span> saludar · <span class="key">/w ${esc(near.name)} msg</span> susurrar`;
+    hintBox.innerHTML = `Cerca de <b>${esc(near.name)}</b> — <span class="key">/w ${esc(near.name)} msg</span> susurrar`;
     hintBox.classList.add('show');
   } else hintBox.classList.remove('show');
 }
@@ -3445,11 +3427,6 @@ function render() {
         ctx.drawImage(spr, p.x - w / 2 + dx, p.y - h + dy, w, h);
       } else {
         ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
-      }
-      if (p.wave && now < p.waveUntil) {
-        ctx.save(); ctx.translate(p.x - w / 2, p.y - h); ctx.scale(w / 32, h / 44);
-        drawWaveArm(ctx, p.color || 0, now);
-        ctx.restore();
       }
       topY = p.y - h; shR = 11 * s * (spr.width / spr.height) * (32 / 44) * 1.9; fs = Math.round(3.1 * s);
     }
