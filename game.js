@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v88 · 28/09/2026';
+const VERSION = 'v89 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3562,6 +3562,14 @@ function catAplicarMimo(id) {
   cat.heartsUntil = performance.now() + 3000;
   beep(430, 0.05); setTimeout(() => beep(350, 0.07), 130);  // ronroneo cortito
 }
+// Frames de caminata por personaje (por ahora solo Ger, a modo de prueba).
+// Quieto usa SIEMPRE el sprite original; estos solo aparecen al moverse.
+const walkAssets = {};
+{
+  const arr = [];
+  for (let i = 1; i <= 4; i++) { const im = new Image(); im.src = `sprites/ger_walk${i}.png?v=1`; arr.push(im); }
+  walkAssets.ger = arr;
+}
 // Sprites de Michi (hoja del usuario, recortada y con fondo transparente)
 const catImgs = {};
 for (const n of ['sleep', 'sit', 'stand_f', 'stand_l', 'stand_r', 'walk_l1', 'walk_l2', 'walk_l3', 'walk_r1', 'walk_r2', 'walk_r3', 'happy']) {
@@ -3750,7 +3758,17 @@ function render() {
       // 128x176 y su look pixelado se banca cualquier escala.
       const sRaw = depthScale(p.y);
       const s = conAsset ? Math.min(sRaw, spr.height / 44) : sRaw;
-      const h = 44 * s, w = h * (spr.width / spr.height);
+      // Ciclo de caminata real si el personaje tiene frames: zancada derecha →
+      // paso → zancada izquierda → paso. El tamaño (s) sale del sprite base
+      // para que no cambie la altura al arrancar o frenar.
+      let dspr = spr;
+      const wf = walkAssets[p.char || 'ger'];
+      if (p.moving && wf) {
+        const seq = [1, 2, 3, 2];
+        const wi = wf[seq[Math.floor(now / 160) % 4]];
+        if (wi && wi.complete && wi.naturalWidth) dspr = wi;
+      }
+      const h = 44 * s, w = h * (dspr.width / dspr.height);
       ctx.imageSmoothingEnabled = conAsset;              // ver nota arriba del setTransform
       if (conAsset) ctx.imageSmoothingQuality = 'high';
 
@@ -3764,9 +3782,9 @@ function render() {
         const ph = Math.floor(now / 150) % 2;
         const dy = ph ? -s * 0.4 : s * 0.1;
         const dx = ph ? s * 0.28 : -s * 0.28;
-        ctx.drawImage(spr, p.x - w / 2 + dx, p.y - h + dy, w, h);
+        ctx.drawImage(dspr, p.x - w / 2 + dx, p.y - h + dy, w, h);
       } else {
-        ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
+        ctx.drawImage(dspr, p.x - w / 2, p.y - h, w, h);
       }
       topY = p.y - h; shR = 11 * s * (spr.width / spr.height) * (32 / 44) * 1.9; fs = Math.round(3.1 * s);
     }
