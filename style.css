@@ -165,6 +165,20 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 }
 #btnE.activo { border-color: #ffd76a; color: #ffd76a; background: rgba(64, 52, 16, 0.55); }
 body.spectator-mode #btnE { display: none !important; }
+/* Menú de acciones estilo Sims (clic/tap en la cabeza de un personaje) */
+#accMenu {
+  position: fixed; z-index: 60; min-width: 148px;
+  background: #10141d; border: 2px solid #3b4560;
+  font-family: 'Press Start 2P', monospace; font-size: 9px; color: #cfd8ea;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.45);
+}
+#accMenu.hidden { display: none; }
+#accMenu .am-title {
+  padding: 7px 9px; background: #1a2130; color: #ffd76a;
+  border-bottom: 2px solid #3b4560; white-space: nowrap;
+}
+#accMenu .am-item { padding: 8px 9px; cursor: pointer; white-space: nowrap; }
+#accMenu .am-item:hover { background: #24304a; color: #ffffff; }
 #game { touch-action: none; }
 
 @media (max-width: 900px) {

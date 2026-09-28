@@ -1672,7 +1672,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v91 · 28/09/2026';
+const VERSION = 'v92 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -4024,6 +4024,73 @@ function init() {
   const attachmentClose = document.getElementById('attachmentClose');
   if (attachmentClose) attachmentClose.onclick = closeAttachmentPreview;
   if (attachmentModal) attachmentModal.addEventListener('click', (e) => { if (e.target === attachmentModal) closeAttachmentPreview(); });
+
+  // ---------- Menú de acciones estilo Sims: clic/tap sobre un personaje ----------
+  const accMenu = document.getElementById('accMenu');
+  const accCerrar = () => { if (accMenu) { accMenu.classList.add('hidden'); accMenu.innerHTML = ''; } };
+  function alturaDe(p) {
+    const kid = (CHAR_DEF[p.char || 'ger'] || {}).kid;
+    if (p.seated) return 48 * sitScale(p.y) * (kid ? 0.9 : 1);
+    const spr = charAssets[p.char || 'ger'] && charAssets[p.char || 'ger'].down;
+    const sRaw = depthScale(p.y);
+    const s = spr ? Math.min(sRaw, spr.height / 44) : sRaw;
+    return 44 * s * (kid ? 0.78 : 1);
+  }
+  function accAbrir(items, titulo, cx, cy) {
+    if (!accMenu) return;
+    accMenu.innerHTML = '';
+    const t = document.createElement('div');
+    t.className = 'am-title'; t.textContent = titulo;
+    accMenu.appendChild(t);
+    items.forEach((it) => {
+      const d = document.createElement('div');
+      d.className = 'am-item'; d.textContent = it.t;
+      d.addEventListener('click', (ev) => { ev.stopPropagation(); accCerrar(); it.f(); });
+      accMenu.appendChild(d);
+    });
+    accMenu.classList.remove('hidden');
+    const mw = accMenu.offsetWidth, mh = accMenu.offsetHeight;
+    accMenu.style.left = Math.max(6, Math.min(window.innerWidth - mw - 6, cx + 12)) + 'px';
+    accMenu.style.top = Math.max(6, Math.min(window.innerHeight - mh - 6, cy - mh / 2)) + 'px';
+  }
+  canvas.addEventListener('click', (e) => {
+    if (!state.joined) return;
+    accCerrar();
+    const r = canvas.getBoundingClientRect();
+    const wx = ((e.clientX - r.left) * (canvas.width / r.width) - viewOX) / viewScale;
+    const wy = ((e.clientY - r.top) * (canvas.height / r.height) - viewOY) / viewScale;
+    // ¿Tocó a Michi?
+    const uCat = clamp(depthScale(cat.y) / 12, 0.65, 1.8) * 6.0;
+    if (Math.abs(wx - cat.x) < 9 * uCat && wy > cat.y - 17 * uCat && wy < cat.y + 3 * uCat) {
+      accAbrir([
+        { t: '❤ Acariciar', f: () => { if (catCerca()) catMimar(); else toast('🐈 Acercate más a Michi'); } },
+      ], '🐈 Michi', e.clientX, e.clientY);
+      return;
+    }
+    // ¿Tocó la cabeza de alguien? (mitad superior del cuerpo; el más cercano primero)
+    const list = [...state.players.values()].filter((p) => p.name && p.status !== 'ausente').sort((a, b) => b.y - a.y);
+    for (const p of list) {
+      const h = alturaDe(p);
+      if (Math.abs(wx - p.x) < h * 0.28 && wy > p.y - h * 1.05 && wy < p.y - h * 0.35) {
+        if (p.id === state.myId) {
+          const items = STATUS_KEYS.map((k) => ({ t: `${STATUS_INFO[k].emoji} ${STATUS_INFO[k].label}`, f: () => setStatus(k) }));
+          items.push({ t: '💨 Zumbido', f: doZumbido });
+          accAbrir(items, p.name, e.clientX, e.clientY);
+        } else {
+          accAbrir([
+            { t: '👋 Saludar', f: () => { send({ type: 'emote', id: state.myId, emote: '👋' }); const me = state.players.get(state.myId); if (me) { me.emote = '👋'; me.emoteUntil = performance.now() + 3000; } } },
+            { t: '💬 Susurrar', f: () => { chatInput.value = `/w ${p.name} `; chatInput.focus(); } },
+            { t: '💨 Zumbido', f: doZumbido },
+          ], p.name, e.clientX, e.clientY);
+        }
+        return;
+      }
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (accMenu && !accMenu.classList.contains('hidden') && !accMenu.contains(e.target) && e.target !== canvas) accCerrar();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') accCerrar(); });
 
   // botón de acción táctil (móvil): misma E que en PC
   const btnEEl = document.getElementById('btnE');
