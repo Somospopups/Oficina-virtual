@@ -165,20 +165,24 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 }
 #btnE.activo { border-color: #ffd76a; color: #ffd76a; background: rgba(64, 52, 16, 0.55); }
 body.spectator-mode #btnE { display: none !important; }
-/* Menú de acciones estilo Sims (clic/tap en la cabeza de un personaje) */
-#accMenu {
-  position: fixed; z-index: 60; min-width: 148px;
-  background: #10141d; border: 2px solid #3b4560;
-  font-family: 'Press Start 2P', monospace; font-size: 9px; color: #cfd8ea;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.45);
-}
+/* Menú de acciones estilo Sims: burbujas flotando ALREDEDOR del personaje */
+#accMenu { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
 #accMenu.hidden { display: none; }
-#accMenu .am-title {
-  padding: 7px 9px; background: #1a2130; color: #ffd76a;
-  border-bottom: 2px solid #3b4560; white-space: nowrap;
+#accMenu .am-title, #accMenu .am-item {
+  position: absolute; transform: translate(-50%, -50%);
+  background: #10141d; border: 2px solid #3b4560; border-radius: 8px;
+  font-family: 'Press Start 2P', monospace; font-size: 9px; color: #cfd8ea;
+  padding: 8px 11px; white-space: nowrap;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.5);
+  animation: amPop 0.16s ease-out backwards;
 }
-#accMenu .am-item { padding: 8px 9px; cursor: pointer; white-space: nowrap; }
-#accMenu .am-item:hover { background: #24304a; color: #ffffff; }
+#accMenu .am-title { color: #ffd76a; background: #1a2130; }
+#accMenu .am-item { pointer-events: auto; cursor: pointer; }
+#accMenu .am-item:hover { background: #24304a; color: #ffffff; border-color: #ffd76a; }
+@keyframes amPop {
+  from { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
 #game { touch-action: none; }
 
 @media (max-width: 900px) {

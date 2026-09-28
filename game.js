@@ -1672,7 +1672,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v92 · 28/09/2026';
+const VERSION = 'v93 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -4039,19 +4039,26 @@ function init() {
   function accAbrir(items, titulo, cx, cy) {
     if (!accMenu) return;
     accMenu.innerHTML = '';
+    accMenu.classList.remove('hidden');
+    const poner = (el, x, y) => {
+      el.style.left = Math.max(84, Math.min(window.innerWidth - 84, x)) + 'px';
+      el.style.top = Math.max(22, Math.min(window.innerHeight - 26, y)) + 'px';
+    };
+    // Nombre arriba, y las acciones flotando en elipse alrededor (estilo Sims)
     const t = document.createElement('div');
     t.className = 'am-title'; t.textContent = titulo;
     accMenu.appendChild(t);
-    items.forEach((it) => {
+    poner(t, cx, cy - 84);
+    const n = items.length;
+    items.forEach((it, i) => {
       const d = document.createElement('div');
       d.className = 'am-item'; d.textContent = it.t;
       d.addEventListener('click', (ev) => { ev.stopPropagation(); accCerrar(); it.f(); });
       accMenu.appendChild(d);
+      const ang = -Math.PI / 2 + (i + 1) * (2 * Math.PI / (n + 1));
+      poner(d, cx + Math.cos(ang) * 128, cy + Math.sin(ang) * 76);
+      d.style.animationDelay = (40 + i * 50) + 'ms';
     });
-    accMenu.classList.remove('hidden');
-    const mw = accMenu.offsetWidth, mh = accMenu.offsetHeight;
-    accMenu.style.left = Math.max(6, Math.min(window.innerWidth - mw - 6, cx + 12)) + 'px';
-    accMenu.style.top = Math.max(6, Math.min(window.innerHeight - mh - 6, cy - mh / 2)) + 'px';
   }
   canvas.addEventListener('click', (e) => {
     if (!state.joined) return;
