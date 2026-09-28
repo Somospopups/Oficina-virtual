@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v87 · 28/09/2026';
+const VERSION = 'v88 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3592,7 +3592,7 @@ function drawCat(now, nocturno) {
   const miauT = Date.now() - miauBkt * 9000;
   const maullando = pose !== 'sleep' && rnd(miauBkt, 53, 11) < 0.15 && miauT < 1400;
   if (maullando && cat.lastMiau !== miauBkt) { cat.lastMiau = miauBkt; catMiau(); }
-  const u = clamp(depthScale(cat.y) / 12, 0.65, 1.8) * 4.6;
+  const u = clamp(depthScale(cat.y) / 12, 0.65, 1.8) * 6.0;
   const g = ctx;
   g.fillStyle = 'rgba(0,0,0,0.22)';
   g.beginPath(); g.ellipse(cat.x, cat.y + 1.5 * u, 7.5 * u, 2.2 * u, 0, 0, Math.PI * 2); g.fill();
