@@ -450,12 +450,18 @@ function rtcCamVer(peer, stream) {
 // Tira de 3 cuadrados iguales en el margen derecho: vos + dos compañeros.
 // Los <video> viven en el DOM y solo se les cambia el srcObject cuando hace
 // falta, así el que ya está reproduciendo no parpadea en cada re-render.
+// La tira es "pegajosa": aparece la primera vez que alguien prende una cámara
+// y de ahí en más se queda (con los cuadros en "apagada" si hace falta). Si se
+// escondiera al apagar, el botoncito 📷 del cuadro desaparecería con ella y no
+// habría desde dónde volver a prenderla.
+let camStripSticky = false;
 function renderCamStrip() {
   const strip = document.getElementById('camStrip');
   if (!strip) return;
-  const alguna = rtcCamOn || rtcCamPeers.size > 0;
+  const alguna = rtcCamOn || rtcCamPeers.size > 0 || camStripSticky;
   strip.hidden = !alguna;
   if (!alguna) return;
+  camStripSticky = true;
   while (strip.children.length < 3) {
     const d = document.createElement('div');
     d.className = 'cam-slot off';
@@ -1459,7 +1465,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v55 · 27/09/2026';
+const VERSION = 'v56 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
