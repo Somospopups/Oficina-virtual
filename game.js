@@ -335,7 +335,7 @@ async function rtcRenegociar() {
         if (rtcTrack && !micEsta) p.pc.addTrack(rtcTrack, rtcStream);
         const of = await p.pc.createOffer();
         await p.pc.setLocalDescription(of);
-        send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, reneg: 1 });
+        send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, reneg: 1, spec: String(peer).startsWith('0tv') ? 1 : undefined });
       } catch { /* se reintenta con el siguiente hello */ }
     }
   } finally { rtcReneg = false; }
@@ -617,7 +617,7 @@ async function rtcOfrecer(peer) {
     }
     const of = await p.pc.createOffer();
     await p.pc.setLocalDescription(of);
-    send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, spec: state.spectating ? 1 : undefined });
+    send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, spec: (state.spectating || String(peer).startsWith('0tv')) ? 1 : undefined });
   } catch { /* se reconecta solo con el siguiente hello */ }
 }
 
@@ -660,6 +660,13 @@ async function rtcIceRespuesta(msg) {
     await p.pc.setRemoteDescription(msg.sdp);
     for (const c of p.pendingIce.splice(0)) { try { await p.pc.addIceCandidate(c); } catch { /* viejo */ } }
   } catch { /* renegociar */ }
+}
+
+// Un mensaje RTC es "de espectador" si lleva la marca o si cualquiera de las
+// puntas es un id 0tv. El doble chequeo protege la malla de los jugadores de
+// cualquier lugar donde falte poner la marca al enviar.
+function rtcEsSpec(msg) {
+  return !!msg.spec || String(msg.to || '').startsWith('0tv') || String(msg.from || '').startsWith('0tv');
 }
 
 const rtcVistos = new Set();
@@ -1489,7 +1496,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v62 · 27/09/2026';
+const VERSION = 'v63 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1863,17 +1870,19 @@ function handleMsg(msg) {
       if (rtcVisto(msg)) break;
       // Las ofertas "spec" (de/para espectadores) van dirigidas: solo las
       // procesa el destinatario y el par se clava por el id del remitente.
-      if (msg.spec) { if (msg.to === state.myId) rtcContestarDe(msg.from, msg.sdp); }
+      // Cualquier mensaje que toque un id 0tv se trata como spec aunque
+      // falte la marca: si no, una respuesta ajena pisa la malla real.
+      if (rtcEsSpec(msg)) { if (msg.to === state.myId) rtcContestarDe(msg.from, msg.sdp); }
       else rtcContestar(msg.to, msg.sdp);
       break;
     case 'rtc-answer':
       if (rtcVisto(msg)) break;
-      if (msg.spec && msg.to !== state.myId) break;
+      if (rtcEsSpec(msg) && msg.to !== state.myId) break;
       rtcIceRespuesta(msg);
       break;
     case 'rtc-ice':
       if (rtcVisto(msg)) break;
-      if (msg.spec) { if (msg.to === state.myId) rtcIce(msg.from, msg.cand); }
+      if (rtcEsSpec(msg)) { if (msg.to === state.myId) rtcIce(msg.from, msg.cand); }
       else rtcIce(msg.to, msg.cand);
       break;
     case 'rtc-bye': if (!rtcVisto(msg)) rtcSalirDePeer(msg.from); break;
