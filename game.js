@@ -244,10 +244,11 @@ let rtcStream = null, rtcTrack = null, rtcOn = false, rtcAviso = false, rtcBloqu
 // Reusa la malla de audio: no es una red nueva, es agregar un track de video a las
 // conexiones que ya están. Solo uno a la vez, y mudo (el audio lo lleva el micro
 // aparte; mezclarlo se acopla y ademas es unaDecision de privacidad).
-let rtcPantalla = null, rtcPantallaTrack = null, rtcComparto = false, rtcReneg = false, rtcRenegPend = false;
+let rtcPantalla = null, rtcPantallaTrack = null, rtcPantallaAudioTrack = null, rtcComparto = false, rtcReneg = false, rtcRenegPend = false;
 const rtcComparte = new Map();  // peerId -> true si está compartiendo pantalla
 const rtcShareSid = new Map();  // peerId -> id del stream de su pantalla
 const rtcShareVivo = new Map(); // peerId -> MediaStream recibido de su pantalla (se conserva al cortar: el re-share revive por replaceTrack sin ontrack nuevo)
+const rtcShareAudio = new Map(); // peerId -> <audio> con el sonido de sistema de su pantalla
 
 // ---------- Cámaras ----------
 // Mismo criterio que la pantalla: no es una red nueva, es otro track de video
@@ -297,11 +298,15 @@ async function rtcCompartir() {
     // navegador después baja solo si la red no da.
     stream = await navigator.mediaDevices.getDisplayMedia({
       video: { frameRate: { ideal: 15, max: 30 }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-      audio: false,
+      // Audio del sistema: el navegador muestra la casilla "Compartir audio"
+      // en el diálogo (pestañas siempre; pantalla entera según el sistema).
+      // Sin procesar: es música/video, no una voz para limpiar.
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
   } catch { return; }
   rtcPantalla = stream;
   rtcPantallaTrack = stream.getVideoTracks()[0];
+  rtcPantallaAudioTrack = stream.getAudioTracks()[0] || null;
   if (!rtcPantallaTrack) { rtcDejarDeCompartir(); return; }
   // Pista para el codificador: es una pantalla con texto, priorizar nitidez
   // sobre fluidez (si no, el texto se ve borroso apenas la red aprieta).
@@ -325,15 +330,23 @@ async function rtcCompartir() {
     if (p.shareSender) {
       try { p.shareSender.replaceTrack(rtcPantallaTrack); } catch { necesitaReneg = true; }
     } else necesitaReneg = true;
+    if (rtcPantallaAudioTrack) {
+      if (p.shareAudioSender) {
+        try { p.shareAudioSender.replaceTrack(rtcPantallaAudioTrack); } catch { necesitaReneg = true; }
+      } else necesitaReneg = true;
+    }
   }
   if (necesitaReneg) await rtcRenegociar();
-  toast('🖥 Compartiendo tu pantalla. La ven en la ventana de video.');
+  toast(rtcPantallaAudioTrack
+    ? '🖥 Compartiendo pantalla CON audio del sistema.'
+    : '🖥 Compartiendo tu pantalla. Tip: marcá "Compartir audio" en el diálogo para que se escuche el sonido.');
 }
 
 function rtcDejarDeCompartir() {
   const track = rtcPantallaTrack;
   if (track) { try { track.stop(); } catch { /* ya estaba */ } }
-  rtcPantalla = null; rtcPantallaTrack = null;
+  if (rtcPantallaAudioTrack) { try { rtcPantallaAudioTrack.stop(); } catch { /* ya estaba */ } }
+  rtcPantalla = null; rtcPantallaTrack = null; rtcPantallaAudioTrack = null;
   if (!rtcComparto) return;
   rtcComparto = false;
   send({ type: 'rtc-share', on: false, from: state.myId });
@@ -342,6 +355,7 @@ function rtcDejarDeCompartir() {
   // renegociación era la fuente de todos los bugs del re-share.
   for (const p of rtcMesh.values()) {
     if (p.shareSender) { try { p.shareSender.replaceTrack(null); } catch { /* ya cerrado */ } }
+    if (p.shareAudioSender) { try { p.shareAudioSender.replaceTrack(null); } catch { /* ya cerrado */ } }
   }
   renderCallUI();
 }
@@ -362,6 +376,8 @@ async function rtcRenegociar() {
         if (p.nuevo && !rtcIniciyo(peer)) continue;
         const yaEsta = rtcPantallaTrack && p.pc.getSenders().some((s) => s.track === rtcPantallaTrack);
         if (rtcPantallaTrack && !yaEsta) p.shareSender = p.pc.addTrack(rtcPantallaTrack, rtcPantalla);
+        const audPantEsta = rtcPantallaAudioTrack && p.pc.getSenders().some((s) => s.track === rtcPantallaAudioTrack);
+        if (rtcPantallaAudioTrack && !audPantEsta) p.shareAudioSender = p.pc.addTrack(rtcPantallaAudioTrack, rtcPantalla);
         const camEsta = rtcCamTrack && p.pc.getSenders().some((s) => s.track === rtcCamTrack);
         if (rtcCamTrack && !camEsta) p.camSender = p.pc.addTrack(rtcCamTrack, rtcCamStream);
         const micEsta = rtcTrack && p.pc.getSenders().some((s) => s.track === rtcTrack);
@@ -416,6 +432,23 @@ function rtcVerPantalla(peer, stream) {
   if (tap) tap.classList.add('hidden');
   aplicarFloat();
   renderCallUI();
+}
+
+// Sonido de sistema de la pantalla compartida: un <audio> aparte por
+// compañero, con el mismo volumen general de la llamada. El elemento se
+// conserva al cortar (el canal queda vivo y el re-share lo revive solo).
+function rtcAudioPantalla(peer, stream) {
+  let a = rtcShareAudio.get(peer);
+  if (!a) {
+    a = document.createElement('audio');
+    a.autoplay = true; a.playsInline = true;
+    document.body.appendChild(a);
+    rtcShareAudio.set(peer, a);
+  }
+  if (a.srcObject !== stream) a.srcObject = stream;
+  a.muted = rtcMuteLocal.has(peer);
+  a.volume = rtcVolumen();
+  a.play().catch(() => { /* lo revive el gesto */ });
 }
 
 function rtcOcultarPantalla() {
@@ -609,6 +642,8 @@ function renderCamStrip() {
         if (rtcMuteLocal.has(id)) rtcMuteLocal.delete(id); else rtcMuteLocal.add(id);
         const viv = rtcVivo.get(id);
         if (viv) { try { viv.audio.muted = rtcMuteLocal.has(id); } catch { /* ya no está */ } }
+        const sa = rtcShareAudio.get(id);
+        if (sa) { try { sa.muted = rtcMuteLocal.has(id); } catch { /* ya no está */ } }
         renderCamStrip();
       };
     }
@@ -643,6 +678,9 @@ function rtcPar(peer) {
   if (rtcPantallaTrack) {
     try { p.shareSender = p.pc.addTrack(rtcPantallaTrack, rtcPantalla); } catch { /* sin track */ }
   }
+  if (rtcPantallaAudioTrack) {
+    try { p.shareAudioSender = p.pc.addTrack(rtcPantallaAudioTrack, rtcPantalla); } catch { /* sin track */ }
+  }
   // Ídem la cámara: si ya estaba prendida, la conexión nace con el track puesto.
   if (rtcCamTrack) {
     try { p.camSender = p.pc.addTrack(rtcCamTrack, rtcCamStream); } catch { /* sin track */ }
@@ -652,8 +690,13 @@ function rtcPar(peer) {
   };
   // El audio va al <audio> suelto; el video a la ventana que ya usa YouTube.
   pc.ontrack = (e) => {
-    if (e.track.kind === 'video') rtcVideoEntrante(peer, e.streams[0] || new MediaStream([e.track]));
-    else rtcConectarAudio(peer, e.streams[0] || new MediaStream([e.track]));
+    const st = e.streams[0] || new MediaStream([e.track]);
+    if (e.track.kind === 'video') { rtcVideoEntrante(peer, st); return; }
+    // Audio: puede ser el micro o el sonido de sistema de la pantalla. El del
+    // micro viaja en un stream SOLO de audio; el de pantalla comparte stream
+    // con el video (mismo sid que anuncia 'rtc-share').
+    if (rtcShareSid.get(peer) === st.id || st.getVideoTracks().length > 0) rtcAudioPantalla(peer, st);
+    else rtcConectarAudio(peer, st);
   };
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === 'connected') { rtcAviso = false; renderCallUI(); }
@@ -682,8 +725,8 @@ function rtcAsegurarCanales(p) {
       const k = t.receiver && t.receiver.track ? t.receiver.track.kind : '';
       if (k === 'audio') aud++; else if (k === 'video') vid++;
     }
-    while (aud < 1) { p.pc.addTransceiver('audio', { direction: 'recvonly' }); aud++; }
-    while (vid < 2) { p.pc.addTransceiver('video', { direction: 'recvonly' }); vid++; }
+    while (aud < 2) { p.pc.addTransceiver('audio', { direction: 'recvonly' }); aud++; }  // micro + audio de pantalla
+    while (vid < 2) { p.pc.addTransceiver('video', { direction: 'recvonly' }); vid++; }  // cámara + pantalla
   } catch { /* navegador viejo */ }
 }
 
@@ -808,7 +851,7 @@ function rtcDesbloquearPorGesto() {
   // Videos pausados (pantalla compartida o cámaras): cualquier gesto es una
   // oportunidad de destrabarlos. En el TV el navegador es más estricto con el
   // autoplay y esto es lo que revive el video sin que el usuario haga nada raro.
-  document.querySelectorAll('video').forEach((v) => {
+  document.querySelectorAll('video, audio').forEach((v) => {
     if (v.paused && v.srcObject) v.play().catch(() => { /* habrá otro gesto */ });
   });
   if (!rtcBloqueado || !rtcVivo.size) return;
@@ -865,6 +908,7 @@ function rtcVolumen() {
 }
 function rtcCallVolumen() {
   for (const v of rtcVivo.values()) { try { v.audio.volume = rtcVolumen(); } catch { /* ya no está */ } }
+  for (const a of rtcShareAudio.values()) { try { a.volume = rtcVolumen(); } catch { /* ya no está */ } }
 }
 
 function rtcConectarConTodos() {
@@ -963,6 +1007,8 @@ function rtcSalirDePeer(peer) {
   rtcShareSid.delete(peer);
   rtcMic.delete(peer); rtcNivel.delete(peer);
   rtcCamPeers.delete(peer); rtcCamSid.delete(peer); rtcCamVivo.delete(peer); rtcVideoPend.delete(peer); rtcShareVivo.delete(peer);
+  const sa = rtcShareAudio.get(peer);
+  if (sa) { try { sa.remove(); } catch { /* ya no está */ } rtcShareAudio.delete(peer); }
   renderCamStrip();
   // Si se va el que compartía, se cae la ventana: si no queda clavada mostrando la
   // última imagen de su pantalla.
@@ -1625,7 +1671,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v70 · 27/09/2026';
+const VERSION = 'v71 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
