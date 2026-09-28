@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v84 · 28/09/2026';
+const VERSION = 'v85 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3455,7 +3455,7 @@ function update(dt) {
 // ella tomás un café: buff de velocidad por 25 s y tacita al lado del
 // personaje. El evento 'cafe' viaja por el bus para que todos vean el buff
 // ajeno y la máquina preparando.
-const CAFE = { x: 706, y: 462, brewUntil: 0 };
+const CAFE = { x: 564, y: 462, brewUntil: 0 };
 const CAFE_MS = 25000;
 function cafeCerca() {
   const me = state.players.get(state.myId);
@@ -3477,7 +3477,7 @@ const cafeImg = new Image();
 cafeImg.src = 'sprites/cafetera.png?v=1';
 function drawCafetera(now) {
   const g = ctx;
-  const bx = CAFE.x, by = 392;  // base apoyada en la tapa de la credenza
+  const bx = CAFE.x, by = 393;  // apoyada sobre la biblioteca, bajo el ventanal
   const brewing = performance.now() < CAFE.brewUntil;
   if (cafeImg.complete && cafeImg.naturalWidth) {
     const h = 40, w = h * (cafeImg.naturalWidth / cafeImg.naturalHeight);
@@ -3781,9 +3781,19 @@ function render() {
       ctx.fillText(p.emote, p.x + fs * 3, ly - fs * 1.4 + bounce);
     }
     if (p.cafeUntil && now < p.cafeUntil) {
-      // Tacita al costado del personaje (nunca sobre la cabeza), con humito
-      ctx.font = `${Math.round(fs * 1.6)}px serif`;
-      ctx.fillText('☕', p.x + shR + fs * 1.4, p.y - fs * 2.2);
+      // Barrita de energía al tomar el café: se llena rápido y desaparece
+      const el = CAFE_MS - (p.cafeUntil - now);  // ms desde que tomó
+      if (el < 1500) {
+        const bw = fs * 7, bh = Math.max(2, fs * 0.7);
+        const ex = p.x - bw / 2, ey = ly - fs * 2;
+        const fill = Math.min(1, el / 900);
+        ctx.globalAlpha = el > 1100 ? 1 - (el - 1100) / 400 : 1;
+        ctx.fillStyle = 'rgba(10,12,18,0.85)'; ctx.fillRect(ex - 1, ey - 1, bw + 2, bh + 2);
+        ctx.fillStyle = '#3a2a18'; ctx.fillRect(ex, ey, bw, bh);
+        ctx.fillStyle = fill < 1 ? '#ffd76a' : '#6ee56e';
+        ctx.fillRect(ex, ey, bw * fill, bh);
+        ctx.globalAlpha = 1;
+      }
     }
     if (p.bubble && now < p.bubbleUntil) drawBubble(ctx, p.bubble, p.x, ly - fs * 0.8, fs);
   }
