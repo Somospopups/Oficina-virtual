@@ -347,6 +347,9 @@ async function rtcRenegociar() {
   try {
     for (const [peer, p] of rtcMesh) {
       try {
+        // Conexión nueva donde el iniciador es el otro: su oferta va a llegar
+        // apenas procese mi aviso; ofertar acá también generaría un choque.
+        if (p.nuevo && !rtcIniciyo(peer)) continue;
         const yaEsta = rtcPantallaTrack && p.pc.getSenders().some((s) => s.track === rtcPantallaTrack);
         if (rtcPantallaTrack && !yaEsta) p.pc.addTrack(rtcPantallaTrack, rtcPantalla);
         const camEsta = rtcCamTrack && p.pc.getSenders().some((s) => s.track === rtcCamTrack);
@@ -356,6 +359,7 @@ async function rtcRenegociar() {
         rtcAsegurarCanales(p);
         const of = await p.pc.createOffer();
         await p.pc.setLocalDescription(of);
+        p.nuevo = false;
         send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, reneg: 1, spec: 1 });
       } catch { /* se reintenta con el siguiente hello */ }
     }
@@ -435,6 +439,7 @@ async function rtcCamPrender() {
   // renegocia con los pares que nunca tuvieron canal de cámara.
   let necesitaReneg = false;
   for (const p of rtcMesh.values()) {
+    if (p.nuevo) { necesitaReneg = true; continue; }  // sin negociar aún: va por oferta
     if (p.camSender) {
       try { p.camSender.replaceTrack(rtcCamTrack); } catch { necesitaReneg = true; }
     } else necesitaReneg = true;
@@ -612,7 +617,7 @@ function rtcPar(peer) {
   let p = rtcMesh.get(peer);
   if (p) return p;
   const pc = new RTCPeerConnection({ iceServers: RTC_STUN });
-  p = { pc, polite: !rtcIniciyo(peer), pendingIce: [], flujo: null };
+  p = { pc, polite: !rtcIniciyo(peer), pendingIce: [], flujo: null, nuevo: true };
   // El track local se agrega SIEMPRE, aun muto, para que prender y apagar el
   // micro sea solo track.enabled y no una renegociación (que es lo que suele
   // fallar y cortar la llamada).
@@ -674,6 +679,7 @@ async function rtcOfrecer(peer) {
     rtcAsegurarCanales(p);
     const of = await p.pc.createOffer();
     await p.pc.setLocalDescription(of);
+    p.nuevo = false;
     send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, spec: 1 });
   } catch { /* se reconecta solo con el siguiente hello */ }
 }
@@ -695,6 +701,7 @@ async function rtcContestarDe(peer, sdp) {
     for (const c of p.pendingIce.splice(0)) { try { await p.pc.addIceCandidate(c); } catch { /* viejo */ } }
     const an = await p.pc.createAnswer();
     await p.pc.setLocalDescription(an);
+    p.nuevo = false;
     send({ type: 'rtc-answer', to: peer, sdp: p.pc.localDescription, from: state.myId, spec: 1 });
   } catch { /* renegociar */ }
 }
@@ -712,6 +719,7 @@ async function rtcContestar(peer, sdp) {
     for (const c of p.pendingIce.splice(0)) { try { await p.pc.addIceCandidate(c); } catch { /* viejo */ } }
     const an = await p.pc.createAnswer();
     await p.pc.setLocalDescription(an);
+    p.nuevo = false;
     send({ type: 'rtc-answer', to: peer, sdp: p.pc.localDescription, from: state.myId });
   } catch { /* renegociar */ }
 }
@@ -726,6 +734,10 @@ async function rtcIce(peer, cand) {
 async function rtcIceRespuesta(msg) {
   const p = rtcMesh.get(msg.from);
   if (!p) return;
+  // Solo si este pc está de verdad esperando una respuesta. Una respuesta
+  // rezagada (de una oferta ya reemplazada) que se aplicara tarde podía
+  // "completar" la negociación equivocada y dejar el video desactivado.
+  if (p.pc.signalingState !== 'have-local-offer') return;
   try {
     await p.pc.setRemoteDescription(msg.sdp);
     for (const c of p.pendingIce.splice(0)) { try { await p.pc.addIceCandidate(c); } catch { /* viejo */ } }
@@ -842,10 +854,14 @@ function rtcCallVolumen() {
 }
 
 function rtcConectarConTodos() {
+  // Solo garantiza que exista una conexión por compañero. Las OFERTAS salen
+  // de UN solo lugar (rtcRenegociar): antes de acá salía una oferta sin el
+  // track nuevo y enseguida otra con él, y la respuesta de la primera podía
+  // completar la negociación de la segunda dejando el canal de video
+  // desactivado (el clásico "la segunda vez no anda").
   for (const p of state.players.values()) {
     if (!p.id || p.id === state.myId) continue;
-    if (rtcConectaCon(p.id) && rtcIniciyo(p.id)) rtcOfrecer(p.id);
-    else if (rtcConectaCon(p.id)) rtcPar(p.id);
+    if (rtcConectaCon(p.id)) rtcPar(p.id);
   }
 }
 
@@ -863,6 +879,7 @@ function rtcSaludarNuevo(player) {
     if (rtcCamOn && rtcCamStream) send({ type: 'rtc-cam', on: true, from: state.myId, sid: rtcCamStream.id });
     if (rtcComparto && rtcPantalla) send({ type: 'rtc-share', on: true, from: state.myId, sid: rtcPantalla.id });
     rtcConectarConTodos();
+    rtcRenegociar();
   }, 400);
 }
 
@@ -1594,7 +1611,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v68 · 27/09/2026';
+const VERSION = 'v69 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
