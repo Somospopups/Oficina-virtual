@@ -1465,7 +1465,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v57 · 27/09/2026';
+const VERSION = 'v58 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1520,11 +1520,13 @@ function layoutDesktopAudio() {
   if (!button || !panel) return;
   const strip = document.getElementById('camStrip');
   const vol = document.getElementById('callVolBox');
+  const chatP = document.getElementById('chatPanel');
   if (!document.body.classList.contains('desktop-rails')) {
     button.style.top = ''; button.style.right = ''; button.style.left = '';
     panel.style.top = ''; panel.style.right = ''; panel.style.left = '';
     if (call) { call.style.top = ''; call.style.right = ''; call.style.bottom = ''; }
     if (vol) { vol.style.top = ''; vol.style.right = ''; }
+    if (chatP) { chatP.style.top = ''; chatP.style.bottom = ''; chatP.style.height = ''; }
     if (strip) {
       strip.style.top = ''; strip.style.right = ''; strip.style.bottom = ''; strip.style.overflowY = '';
       for (const el of strip.children) { el.style.height = ''; el.style.flex = ''; }
@@ -1540,6 +1542,15 @@ function layoutDesktopAudio() {
     const buttonW = Math.ceil(button.getBoundingClientRect().width || 38);
     call.style.top = top + 'px'; call.style.bottom = 'auto';
     call.style.right = (12 + buttonW + 6) + 'px';
+  }
+  // El chat del riel izquierdo arranca pegado al reloj (sin espacio muerto) y
+  // llega hasta abajo.
+  if (chatP) {
+    const tb = document.getElementById('topbar');
+    const tbBot = tb ? tb.getBoundingClientRect().bottom : 50;
+    chatP.style.top = Math.ceil(tbBot + 10) + 'px';
+    chatP.style.bottom = '12px';
+    chatP.style.height = 'auto';
   }
   // Debajo de la fila de botones se apilan, en orden y solo si están visibles:
   // volumen -> panel de la radio -> tira de cámaras. Todo dentro del riel,
