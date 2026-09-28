@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v83 · 28/09/2026';
+const VERSION = 'v84 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3473,25 +3473,31 @@ function cafeAplicar(id) {
   CAFE.brewUntil = performance.now() + 2600;
   beep(620, 0.05, 0.03); setTimeout(() => beep(760, 0.06, 0.03), 110);  // ¡café listo!
 }
+const cafeImg = new Image();
+cafeImg.src = 'sprites/cafetera.png?v=1';
 function drawCafetera(now) {
   const g = ctx;
   const bx = CAFE.x, by = 392;  // base apoyada en la tapa de la credenza
   const brewing = performance.now() < CAFE.brewUntil;
-  g.fillStyle = '#232833'; g.fillRect(bx - 11, by - 26, 22, 26);      // cuerpo
-  g.fillStyle = '#2f3644'; g.fillRect(bx - 11, by - 26, 22, 4);       // tapa
-  g.fillStyle = '#141821'; g.fillRect(bx - 8, by - 17, 16, 12);       // hueco
-  g.fillStyle = '#39414f'; g.fillRect(bx - 2, by - 17, 4, 3);         // pico
-  if (brewing) { g.fillStyle = '#7a4a21'; g.fillRect(bx - 1, by - 14, 2, 6); }  // chorrito
-  g.fillStyle = '#e8e3d8'; g.fillRect(bx - 3, by - 9, 6, 4);          // tacita
-  g.fillRect(bx + 3, by - 8, 1, 2);                                   // asa
-  g.fillStyle = brewing ? '#ff5a5a' : '#54d16e';                      // LED
-  if (!brewing || Math.floor(now / 220) % 2) g.fillRect(bx + 7, by - 22, 2, 2);
+  if (cafeImg.complete && cafeImg.naturalWidth) {
+    const h = 40, w = h * (cafeImg.naturalWidth / cafeImg.naturalHeight);
+    const sm = g.imageSmoothingEnabled;
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(cafeImg, bx - w / 2, by - h, w, h);
+    g.imageSmoothingEnabled = sm;
+  } else {
+    // Fallback mientras carga el sprite
+    g.fillStyle = '#232833'; g.fillRect(bx - 11, by - 26, 22, 26);
+    g.fillStyle = '#2f3644'; g.fillRect(bx - 11, by - 26, 22, 4);
+  }
+  g.fillStyle = brewing ? '#ff5a5a' : '#54d16e';                      // LED de estado
+  if (!brewing || Math.floor(now / 220) % 2) g.fillRect(bx + 11, by - 38, 2, 2);
   const puffs = brewing ? 3 : (Math.floor(now / 4000) % 3 === 0 ? 1 : 0);  // vapor
   g.fillStyle = 'rgba(235,240,248,0.6)';
   for (let i = 0; i < puffs; i++) {
     const t = ((now * 0.001 + i * 0.4) % 1.2) / 1.2;
     g.globalAlpha = 0.55 * (1 - t);
-    g.fillRect(bx - 1 + Math.sin((t * 4 + i) * 3) * 2.5, by - 28 - t * 10, 2, 2);
+    g.fillRect(bx - 2 + Math.sin((t * 4 + i) * 3) * 2.5, by - 42 - t * 10, 2, 2);
   }
   g.globalAlpha = 1;
 }
