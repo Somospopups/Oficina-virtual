@@ -579,3 +579,12 @@ body.desktop-rails .cam-slot { height: auto; flex: 0 0 calc((100% - 20px) / 3); 
 }
 .cc:hover { background: rgba(38, 48, 74, 0.9); }
 .cc.on { border-color: #7ee787; }
+
+/* En desktop-rails el volumen sale de la fila de botones y pasa a su propia
+   fila del riel derecho (top/right los pone layoutDesktopAudio). Así nunca
+   empuja botones adentro de la oficina. */
+body.desktop-rails #callVolBox {
+  position: fixed; z-index: 45; left: auto; bottom: auto;
+  width: calc(var(--desktop-rail-width) - 24px); box-sizing: border-box;
+}
+body.desktop-rails #callVolBox #callVol { flex: 1 1 auto; width: 100%; min-width: 0; }

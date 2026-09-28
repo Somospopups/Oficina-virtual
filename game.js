@@ -1465,7 +1465,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v56 · 27/09/2026';
+const VERSION = 'v57 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1519,10 +1519,12 @@ function layoutDesktopAudio() {
   const call = document.getElementById('callBar');
   if (!button || !panel) return;
   const strip = document.getElementById('camStrip');
+  const vol = document.getElementById('callVolBox');
   if (!document.body.classList.contains('desktop-rails')) {
     button.style.top = ''; button.style.right = ''; button.style.left = '';
     panel.style.top = ''; panel.style.right = ''; panel.style.left = '';
     if (call) { call.style.top = ''; call.style.right = ''; call.style.bottom = ''; }
+    if (vol) { vol.style.top = ''; vol.style.right = ''; }
     if (strip) {
       strip.style.top = ''; strip.style.right = ''; strip.style.bottom = ''; strip.style.overflowY = '';
       for (const el of strip.children) { el.style.height = ''; el.style.flex = ''; }
@@ -1539,20 +1541,23 @@ function layoutDesktopAudio() {
     call.style.top = top + 'px'; call.style.bottom = 'auto';
     call.style.right = (12 + buttonW + 6) + 'px';
   }
-  panel.style.top = (top + buttonH + 8) + 'px'; panel.style.right = '12px'; panel.style.left = 'auto';
-  // La tira de cámaras arranca debajo de la fila de botones; si el panel de la
-  // radio está abierto, se corre debajo de él para no taparse. Las alturas van
-  // por estilo inline: exactamente un tercio del alto libre para cada tarjeta,
-  // y si no entran (ventana muy baja) la tira scrollea.
+  // Debajo de la fila de botones se apilan, en orden y solo si están visibles:
+  // volumen -> panel de la radio -> tira de cámaras. Todo dentro del riel,
+  // nada invade la oficina.
+  let cursorY = top + buttonH + 8;
+  if (vol) {
+    vol.style.top = cursorY + 'px'; vol.style.right = '12px';
+    if (!vol.classList.contains('hidden')) cursorY += (vol.getBoundingClientRect().height || 34) + 8;
+  }
+  panel.style.top = cursorY + 'px'; panel.style.right = '12px'; panel.style.left = 'auto';
+  if (!panel.classList.contains('hidden')) cursorY += (panel.getBoundingClientRect().height || 0) + 8;
+  // La tira de cámaras arranca donde termina lo anterior. Las alturas van por
+  // estilo inline: exactamente un tercio del alto libre para cada tarjeta, y
+  // si no entran (ventana muy baja) la tira scrollea.
   if (strip) {
-    let st = top + buttonH + 8;
-    if (!panel.classList.contains('hidden')) {
-      const ph = panel.getBoundingClientRect().height || 0;
-      st += ph + 8;
-    }
-    strip.style.top = st + 'px'; strip.style.right = '12px';
+    strip.style.top = cursorY + 'px'; strip.style.right = '12px';
     strip.style.bottom = '12px'; strip.style.overflowY = 'auto';
-    const avail = window.innerHeight - st - 12;
+    const avail = window.innerHeight - cursorY - 12;
     const gap = 10;
     const slotH = Math.max(110, Math.floor((avail - gap * 2) / 3));
     for (const el of strip.children) { el.style.height = slotH + 'px'; el.style.flex = '0 0 auto'; }
