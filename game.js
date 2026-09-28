@@ -480,6 +480,7 @@ function renderCamStrip() {
     nom.textContent = s.name;
     off.textContent = '📷 apagada';
   });
+  layoutDesktopAudio(); // recalcular alturas ahora que los cuadros existen
 }
 
 // El que tiene el id más chico alfabéticamente inicia. Así nunca se cruzan dos
@@ -1375,7 +1376,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v51 · 27/09/2026';
+const VERSION = 'v52 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1433,7 +1434,10 @@ function layoutDesktopAudio() {
     button.style.top = ''; button.style.right = ''; button.style.left = '';
     panel.style.top = ''; panel.style.right = ''; panel.style.left = '';
     if (call) { call.style.top = ''; call.style.right = ''; call.style.bottom = ''; }
-    if (strip) { strip.style.top = ''; strip.style.right = ''; }
+    if (strip) {
+      strip.style.top = ''; strip.style.right = ''; strip.style.bottom = ''; strip.style.overflowY = '';
+      for (const el of strip.children) { el.style.height = ''; el.style.flex = ''; }
+    }
     return;
   }
   const list = document.getElementById('playerList');
@@ -1448,7 +1452,9 @@ function layoutDesktopAudio() {
   }
   panel.style.top = (top + buttonH + 8) + 'px'; panel.style.right = '12px'; panel.style.left = 'auto';
   // La tira de cámaras arranca debajo de la fila de botones; si el panel de la
-  // radio está abierto, se corre debajo de él para no taparse.
+  // radio está abierto, se corre debajo de él para no taparse. Las alturas van
+  // por estilo inline: exactamente un tercio del alto libre para cada tarjeta,
+  // y si no entran (ventana muy baja) la tira scrollea.
   if (strip) {
     let st = top + buttonH + 8;
     if (!panel.classList.contains('hidden')) {
@@ -1456,6 +1462,11 @@ function layoutDesktopAudio() {
       st += ph + 8;
     }
     strip.style.top = st + 'px'; strip.style.right = '12px';
+    strip.style.bottom = '12px'; strip.style.overflowY = 'auto';
+    const avail = window.innerHeight - st - 12;
+    const gap = 10;
+    const slotH = Math.max(110, Math.floor((avail - gap * 2) / 3));
+    for (const el of strip.children) { el.style.height = slotH + 'px'; el.style.flex = '0 0 auto'; }
   }
 }
 
