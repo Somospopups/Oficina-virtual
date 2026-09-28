@@ -1069,6 +1069,33 @@ function renderCallUI() {
   renderCamStrip(); // que los botoncitos de cada cuadro reflejen mic/cámara al toque
 }
 
+// Caminata "muñeco de papel": frames armados recortando el MISMO PNG original
+// (cero pérdida de calidad, cero redibujo). Se corta a la altura de la cadera
+// y se flexiona una pierna por vez: más corta (rodilla levantada) y un pelín
+// adelantada. Para los personajes que no tienen hoja de animación propia.
+function buildPasoFrames(im) {
+  const W = im.width, H = im.height;
+  const hipY = Math.round(H * 0.70);
+  const lh = H - hipY;
+  const lift = Math.max(3, Math.round(H * 0.045));
+  const adel = Math.max(1, Math.round(W * 0.02));
+  const mk = (lado) => {
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const g = cv.getContext('2d');
+    g.drawImage(im, 0, 0, W, hipY, 0, 0, W, hipY);              // cabeza + torso intactos
+    const mitad = Math.floor(W / 2);
+    if (lado < 0) {
+      g.drawImage(im, 0, hipY, mitad, lh, adel, hipY, mitad, lh - lift);        // izq. flexionada
+      g.drawImage(im, mitad, hipY, W - mitad, lh, mitad, hipY, W - mitad, lh);  // der. plantada
+    } else {
+      g.drawImage(im, 0, hipY, mitad, lh, 0, hipY, mitad, lh);
+      g.drawImage(im, mitad, hipY, W - mitad, lh, mitad - adel, hipY, W - mitad, lh - lift);
+    }
+    return cv;
+  };
+  return [mk(-1), im, mk(1), im];  // paso izq → apoyo → paso der → apoyo
+}
 function loadCharAssets() {
   const keys = Object.keys(CHAR_DEF);
   return Promise.all(keys.map((k) => new Promise((res) => {
@@ -1102,6 +1129,9 @@ function loadCharAssets() {
         esp.onload = () => { charAssets.milo.up = esp; };
         esp.src = 'sprites/milo_up.png?v=1';
       }
+      // Ovni y Facu: caminata muñeco-de-papel desde su propio PNG (misma
+      // calidad exacta). Ger ya tiene su ciclo aprobado y Milo su hoja.
+      if (k !== 'ger' && k !== 'milo') walkAssets[k] = { down: buildPasoFrames(im) };
       loadSeat();
     };
     im.onerror = () => { loadSeat(); }; // los sprites por código siguen disponibles
@@ -1672,7 +1702,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v95 · 28/09/2026';
+const VERSION = 'v96 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
