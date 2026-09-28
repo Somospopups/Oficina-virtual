@@ -356,7 +356,7 @@ async function rtcRenegociar() {
         rtcAsegurarCanales(p);
         const of = await p.pc.createOffer();
         await p.pc.setLocalDescription(of);
-        send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, reneg: 1, spec: String(peer).startsWith('0tv') ? 1 : undefined });
+        send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, reneg: 1, spec: 1 });
       } catch { /* se reintenta con el siguiente hello */ }
     }
   } finally {
@@ -609,7 +609,7 @@ function rtcPar(peer) {
     try { p.camSender = p.pc.addTrack(rtcCamTrack, rtcCamStream); } catch { /* sin track */ }
   }
   pc.onicecandidate = (e) => {
-    if (e.candidate) send({ type: 'rtc-ice', to: peer, cand: e.candidate.toJSON(), from: state.myId, spec: (state.spectating || String(peer).startsWith('0tv')) ? 1 : undefined });
+    if (e.candidate) send({ type: 'rtc-ice', to: peer, cand: e.candidate.toJSON(), from: state.myId, spec: 1 });
   };
   // El audio va al <audio> suelto; el video a la ventana que ya usa YouTube.
   pc.ontrack = (e) => {
@@ -654,7 +654,7 @@ async function rtcOfrecer(peer) {
     rtcAsegurarCanales(p);
     const of = await p.pc.createOffer();
     await p.pc.setLocalDescription(of);
-    send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, spec: (state.spectating || String(peer).startsWith('0tv')) ? 1 : undefined });
+    send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, spec: 1 });
   } catch { /* se reconecta solo con el siguiente hello */ }
 }
 
@@ -712,9 +712,13 @@ async function rtcIceRespuesta(msg) {
   } catch { /* renegociar */ }
 }
 
-// Un mensaje RTC es "de espectador" si lleva la marca o si cualquiera de las
-// puntas es un id 0tv. El doble chequeo protege la malla de los jugadores de
-// cualquier lugar donde falte poner la marca al enviar.
+// Desde v67 TODA la señalización viaja "dirigida" (marca spec): solo la
+// procesa el destinatario y la conexión se clava por el id del remitente,
+// que es único. En el bus broadcast el camino viejo (sin marca, clave en
+// msg.to) era ambiguo: la respuesta de una renegociación podía caer en la
+// conexión equivocada y dejarla colgada (pantalla que no volvía al
+// re-compartir). El camino viejo se conserva solo por compatibilidad con
+// clientes sin refrescar.
 function rtcEsSpec(msg) {
   return !!msg.spec || String(msg.to || '').startsWith('0tv') || String(msg.from || '').startsWith('0tv');
 }
@@ -1564,7 +1568,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v66 · 27/09/2026';
+const VERSION = 'v67 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
