@@ -330,7 +330,7 @@ async function rtcRenegociar() {
         const yaEsta = rtcPantallaTrack && p.pc.getSenders().some((s) => s.track === rtcPantallaTrack);
         if (rtcPantallaTrack && !yaEsta) p.pc.addTrack(rtcPantallaTrack, rtcPantalla);
         const camEsta = rtcCamTrack && p.pc.getSenders().some((s) => s.track === rtcCamTrack);
-        if (rtcCamTrack && !camEsta) p.pc.addTrack(rtcCamTrack, rtcCamStream);
+        if (rtcCamTrack && !camEsta) p.camSender = p.pc.addTrack(rtcCamTrack, rtcCamStream);
         const micEsta = rtcTrack && p.pc.getSenders().some((s) => s.track === rtcTrack);
         if (rtcTrack && !micEsta) p.pc.addTrack(rtcTrack, rtcStream);
         const of = await p.pc.createOffer();
@@ -396,10 +396,22 @@ async function rtcCamPrender() {
   send({ type: 'rtc-cam', on: true, from: state.myId, sid: rtcCamStream.id });
   rtcConectarConTodos();
   renderCallUI(); renderCamStrip();
-  await rtcRenegociar();
+  // Si la conexión ya tiene un canal de cámara (de una vez anterior), se
+  // enchufa el track nuevo con replaceTrack: cero renegociación. Solo se
+  // renegocia con los pares que nunca tuvieron canal de cámara.
+  let necesitaReneg = false;
+  for (const p of rtcMesh.values()) {
+    if (p.camSender) {
+      try { p.camSender.replaceTrack(rtcCamTrack); } catch { necesitaReneg = true; }
+    } else necesitaReneg = true;
+  }
+  if (necesitaReneg) await rtcRenegociar();
   toast('📷 Cámara prendida: se ve en los cuadrados de la derecha.');
 }
 function rtcCamApagar() {
+  // Apagar la cámara apaga SOLO la mía: el canal queda vivo (replaceTrack a
+  // null) y las cámaras de los demás ni se enteran. Nada de renegociar ni de
+  // tirar conexiones.
   const track = rtcCamTrack;
   if (track) { try { track.stop(); } catch { /* ya estaba */ } }
   rtcCamStream = null; rtcCamTrack = null;
@@ -407,12 +419,9 @@ function rtcCamApagar() {
   rtcCamOn = false;
   send({ type: 'rtc-cam', on: false, from: state.myId });
   for (const p of rtcMesh.values()) {
-    try {
-      if (track) p.pc.getSenders().forEach((s) => { if (s.track === track) p.pc.removeTrack(s); });
-    } catch { /* ya cerrado */ }
+    if (p.camSender) { try { p.camSender.replaceTrack(null); } catch { /* ya cerrado */ } }
   }
   renderCallUI(); renderCamStrip();
-  rtcRenegociar();
 }
 // Un video entrante puede ser cámara o pantalla: se decide por el id del stream
 // que anunció el 'rtc-cam'. Si el aviso todavía no llegó, queda pendiente y se
@@ -486,9 +495,11 @@ function renderCamStrip() {
       return;
     }
     if (ct) ct.hidden = false;
+    // El cuadro remoto se rige por el AVISO (rtc-cam), no por si hay stream:
+    // el stream queda cacheado aunque apague, para revivir sin renegociar.
     const stream = s.me
       ? (rtcCamOn ? rtcCamStream : null)
-      : (rtcCamOculto.has(s.id) ? null : (rtcCamVivo.get(s.id) || null));
+      : ((rtcCamPeers.get(s.id) && !rtcCamOculto.has(s.id)) ? (rtcCamVivo.get(s.id) || null) : null);
     if (v.srcObject !== stream) { v.srcObject = stream; if (stream) v.play().catch(() => {}); }
     el.classList.toggle('off', !stream);
     el.classList.toggle('me', !!s.me);
@@ -508,7 +519,7 @@ function renderCamStrip() {
       const id = s.id;
       const oculta = rtcCamOculto.has(id);
       off.textContent = oculta ? '📷 oculta por vos' : '📷 apagada';
-      bc.textContent = '📷'; bc.classList.toggle('on', !oculta && !!rtcCamVivo.get(id));
+      bc.textContent = '📷'; bc.classList.toggle('on', !oculta && !!rtcCamPeers.get(id));
       bc.title = oculta ? 'Volver a ver su cámara' : 'Dejar de ver su cámara (solo para vos)';
       bc.onclick = (e) => {
         e.stopPropagation();
@@ -560,7 +571,7 @@ function rtcPar(peer) {
   }
   // Ídem la cámara: si ya estaba prendida, la conexión nace con el track puesto.
   if (rtcCamTrack) {
-    try { p.pc.addTrack(rtcCamTrack, rtcCamStream); } catch { /* sin track */ }
+    try { p.camSender = p.pc.addTrack(rtcCamTrack, rtcCamStream); } catch { /* sin track */ }
   }
   pc.onicecandidate = (e) => {
     if (e.candidate) send({ type: 'rtc-ice', to: peer, cand: e.candidate.toJSON(), from: state.myId });
@@ -1448,7 +1459,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v54 · 27/09/2026';
+const VERSION = 'v55 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1817,7 +1828,9 @@ function handleMsg(msg) {
         else rtcPar(msg.from);
         rtcResolverVideos(msg.from);
       } else {
-        rtcCamPeers.delete(msg.from); rtcCamSid.delete(msg.from); rtcCamVivo.delete(msg.from);
+        rtcCamPeers.delete(msg.from);
+        // OJO: el stream NO se borra. Si vuelve a prender con replaceTrack no
+        // llega ningún ontrack nuevo, y este mismo stream es el que revive.
       }
       renderCamStrip();
       break;
