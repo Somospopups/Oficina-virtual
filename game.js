@@ -246,6 +246,7 @@ let rtcStream = null, rtcTrack = null, rtcOn = false, rtcAviso = false, rtcBloqu
 // aparte; mezclarlo se acopla y ademas es unaDecision de privacidad).
 let rtcPantalla = null, rtcPantallaTrack = null, rtcComparto = false, rtcReneg = false;
 const rtcComparte = new Map();  // peerId -> true si está compartiendo pantalla
+const rtcShareSid = new Map();  // peerId -> id del stream de su pantalla
 
 // ---------- Cámaras ----------
 // Mismo criterio que la pantalla: no es una red nueva, es otro track de video
@@ -284,17 +285,26 @@ async function rtcCompartir() {
   let stream;
   try {
     // Abstractions: el usuario elige pantalla, ventana o pestaña. Si cancela, se
-    // lanza y no pasa nada.
-    stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 12 }, audio: false });
+    // lanza y no pasa nada. Se pide buena resolución y hasta 30 fps: el
+    // navegador después baja solo si la red no da.
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: { ideal: 15, max: 30 }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false,
+    });
   } catch { return; }
   rtcPantalla = stream;
   rtcPantallaTrack = stream.getVideoTracks()[0];
   if (!rtcPantallaTrack) { rtcDejarDeCompartir(); return; }
+  // Pista para el codificador: es una pantalla con texto, priorizar nitidez
+  // sobre fluidez (si no, el texto se ve borroso apenas la red aprieta).
+  try { rtcPantallaTrack.contentHint = 'detail'; } catch { /* navegador viejo */ }
   rtcComparto = true;
   // Si el usuario corta desde el propio navegador (el cartelito de "Dejar de
   // compartir"), hay que enterarse igual.
   rtcPantallaTrack.onended = () => rtcDejarDeCompartir();
-  send({ type: 'rtc-share', on: true, from: state.myId });
+  // El sid viaja en el aviso, igual que en 'rtc-cam': es lo que permite
+  // distinguir sin ambigüedad la pantalla de la cámara del mismo par.
+  send({ type: 'rtc-share', on: true, from: state.myId, sid: stream.id });
   rtcConectarConTodos();
   renderCallUI();
   await rtcRenegociar();
@@ -333,6 +343,7 @@ async function rtcRenegociar() {
         if (rtcCamTrack && !camEsta) p.camSender = p.pc.addTrack(rtcCamTrack, rtcCamStream);
         const micEsta = rtcTrack && p.pc.getSenders().some((s) => s.track === rtcTrack);
         if (rtcTrack && !micEsta) p.pc.addTrack(rtcTrack, rtcStream);
+        rtcAsegurarCanales(p);
         const of = await p.pc.createOffer();
         await p.pc.setLocalDescription(of);
         send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, reneg: 1, spec: String(peer).startsWith('0tv') ? 1 : undefined });
@@ -428,7 +439,10 @@ function rtcCamApagar() {
 // resuelve cuando llega (rtcResolverVideos).
 function rtcVideoEntrante(peer, stream) {
   if (rtcCamSid.get(peer) === stream.id) { rtcCamVer(peer, stream); return; }
-  if (rtcComparte.get(peer)) { rtcVerPantalla(peer, stream); return; }
+  if (rtcShareSid.get(peer) === stream.id) { rtcVerPantalla(peer, stream); return; }
+  // Sin sid que coincida: solo se asume pantalla si el aviso viejo (sin sid)
+  // lo dice y no hay riesgo de que sea la cámara llegando antes que su aviso.
+  if (rtcComparte.get(peer) && !rtcShareSid.get(peer) && (!rtcCamPeers.get(peer) || rtcCamSid.has(peer))) { rtcVerPantalla(peer, stream); return; }
   const arr = rtcVideoPend.get(peer) || [];
   arr.push(stream); rtcVideoPend.set(peer, arr);
 }
@@ -438,7 +452,8 @@ function rtcResolverVideos(peer) {
   const resto = [];
   for (const st of arr) {
     if (rtcCamSid.get(peer) === st.id) rtcCamVer(peer, st);
-    else if (rtcComparte.get(peer)) rtcVerPantalla(peer, st);
+    else if (rtcShareSid.get(peer) === st.id) rtcVerPantalla(peer, st);
+    else if (rtcComparte.get(peer) && !rtcShareSid.get(peer)) rtcVerPantalla(peer, st);
     else resto.push(st);
   }
   if (resto.length) rtcVideoPend.set(peer, resto); else rtcVideoPend.delete(peer);
@@ -602,19 +617,27 @@ function rtcPar(peer) {
   return p;
 }
 
+// Garantiza que la conexión tenga canales para RECIBIR aunque yo no emita
+// nada: 1 de audio (micro) y 2 de video (cámara y pantalla). Sin esto, la
+// oferta de alguien con todo apagado salía vacía y la pantalla del compañero
+// no tenía por dónde viajar. Cuenta lo que ya hay (los addTrack también crean
+// canales), así es idempotente y sirve igual para jugadores y espectadores.
+function rtcAsegurarCanales(p) {
+  try {
+    let aud = 0, vid = 0;
+    for (const t of p.pc.getTransceivers()) {
+      const k = t.receiver && t.receiver.track ? t.receiver.track.kind : '';
+      if (k === 'audio') aud++; else if (k === 'video') vid++;
+    }
+    while (aud < 1) { p.pc.addTransceiver('audio', { direction: 'recvonly' }); aud++; }
+    while (vid < 2) { p.pc.addTransceiver('video', { direction: 'recvonly' }); vid++; }
+  } catch { /* navegador viejo */ }
+}
+
 async function rtcOfrecer(peer) {
   const p = rtcPar(peer);
   try {
-    // El espectador no emite nada: pide canales de solo recepción (audio,
-    // cámara y pantalla) antes de ofertar, si no la oferta sale vacía.
-    if (state.spectating && !p.specRx) {
-      p.specRx = true;
-      try {
-        p.pc.addTransceiver('audio', { direction: 'recvonly' });
-        p.pc.addTransceiver('video', { direction: 'recvonly' });
-        p.pc.addTransceiver('video', { direction: 'recvonly' });
-      } catch { /* navegador viejo */ }
-    }
+    rtcAsegurarCanales(p);
     const of = await p.pc.createOffer();
     await p.pc.setLocalDescription(of);
     send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, spec: (state.spectating || String(peer).startsWith('0tv')) ? 1 : undefined });
@@ -627,6 +650,13 @@ async function rtcOfrecer(peer) {
 async function rtcContestarDe(peer, sdp) {
   const p = rtcPar(peer);
   try {
+    // Choque de ofertas (los dos ofertaron a la vez): el descortés ignora la
+    // ajena y espera respuesta a la suya; el cortés da de baja la propia y
+    // contesta. Sin esto las dos ofertas morían en silencio y no había video.
+    if (p.pc.signalingState !== 'stable') {
+      if (!p.polite) return;
+      await p.pc.setLocalDescription({ type: 'rollback' });
+    }
     await p.pc.setRemoteDescription(sdp);
     for (const c of p.pendingIce.splice(0)) { try { await p.pc.addIceCandidate(c); } catch { /* viejo */ } }
     const an = await p.pc.createAnswer();
@@ -638,6 +668,12 @@ async function rtcContestarDe(peer, sdp) {
 async function rtcContestar(peer, sdp) {
   const p = rtcPar(peer);
   try {
+    // Mismo manejo de choque de ofertas que en rtcContestarDe: cortés cede,
+    // descortés insiste. p.polite ya viene con lados opuestos desde rtcPar.
+    if (p.pc.signalingState !== 'stable') {
+      if (!p.polite) return;
+      await p.pc.setLocalDescription({ type: 'rollback' });
+    }
     await p.pc.setRemoteDescription(sdp);
     for (const c of p.pendingIce.splice(0)) { try { await p.pc.addIceCandidate(c); } catch { /* viejo */ } }
     const an = await p.pc.createAnswer();
@@ -832,6 +868,7 @@ function rtcSalirDePeer(peer) {
   if (v) { try { v.audio.remove(); } catch { /* ya no está */ } rtcVivo.delete(peer); }
   rtcRefrescarBloqueo();
   const partia = rtcComparte.delete(peer);
+  rtcShareSid.delete(peer);
   rtcMic.delete(peer); rtcNivel.delete(peer);
   rtcCamPeers.delete(peer); rtcCamSid.delete(peer); rtcCamVivo.delete(peer); rtcVideoPend.delete(peer);
   renderCamStrip();
@@ -1496,7 +1533,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v63 · 27/09/2026';
+const VERSION = 'v64 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1845,7 +1882,7 @@ function handleMsg(msg) {
       // entrado tarde. Idempotente para el resto.
       if (String(msg.from || '').startsWith('0tv')) {
         if (rtcCamOn && rtcCamStream) send({ type: 'rtc-cam', on: true, from: state.myId, sid: rtcCamStream.id });
-        if (rtcComparto) send({ type: 'rtc-share', on: true, from: state.myId });
+        if (rtcComparto) send({ type: 'rtc-share', on: true, from: state.myId, sid: rtcPantalla ? rtcPantalla.id : undefined });
         if (rtcOn) send({ type: 'rtc-hello', mic: true, from: state.myId });
         break;
       }
@@ -1889,12 +1926,14 @@ function handleMsg(msg) {
     case 'rtc-share': {
       if (msg.on) {
         rtcComparte.set(msg.from, true);
+        if (msg.sid) rtcShareSid.set(msg.from, msg.sid);
         if (rtcConectaCon(msg.from) && rtcIniciyo(msg.from) && !rtcMesh.has(msg.from)) rtcOfrecer(msg.from);
         else rtcPar(msg.from);
         rtcResolverVideos(msg.from);
         renderCallUI();
       } else {
         rtcComparte.delete(msg.from);
+        rtcShareSid.delete(msg.from);
         if (!rtcComparte.size) rtcOcultarPantalla();
       }
       break;
