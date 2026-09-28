@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v82 · 28/09/2026';
+const VERSION = 'v83 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2117,6 +2117,7 @@ function handleMsg(msg) {
     case 'status': { const p = state.players.get(msg.id); if (p) p.status = msg.status; renderPlayerList(); break; }
     case 'emote': { const p = state.players.get(msg.id); if (p) { p.emote = msg.emote; p.emoteUntil = performance.now() + 3000; } break; }
     case 'cat-pet': catAplicarMimo(msg.id); break;
+    case 'cafe': cafeAplicar(msg.id); break;
     case 'nudge': { if (!dedupe(msg)) localZumb(msg.from || 'Alguien', false, msg.id); break; }
     // 'wave' eliminado: el saludo de cercanía quedaba feo. Los mensajes de
     // clientes viejos caen al vacío sin romper nada.
@@ -2933,7 +2934,7 @@ window.addEventListener('keydown', (e) => {
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 3) { setStatus(STATUS_KEYS[n - 1]); return; }
   if (n === 4) { doZumbido(); return; }
-  if (key === 'e') { catMimar(); return; }
+  if (key === 'e') { if (cafeCerca()) cafeTomar(); else catMimar(); return; }
   const emoteMap = { z: '👋', x: '😂', c: '🎉', v: '👍', b: '🤔', n: '🔥' };
   const em = emoteMap[key];
   if (em) { send({ type: 'emote', id: state.myId, emote: em }); const me = state.players.get(state.myId); if (me) { me.emote = em; me.emoteUntil = performance.now() + 3000; } return; }
@@ -3378,7 +3379,8 @@ function update(dt) {
     }
     if (want && !me.seated) {
       const len = Math.hypot(dx, dy); dx /= len; dy /= len;
-      const sp = SPEED * clamp(depthScale(me.y) / 12, 0.35, 1.6);
+      const cafeBoost = me.cafeUntil && performance.now() < me.cafeUntil ? 1.45 : 1;
+      const sp = SPEED * cafeBoost * clamp(depthScale(me.y) / 12, 0.35, 1.6);
       const nx = me.x + dx * sp * dt, ny = me.y + dy * sp * dt;
       if (walkable(nx, me.y)) me.x = nx;
       if (walkable(me.x, ny)) me.y = ny;
@@ -3439,10 +3441,59 @@ function update(dt) {
   if (near) {
     hintBox.innerHTML = `Cerca de <b>${esc(near.name)}</b> — <span class="key">/w ${esc(near.name)} msg</span> susurrar`;
     hintBox.classList.add('show');
+  } else if (state.joined && cafeCerca()) {
+    hintBox.innerHTML = `☕ <b>Cafetera</b> — <span class="key">E</span> tomar un cafecito`;
+    hintBox.classList.add('show');
   } else if (state.joined && catCerca()) {
     hintBox.innerHTML = `🐈 <b>Michi</b> — <span class="key">E</span> acariciar`;
     hintBox.classList.add('show');
   } else hintBox.classList.remove('show');
+}
+
+// ---------- Cafetera: un cafecito da energía (velocidad) por un rato ----------
+// Apoyada sobre la credenza, a la derecha de la biblioteca. Con E cerca de
+// ella tomás un café: buff de velocidad por 25 s y tacita al lado del
+// personaje. El evento 'cafe' viaja por el bus para que todos vean el buff
+// ajeno y la máquina preparando.
+const CAFE = { x: 706, y: 462, brewUntil: 0 };
+const CAFE_MS = 25000;
+function cafeCerca() {
+  const me = state.players.get(state.myId);
+  return me && Math.hypot(me.x - CAFE.x, me.y - CAFE.y) < 125;
+}
+function cafeTomar() {
+  if (!state.joined || !cafeCerca()) return;
+  send({ type: 'cafe', id: state.myId });
+  cafeAplicar(state.myId);
+}
+function cafeAplicar(id) {
+  const p = state.players.get(id);
+  if (!p) return;
+  p.cafeUntil = performance.now() + CAFE_MS;
+  CAFE.brewUntil = performance.now() + 2600;
+  beep(620, 0.05, 0.03); setTimeout(() => beep(760, 0.06, 0.03), 110);  // ¡café listo!
+}
+function drawCafetera(now) {
+  const g = ctx;
+  const bx = CAFE.x, by = 392;  // base apoyada en la tapa de la credenza
+  const brewing = performance.now() < CAFE.brewUntil;
+  g.fillStyle = '#232833'; g.fillRect(bx - 11, by - 26, 22, 26);      // cuerpo
+  g.fillStyle = '#2f3644'; g.fillRect(bx - 11, by - 26, 22, 4);       // tapa
+  g.fillStyle = '#141821'; g.fillRect(bx - 8, by - 17, 16, 12);       // hueco
+  g.fillStyle = '#39414f'; g.fillRect(bx - 2, by - 17, 4, 3);         // pico
+  if (brewing) { g.fillStyle = '#7a4a21'; g.fillRect(bx - 1, by - 14, 2, 6); }  // chorrito
+  g.fillStyle = '#e8e3d8'; g.fillRect(bx - 3, by - 9, 6, 4);          // tacita
+  g.fillRect(bx + 3, by - 8, 1, 2);                                   // asa
+  g.fillStyle = brewing ? '#ff5a5a' : '#54d16e';                      // LED
+  if (!brewing || Math.floor(now / 220) % 2) g.fillRect(bx + 7, by - 22, 2, 2);
+  const puffs = brewing ? 3 : (Math.floor(now / 4000) % 3 === 0 ? 1 : 0);  // vapor
+  g.fillStyle = 'rgba(235,240,248,0.6)';
+  for (let i = 0; i < puffs; i++) {
+    const t = ((now * 0.001 + i * 0.4) % 1.2) / 1.2;
+    g.globalAlpha = 0.55 * (1 - t);
+    g.fillRect(bx - 1 + Math.sin((t * 4 + i) * 3) * 2.5, by - 28 - t * 10, 2, 2);
+  }
+  g.globalAlpha = 1;
 }
 
 // ---------- Michi, el gato de la oficina ----------
@@ -3631,6 +3682,7 @@ function render() {
     ctx.globalAlpha = 1;
   }
 
+  drawCafetera(now);
   if (sky.amb > 0.01) {
     ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
     ctx.fillRect(0, 0, VW, VH);
@@ -3721,6 +3773,11 @@ function render() {
       const bounce = Math.sin((p.emoteUntil - now) / 120) * 6;
       ctx.font = `${Math.round(fs * 2)}px serif`;
       ctx.fillText(p.emote, p.x + fs * 3, ly - fs * 1.4 + bounce);
+    }
+    if (p.cafeUntil && now < p.cafeUntil) {
+      // Tacita al costado del personaje (nunca sobre la cabeza), con humito
+      ctx.font = `${Math.round(fs * 1.6)}px serif`;
+      ctx.fillText('☕', p.x + shR + fs * 1.4, p.y - fs * 2.2);
     }
     if (p.bubble && now < p.bubbleUntil) drawBubble(ctx, p.bubble, p.x, ly - fs * 0.8, fs);
   }
