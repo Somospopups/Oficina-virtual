@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v74 · 27/09/2026';
+const VERSION = 'v75 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2116,6 +2116,7 @@ function handleMsg(msg) {
     }
     case 'status': { const p = state.players.get(msg.id); if (p) p.status = msg.status; renderPlayerList(); break; }
     case 'emote': { const p = state.players.get(msg.id); if (p) { p.emote = msg.emote; p.emoteUntil = performance.now() + 3000; } break; }
+    case 'cat-pet': catAplicarMimo(msg.id); break;
     case 'nudge': { if (!dedupe(msg)) localZumb(msg.from || 'Alguien', false, msg.id); break; }
     // 'wave' eliminado: el saludo de cercanía quedaba feo. Los mensajes de
     // clientes viejos caen al vacío sin romper nada.
@@ -2932,6 +2933,7 @@ window.addEventListener('keydown', (e) => {
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 3) { setStatus(STATUS_KEYS[n - 1]); return; }
   if (n === 4) { doZumbido(); return; }
+  if (key === 'e') { catMimar(); return; }
   const emoteMap = { z: '👋', x: '😂', c: '🎉', v: '👍', b: '🤔', n: '🔥' };
   const em = emoteMap[key];
   if (em) { send({ type: 'emote', id: state.myId, emote: em }); const me = state.players.get(state.myId); if (me) { me.emote = em; me.emoteUntil = performance.now() + 3000; } return; }
@@ -3309,7 +3311,115 @@ function update(dt) {
   if (near) {
     hintBox.innerHTML = `Cerca de <b>${esc(near.name)}</b> — <span class="key">/w ${esc(near.name)} msg</span> susurrar`;
     hintBox.classList.add('show');
+  } else if (state.joined && catCerca()) {
+    hintBox.innerHTML = `🐈 <b>Michi</b> — <span class="key">E</span> acariciar`;
+    hintBox.classList.add('show');
   } else hintBox.classList.remove('show');
+}
+
+// ---------- Michi, el gato de la oficina ----------
+// Simulación DETERMINÍSTICA por reloj: cada cliente calcula el mismo objetivo
+// a partir del mismo segmento de Date.now(), así el gato está en el mismo
+// lugar para todos SIN mandar mensajes. Lo único que viaja por el bus es la
+// caricia ('cat-pet'), que lo pone a seguir un rato al que lo mimó.
+const CAT_SEG = 26000;
+const cat = { x: 612, y: 560, dir: 1, petBy: null, petUntil: 0, heartsUntil: 0 };
+function catPlan(nowMs, nocturno) {
+  if (nocturno) return { goal: { x: 610, y: 512 }, pose: 'sleep' };  // de noche duerme junto al ventanal
+  const i = Math.floor(nowMs / CAT_SEG);
+  const r = rnd(i, 29, 3);
+  if (r < 0.30) return { goal: { x: 585 + rnd(i, 31, 7) * 60, y: 505 + rnd(i, 37, 1) * 45 }, pose: 'sleep' };  // siesta al solcito
+  const y = lerp(FLOOR.yTop + 60, FLOOR.yBot - 130, rnd(i, 17, 9));
+  const t2 = (y - FLOOR.yTop) / (FLOOR.yBot - FLOOR.yTop);
+  const xl = lerp(FLOOR.xlTop, FLOOR.xlBot, t2) + 46;
+  const xr = lerp(FLOOR.xrTop, FLOOR.xrBot, t2) - 46;
+  return { goal: { x: lerp(xl, xr, rnd(i, 13, 5)), y }, pose: r < 0.55 ? 'sit' : 'idle' };
+}
+function catFrame(nocturno) {
+  let goal = null, pose = 'idle';
+  if (cat.petBy && performance.now() < cat.petUntil) {
+    const p = state.players.get(cat.petBy);
+    if (p && p.status !== 'ausente') { goal = { x: p.x - 34, y: Math.min(FLOOR.yBot - 60, p.y + 4) }; pose = 'sit'; }
+  }
+  if (!goal) { const pl = catPlan(Date.now(), nocturno); goal = pl.goal; pose = pl.pose; }
+  cat.x += (goal.x - cat.x) * 0.045;
+  cat.y += (goal.y - cat.y) * 0.045;
+  const moviendo = Math.hypot(goal.x - cat.x, goal.y - cat.y) > 7;
+  if (moviendo) cat.dir = goal.x > cat.x ? 1 : -1;
+  return moviendo ? 'walk' : pose;
+}
+function catCerca() {
+  const me = state.players.get(state.myId);
+  return me && Math.hypot(me.x - cat.x, me.y - cat.y) < 130;
+}
+function catMimar() {
+  if (!state.joined || !catCerca()) return;
+  send({ type: 'cat-pet', id: state.myId });
+  catAplicarMimo(state.myId);
+}
+function catAplicarMimo(id) {
+  cat.petBy = id;
+  cat.petUntil = performance.now() + 9000;
+  cat.heartsUntil = performance.now() + 3000;
+  beep(430, 0.05); setTimeout(() => beep(350, 0.07), 130);  // ronroneo cortito
+}
+function drawCat(now, nocturno) {
+  const pose = catFrame(nocturno);
+  const u = clamp(depthScale(cat.y) / 12, 0.5, 1.7) * 2.0;
+  const g = ctx;
+  g.fillStyle = 'rgba(0,0,0,0.22)';
+  g.beginPath(); g.ellipse(cat.x, cat.y + 1.5 * u, 7.5 * u, 2.2 * u, 0, 0, Math.PI * 2); g.fill();
+  g.save(); g.translate(cat.x, cat.y); g.scale(cat.dir * u, u);
+  const N = '#e0913f', O = '#b46f28', C = '#f6e7c9';  // naranja atigrado, rayas, panza
+  if (pose === 'sleep') {
+    const br = 1 + Math.sin(now * 0.002) * 0.06;  // respira
+    g.save(); g.scale(1, br);
+    g.fillStyle = N; g.fillRect(-7, -6, 14, 6);
+    g.fillStyle = O; g.fillRect(-5, -6, 2, 2); g.fillRect(-1, -6, 2, 2); g.fillRect(3, -6, 2, 2);
+    g.fillStyle = N; g.fillRect(2, -8, 5, 4);
+    g.fillStyle = O; g.fillRect(3, -9, 1, 1); g.fillRect(6, -9, 1, 1);
+    g.fillRect(-9, -3, 3, 1);
+    g.restore();
+  } else if (pose === 'sit') {
+    g.fillStyle = N; g.fillRect(-4, -8, 7, 8);
+    g.fillStyle = C; g.fillRect(-2, -5, 3, 5);
+    g.fillStyle = N; g.fillRect(-3, -13, 7, 6);
+    g.fillStyle = O; g.fillRect(-3, -15, 2, 2); g.fillRect(2, -15, 2, 2);
+    g.fillStyle = '#213d2a'; g.fillRect(0, -11, 1, 1); g.fillRect(2, -11, 1, 1);
+    const sw = Math.sin(now * 0.004) > 0 ? 1 : 0;
+    g.fillStyle = O; g.fillRect(-7, -3 + sw, 3, 1); g.fillRect(-8, -6, 1, 4);
+  } else {
+    const f = Math.floor(now / 170) % 2;
+    g.fillStyle = N; g.fillRect(-7, -8, 13, 5);
+    g.fillStyle = O; g.fillRect(-5, -8, 2, 2); g.fillRect(-1, -8, 2, 2); g.fillRect(3, -8, 2, 2);
+    g.fillStyle = C; g.fillRect(-4, -4, 8, 1);
+    g.fillStyle = N;
+    if (pose === 'walk') { g.fillRect(-6 + f, -3, 2, 3); g.fillRect(-2 - f, -3, 2, 3); g.fillRect(1 + f, -3, 2, 3); g.fillRect(4 - f, -3, 2, 3); }
+    else { g.fillRect(-6, -3, 2, 3); g.fillRect(-2, -3, 2, 3); g.fillRect(2, -3, 2, 3); g.fillRect(4, -3, 2, 3); }
+    g.fillRect(4, -12, 6, 6);
+    g.fillStyle = O; g.fillRect(4, -14, 2, 2); g.fillRect(8, -14, 2, 2);
+    g.fillStyle = '#213d2a'; g.fillRect(8, -10, 1, 1);
+    g.fillStyle = '#d98a8a'; g.fillRect(10, -9, 1, 1);
+    g.fillStyle = O; g.fillRect(-9, -12 + Math.round(Math.sin(now * 0.005)), 2, 5);
+  }
+  g.restore();
+  if (performance.now() < cat.heartsUntil) {
+    const k = 1 - (cat.heartsUntil - performance.now()) / 3000;
+    g.globalAlpha = 1 - k;
+    g.fillStyle = '#ff6b81';
+    g.font = `${Math.round(8 * u)}px monospace`;
+    g.fillText('❤', cat.x + 6 * u, cat.y - (16 + k * 14) * u);
+    g.fillText('❤', cat.x - 9 * u, cat.y - (12 + k * 18) * u);
+    g.globalAlpha = 1;
+  }
+  if (pose === 'sleep') {
+    const zt = (now % 1500) / 1500;
+    g.globalAlpha = 0.7 * (1 - zt);
+    g.fillStyle = '#cfe3ff';
+    g.font = `${Math.round(6 * u)}px monospace`;
+    g.fillText('z', cat.x + 8 * u, cat.y - (10 + zt * 8) * u);
+    g.globalAlpha = 1;
+  }
 }
 
 function render() {
@@ -3378,10 +3488,13 @@ function render() {
     ctx.globalCompositeOperation = 'source-over';
   }
 
+  const nocturno = sky.amb > 0.24;
+  let catDibujado = false;
   const list = [...state.players.values()].sort((a, b) => a.y - b.y);
   for (const p of list) {
     if (!p.name) continue;
     if (p.status === 'ausente') continue; // 🏃 ¡Ya vengo!: el personaje se va de la escena (sigue en la lista y su puesto queda reservado)
+    if (!catDibujado && cat.y < p.y) { drawCat(now, nocturno); catDibujado = true; }
     let topY, shR, fs;
     if (p.seated) {
       const ss = sitScale(p.y);
@@ -3449,6 +3562,7 @@ function render() {
     }
     if (p.bubble && now < p.bubbleUntil) drawBubble(ctx, p.bubble, p.x, ly - fs * 0.8, fs);
   }
+  if (!catDibujado) drawCat(now, nocturno);
 
   clockBox.textContent = `${phaseName(hf)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` + (USE_P2P ? ` · 📡${p2pPeerCount}` : '');
 
