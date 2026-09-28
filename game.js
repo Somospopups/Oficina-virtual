@@ -805,6 +805,23 @@ function rtcConectarConTodos() {
   }
 }
 
+// Cuando entra alguien nuevo a la oficina le repito mi estado de llamada. Los
+// avisos de micro/cámara/pantalla son solo de prendido/apagado, así que sin
+// esto el recién llegado no veía la pantalla que ya se estaba compartiendo ni
+// las cámaras que ya estaban andando. El pequeño delay deja que el nuevo
+// termine de procesar su 'welcome'; los avisos son idempotentes y solo el
+// lado iniciador oferta, así que no hay choque.
+function rtcSaludarNuevo(player) {
+  if (!player || !player.id || player.id === state.myId) return;
+  if (!rtcOn && !rtcCamOn && !rtcComparto) return;
+  setTimeout(() => {
+    if (rtcOn) send({ type: 'rtc-hello', mic: true, from: state.myId });
+    if (rtcCamOn && rtcCamStream) send({ type: 'rtc-cam', on: true, from: state.myId, sid: rtcCamStream.id });
+    if (rtcComparto && rtcPantalla) send({ type: 'rtc-share', on: true, from: state.myId, sid: rtcPantalla.id });
+    rtcConectarConTodos();
+  }, 400);
+}
+
 async function rtcAbrir() {
   if (rtcOn || rtcStream) return;
   try {
@@ -1533,7 +1550,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v64 · 27/09/2026';
+const VERSION = 'v65 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1869,7 +1886,7 @@ function handleMsg(msg) {
       renderPlayerList();
       break;
     }
-    case 'joined': upsertRemote(msg.player, true); renderPlayerList(); maybeMusicForNewcomer(); break;
+    case 'joined': upsertRemote(msg.player, true); renderPlayerList(); maybeMusicForNewcomer(); rtcSaludarNuevo(msg.player); break;
     case 'music': if (!dedupe(msg)) applyMusic(msg); break;
 
     // ---------- Llamada de la oficina ----------
