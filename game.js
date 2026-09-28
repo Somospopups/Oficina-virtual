@@ -109,7 +109,7 @@ const CHAR_DEF = {
   ger:  { skin: '#f5b984', skinD: '#d69a68', hair: '#2a1a12', beard: '#3a2418', beardStyle: 'goatee', shirt: '#201e24', pants: '#4c6886', shoe: '#141418', sole: '#d8d8dc', wide: false, hairStyle: 'spiky', dot: '#8a6a4a' },
   facu: { skin: '#f0a876', skinD: '#d08c5c', hair: '#0d0d12', beard: '#0d0d12', beardStyle: 'full',  shirt: '#2e6198', pants: '#537793', shoe: '#5a4432', sole: null,      wide: true,  hairStyle: 'full',  dot: '#2e6198' },
   ovni: { skin: '#f7b985', skinD: '#d89e6a', hair: '#1a1512', beard: '#241c18', beardStyle: 'goatee', shirt: '#fcb306', pants: '#25232d', shoe: '#e8e8e8', sole: '#9aa2ae', wide: false, hairStyle: 'cap',   dot: '#fcb306', jacket: true },
-  milo: { skin: '#f2b083', skinD: '#d4946a', hair: '#7a4a2a', beard: '#7a4a2a', beardStyle: null, shirt: '#f4f4f6', pants: '#17171d', shoe: '#101014', sole: '#e0e0e4', wide: false, hairStyle: 'full', dot: '#b98a55' },
+  milo: { skin: '#f2b083', skinD: '#d4946a', hair: '#7a4a2a', beard: '#7a4a2a', beardStyle: null, shirt: '#f4f4f6', pants: '#17171d', shoe: '#101014', sole: '#e0e0e4', wide: false, hairStyle: 'full', dot: '#b98a55', kid: true },
 };
 function charOf(key) { return CHAR_DEF[key] || CHAR_DEF.ger; }
 
@@ -195,7 +195,7 @@ function detailStand(g, c, dir, frame) {
 const charAssets = {};   // charKey -> { down, left, right, up, sit }
 // Las poses sentadas de referencia nacen en estas orientaciones; se espejan
 // automáticamente cuando alguien ocupa un puesto del lado opuesto.
-const SIT_BASE_FACE = { ger: 'left', facu: 'right', ovni: 'right', milo: 'left' };
+const SIT_BASE_FACE = { ger: 'left', facu: 'right', ovni: 'right', milo: 'right' };
 let assetsReady = false;
 
 function flipCanvas(src) {
@@ -1672,7 +1672,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v90 · 28/09/2026';
+const VERSION = 'v91 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2961,12 +2961,7 @@ window.addEventListener('keydown', (e) => {
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 3) { setStatus(STATUS_KEYS[n - 1]); return; }
   if (n === 4) { doZumbido(); return; }
-  if (key === 'e') {
-    // Botón de acción, por prioridad: cafetera > escritorio > Michi
-    if (cafeCerca()) cafeTomar();
-    else if (!sentarseE()) catMimar();
-    return;
-  }
+  if (key === 'e') { accionE(); return; }
   const emoteMap = { z: '👋', x: '😂', c: '🎉', v: '👍', b: '🤔', n: '🔥' };
   const em = emoteMap[key];
   if (em) { send({ type: 'emote', id: state.myId, emote: em }); const me = state.players.get(state.myId); if (me) { me.emote = em; me.emoteUntil = performance.now() + 3000; } return; }
@@ -3183,6 +3178,7 @@ function layoutMobile() {
   const chatEl = document.getElementById('chatPanel');
   if (!mob) {
     if (stickEl) stickEl.style.bottom = '';
+    { const b = document.getElementById('btnE'); if (b) b.style.bottom = ''; }
     if (chatEl) { chatEl.style.top = ''; chatEl.style.bottom = ''; }
     return;
   }
@@ -3194,6 +3190,8 @@ function layoutMobile() {
   const band = h - sceneBottom;
   const stickBottom = Math.max(10, (band - stickH) / 2);
   if (stickEl) stickEl.style.bottom = stickBottom + 'px';
+  const btnEEl2 = document.getElementById('btnE');
+  if (btnEEl2) btnEEl2.style.bottom = (stickBottom + 8) + 'px';
   if (chatEl) {
     chatEl.style.top = (sceneBottom + 6) + 'px';
     chatEl.style.bottom = ''; // el CSS móvil lo deja a 8px del borde, al lado del stick
@@ -3461,7 +3459,10 @@ function update(dt) {
     hintBox.innerHTML = `Cerca de <b>${esc(near.name)}</b> — <span class="key">/w ${esc(near.name)} msg</span> susurrar`;
     hintBox.classList.add('show');
   } else if (state.joined && cafeCerca()) {
-    hintBox.innerHTML = `☕ <b>Cafetera</b> — <span class="key">E</span> tomar un cafecito`;
+    const soyMilo = (state.players.get(state.myId) || {}).char === 'milo';
+    hintBox.innerHTML = soyMilo
+      ? `🥤 <b>Cafetera</b> — <span class="key">E</span> una coquita bien fría`
+      : `☕ <b>Cafetera</b> — <span class="key">E</span> tomar un cafecito`;
     hintBox.classList.add('show');
   } else if (state.joined && seatLibreCerca()) {
     hintBox.innerHTML = `🪑 <b>Escritorio</b> — <span class="key">E</span> sentarte`;
@@ -3470,6 +3471,9 @@ function update(dt) {
     hintBox.innerHTML = `🐈 <b>Michi</b> — <span class="key">E</span> acariciar`;
     hintBox.classList.add('show');
   } else hintBox.classList.remove('show');
+  // El botón de acción del celu brilla cuando hay algo para hacer cerca
+  const be = document.getElementById('btnE');
+  if (be) be.classList.toggle('activo', !!(state.joined && (cafeCerca() || seatLibreCerca() || catCerca())));
 }
 
 // ---------- Cafetera: un cafecito da energía (velocidad) por un rato ----------
@@ -3477,11 +3481,20 @@ function update(dt) {
 // ella tomás un café: buff de velocidad por 25 s y tacita al lado del
 // personaje. El evento 'cafe' viaja por el bus para que todos vean el buff
 // ajeno y la máquina preparando.
-const CAFE = { x: 512, y: 462, brewUntil: 0 };
+const CAFE = { x: 512, y: 465, brewUntil: 0 };
 const CAFE_MS = 25000;
 function cafeCerca() {
+  // Radio chico a propósito: hay que pegarse BIEN a la cafetera (muy atrás,
+  // contra el ventanal) para que la E no le robe la acción al escritorio cercano.
   const me = state.players.get(state.myId);
-  return me && Math.hypot(me.x - CAFE.x, me.y - CAFE.y) < 125;
+  return me && Math.hypot(me.x - CAFE.x, me.y - CAFE.y) < 48;
+}
+// Botón de acción (tecla E en PC, botón redondo en el celu).
+// Prioridad: cafetera > escritorio > Michi.
+function accionE() {
+  if (!state.joined) return;
+  if (cafeCerca()) { cafeTomar(); return; }
+  if (!sentarseE()) catMimar();
 }
 function cafeTomar() {
   if (!state.joined || !cafeCerca()) return;
@@ -3492,9 +3505,12 @@ function cafeAplicar(id) {
   const p = state.players.get(id);
   if (!p) return;
   p.cafeUntil = performance.now() + CAFE_MS;
+  if (p.char === 'milo') p.tomaUntil = performance.now() + 2200;  // Milo es niño: toma una coquita 🥤
   CAFE.brewUntil = performance.now() + 2600;
   beep(620, 0.05, 0.03); setTimeout(() => beep(760, 0.06, 0.03), 110);  // ¡café listo!
 }
+const miloToma = new Image();
+miloToma.src = 'sprites/milo_toma.png?v=1';
 const cafeImg = new Image();
 cafeImg.src = 'sprites/cafetera.png?v=1';
 function drawCafetera(now) {
@@ -3752,7 +3768,7 @@ function render() {
       const sframe = Math.floor(now / 280) % 2;
       const spr = getSitSprite(p.char || 'ger', p.x < VW / 2 ? 'left' : 'right', true, sframe);
       // Conserva la proporción natural de cada conjunto personaje + silla gamer.
-      const h = 48 * ss, w = h * (spr.width / spr.height);
+      const h = 48 * ss * ((CHAR_DEF[p.char || 'ger'] || {}).kid ? 0.9 : 1), w = h * (spr.width / spr.height);
       ctx.imageSmoothingEnabled = true;              // sprites sentados de alta resolución
       ctx.imageSmoothingQuality = 'high';
       const bob = charAssets[p.char || 'ger'] && charAssets[p.char || 'ger'].sit ? (sframe ? h / SIT_H * 2 : 0) : 0;
@@ -3786,7 +3802,11 @@ function render() {
           if (wi && wi.complete && wi.naturalWidth) dspr = wi;
         }
       }
-      const h = 44 * s, w = h * (dspr.width / dspr.height);
+      if (!p.moving && p.char === 'milo' && p.tomaUntil && now < p.tomaUntil && miloToma.complete && miloToma.naturalWidth) {
+        dspr = miloToma;  // 🥤 coquita en mano
+      }
+      const kid = (CHAR_DEF[p.char || 'ger'] || {}).kid ? 0.78 : 1;
+      const h = 44 * s * kid, w = h * (dspr.width / dspr.height);
       ctx.imageSmoothingEnabled = conAsset;              // ver nota arriba del setTransform
       if (conAsset) ctx.imageSmoothingQuality = 'high';
 
@@ -4005,6 +4025,12 @@ function init() {
   if (attachmentClose) attachmentClose.onclick = closeAttachmentPreview;
   if (attachmentModal) attachmentModal.addEventListener('click', (e) => { if (e.target === attachmentModal) closeAttachmentPreview(); });
 
+  // botón de acción táctil (móvil): misma E que en PC
+  const btnEEl = document.getElementById('btnE');
+  if (btnEEl) {
+    btnEEl.addEventListener('touchstart', (e) => { e.preventDefault(); accionE(); }, { passive: false });
+    btnEEl.addEventListener('mousedown', (e) => { e.preventDefault(); accionE(); });
+  }
   // stick táctil (móvil)
   state.stick = { x: 0, y: 0, active: false };
   const stickEl = document.getElementById('stick'), knobEl = document.getElementById('stickKnob');

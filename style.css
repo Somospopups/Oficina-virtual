@@ -155,6 +155,16 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
   position: absolute; left: 50%; top: 50%; width: 36px; height: 36px; margin: -18px 0 0 -18px;
   border-radius: 50%; background: #3a4664; border: 2px solid #55688f; pointer-events: none;
 }
+/* Botón de acción táctil (la "E" del celu): espejo del stick, pulgar izquierdo */
+#btnE {
+  display: none; position: absolute; left: 14px; bottom: 138px; z-index: 35;
+  width: 76px; height: 76px; border-radius: 50%;
+  background: rgba(16, 20, 29, 0.5); border: 2px solid #3b4560; color: #8fa0c0;
+  font-family: 'Press Start 2P', monospace; font-size: 24px; line-height: 72px; text-align: center;
+  touch-action: none; user-select: none; -webkit-user-select: none; cursor: pointer;
+}
+#btnE.activo { border-color: #ffd76a; color: #ffd76a; background: rgba(64, 52, 16, 0.55); }
+body.spectator-mode #btnE { display: none !important; }
 #game { touch-action: none; }
 
 @media (max-width: 900px) {
@@ -184,6 +194,7 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
      arriba a la derecha con top:98px en vez de centrado. */
   #videoPanel:not(.float) { left: 8px; right: 8px; top: 46px; width: auto; }
   #stick { display: block; left: auto; right: 12px; }
+  #btnE { display: block; }
   #micBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
 }
 
