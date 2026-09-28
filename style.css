@@ -591,7 +591,7 @@ body.desktop-rails #callVolBox #callVol { flex: 1 1 auto; width: 100%; min-width
 
 
 /* Botones -/+ para el tamano de letra del chat */
-#chatFsCtl { position: absolute; top: 4px; right: 6px; display: flex; gap: 3px; z-index: 3; opacity: 0.5; }
+#chatFsCtl { display: flex; justify-content: flex-end; gap: 3px; padding: 5px 6px 4px; opacity: 0.5; }
 #chatFsCtl:hover { opacity: 1; }
 #chatFsCtl button {
   width: 20px; height: 20px; padding: 0; cursor: pointer; line-height: 1;
