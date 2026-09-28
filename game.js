@@ -247,6 +247,7 @@ let rtcStream = null, rtcTrack = null, rtcOn = false, rtcAviso = false, rtcBloqu
 let rtcPantalla = null, rtcPantallaTrack = null, rtcComparto = false, rtcReneg = false, rtcRenegPend = false;
 const rtcComparte = new Map();  // peerId -> true si está compartiendo pantalla
 const rtcShareSid = new Map();  // peerId -> id del stream de su pantalla
+const rtcShareVivo = new Map(); // peerId -> MediaStream recibido de su pantalla (se conserva al cortar: el re-share revive por replaceTrack sin ontrack nuevo)
 
 // ---------- Cámaras ----------
 // Mismo criterio que la pantalla: no es una red nueva, es otro track de video
@@ -314,7 +315,18 @@ async function rtcCompartir() {
   send({ type: 'rtc-share', on: true, from: state.myId, sid: stream.id });
   rtcConectarConTodos();
   renderCallUI();
-  await rtcRenegociar();
+  // MISMO mecanismo que la cámara (que nunca falla): si la conexión ya tiene
+  // canal de pantalla de una vez anterior, se enchufa el track nuevo con
+  // replaceTrack — CERO renegociación. Solo se renegocia con conexiones que
+  // nunca tuvieron canal de pantalla.
+  let necesitaReneg = false;
+  for (const p of rtcMesh.values()) {
+    if (p.nuevo) { necesitaReneg = true; continue; }
+    if (p.shareSender) {
+      try { p.shareSender.replaceTrack(rtcPantallaTrack); } catch { necesitaReneg = true; }
+    } else necesitaReneg = true;
+  }
+  if (necesitaReneg) await rtcRenegociar();
   toast('🖥 Compartiendo tu pantalla. La ven en la ventana de video.');
 }
 
@@ -325,15 +337,13 @@ function rtcDejarDeCompartir() {
   if (!rtcComparto) return;
   rtcComparto = false;
   send({ type: 'rtc-share', on: false, from: state.myId });
-  // Sacar el track de video de cada conexión y renegociar. Si no se sacara, el
-  // compañero seguiría viendo una imagen congelada de tu pantalla.
+  // Se desenchufa el track pero el canal QUEDA VIVO (replaceTrack a null),
+  // igual que al apagar la cámara. Nada de removeTrack ni de renegociar: la
+  // renegociación era la fuente de todos los bugs del re-share.
   for (const p of rtcMesh.values()) {
-    try {
-      if (track) p.pc.getSenders().forEach((s) => { if (s.track === track) p.pc.removeTrack(s); });
-    } catch { /* ya cerrado */ }
+    if (p.shareSender) { try { p.shareSender.replaceTrack(null); } catch { /* ya cerrado */ } }
   }
   renderCallUI();
-  rtcRenegociar();
 }
 
 // Agrega o saca el track de pantalla y vuelve a ofertar. Solo comparte uno a la vez,
@@ -351,7 +361,7 @@ async function rtcRenegociar() {
         // apenas procese mi aviso; ofertar acá también generaría un choque.
         if (p.nuevo && !rtcIniciyo(peer)) continue;
         const yaEsta = rtcPantallaTrack && p.pc.getSenders().some((s) => s.track === rtcPantallaTrack);
-        if (rtcPantallaTrack && !yaEsta) p.pc.addTrack(rtcPantallaTrack, rtcPantalla);
+        if (rtcPantallaTrack && !yaEsta) p.shareSender = p.pc.addTrack(rtcPantallaTrack, rtcPantalla);
         const camEsta = rtcCamTrack && p.pc.getSenders().some((s) => s.track === rtcCamTrack);
         if (rtcCamTrack && !camEsta) p.camSender = p.pc.addTrack(rtcCamTrack, rtcCamStream);
         const micEsta = rtcTrack && p.pc.getSenders().some((s) => s.track === rtcTrack);
@@ -393,6 +403,9 @@ function rtcVerPantalla(peer, stream) {
   const tr = stream.getVideoTracks()[0];
   if (tr) tr.onunmute = intentar;
   rtcComparte.set(peer, true);
+  // El stream se conserva aunque corte: cuando vuelva a compartir, el track
+  // revive por replaceTrack en este MISMO stream y no llega ontrack nuevo.
+  rtcShareVivo.set(peer, stream);
   const panel = document.getElementById('videoPanel');
   if (panel) panel.classList.remove('hidden');
   const who = document.getElementById('videoWho');
@@ -625,9 +638,10 @@ function rtcPar(peer) {
     try { p.pc.addTrack(rtcTrack, rtcStream); } catch { /* sin track */ }
   }
   // El de pantalla se agrega acá si ya se estaba compartiendo, para que la
-  // conexión nazca completa y no haya que renegociar en el acto.
+  // conexión nazca completa y no haya que renegociar en el acto. El sender se
+  // guarda: el re-share revive con replaceTrack sobre este mismo canal.
   if (rtcPantallaTrack) {
-    try { p.pc.addTrack(rtcPantallaTrack, rtcPantalla); } catch { /* sin track */ }
+    try { p.shareSender = p.pc.addTrack(rtcPantallaTrack, rtcPantalla); } catch { /* sin track */ }
   }
   // Ídem la cámara: si ya estaba prendida, la conexión nace con el track puesto.
   if (rtcCamTrack) {
@@ -948,7 +962,7 @@ function rtcSalirDePeer(peer) {
   const partia = rtcComparte.delete(peer);
   rtcShareSid.delete(peer);
   rtcMic.delete(peer); rtcNivel.delete(peer);
-  rtcCamPeers.delete(peer); rtcCamSid.delete(peer); rtcCamVivo.delete(peer); rtcVideoPend.delete(peer);
+  rtcCamPeers.delete(peer); rtcCamSid.delete(peer); rtcCamVivo.delete(peer); rtcVideoPend.delete(peer); rtcShareVivo.delete(peer);
   renderCamStrip();
   // Si se va el que compartía, se cae la ventana: si no queda clavada mostrando la
   // última imagen de su pantalla.
@@ -1611,7 +1625,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v69 · 27/09/2026';
+const VERSION = 'v70 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2007,6 +2021,9 @@ function handleMsg(msg) {
         if (msg.sid) rtcShareSid.set(msg.from, msg.sid);
         if (rtcConectaCon(msg.from) && rtcIniciyo(msg.from) && !rtcMesh.has(msg.from)) rtcOfrecer(msg.from);
         else rtcPar(msg.from);
+        // Re-share sin renegociación: el video llega por el canal ya vivo y
+        // NO hay ontrack nuevo. Se revive la ventana con el stream cacheado.
+        if (rtcShareVivo.has(msg.from)) rtcVerPantalla(msg.from, rtcShareVivo.get(msg.from));
         rtcResolverVideos(msg.from);
         renderCallUI();
       } else {
