@@ -331,6 +331,8 @@ async function rtcRenegociar() {
         if (rtcPantallaTrack && !yaEsta) p.pc.addTrack(rtcPantallaTrack, rtcPantalla);
         const camEsta = rtcCamTrack && p.pc.getSenders().some((s) => s.track === rtcCamTrack);
         if (rtcCamTrack && !camEsta) p.pc.addTrack(rtcCamTrack, rtcCamStream);
+        const micEsta = rtcTrack && p.pc.getSenders().some((s) => s.track === rtcTrack);
+        if (rtcTrack && !micEsta) p.pc.addTrack(rtcTrack, rtcStream);
         const of = await p.pc.createOffer();
         await p.pc.setLocalDescription(of);
         send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, reneg: 1 });
@@ -733,6 +735,10 @@ async function rtcAbrir() {
   rtcOn = true;
   send({ type: 'rtc-hello', mic: true, from: state.myId });
   rtcConectarConTodos();
+  // Si ya había conexiones vivas (por cámara o pantalla), el track nuevo se
+  // suma renegociando: sin esto, reabrir el micro con las cámaras prendidas
+  // dejaba a los compañeros sin escucharte.
+  await rtcRenegociar();
   renderCallUI();
   if (!rtcAvisoHecho) {
     rtcAvisoHecho = true;
@@ -741,17 +747,33 @@ async function rtcAbrir() {
 }
 let rtcAvisoHecho = false;
 function rtcCerrar() {
-  if (rtcComparto) rtcDejarDeCompartir();
-  if (rtcCamOn) rtcCamApagar();
-  if (rtcTrack) { try { rtcTrack.stop(); } catch { /* ya estaba */ } }
+  // Cerrar el micro cierra SOLO el micro: la cámara y la pantalla compartida
+  // siguen andando sobre las mismas conexiones. Antes esto tiraba abajo toda
+  // la malla y se caían las cámaras de todos.
+  const track = rtcTrack;
+  if (track) { try { track.stop(); } catch { /* ya estaba */ } }
   rtcStream = null; rtcTrack = null; rtcOn = false;
   send({ type: 'rtc-hello', mic: false, from: state.myId });
-  for (const [peer, p] of rtcMesh) { send({ type: 'rtc-bye', to: peer, from: state.myId }); }
-  rtcMesh.clear();
-  for (const v of rtcVivo.values()) { try { v.audio.remove(); } catch { /* ya no está */ } }
-  rtcVivo.clear(); rtcNivel.clear();
+  // Sacar mi track de audio de las conexiones que quedan vivas.
+  for (const p of rtcMesh.values()) {
+    try {
+      if (track) p.pc.getSenders().forEach((s) => { if (s.track === track) p.pc.removeTrack(s); });
+    } catch { /* ya cerrado */ }
+  }
+  // Cortar únicamente los pares con los que ya no hay nada de por medio
+  // (ni cámara ni pantalla, mía o suya).
+  for (const [peer, p] of [...rtcMesh]) {
+    if (rtcConectaCon(peer)) continue;
+    send({ type: 'rtc-bye', to: peer, from: state.myId });
+    try { p.pc.close(); } catch { /* ya cerrado */ }
+    rtcMesh.delete(peer);
+    const v = rtcVivo.get(peer);
+    if (v) { try { v.audio.remove(); } catch { /* ya no está */ } rtcVivo.delete(peer); }
+    rtcNivel.delete(peer);
+  }
   rtcRefrescarBloqueo();
   renderCallUI();
+  rtcRenegociar();
 }
 function rtcToggle() { if (rtcOn) rtcCerrar(); else rtcAbrir(); }
 
@@ -1426,7 +1448,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v53 · 27/09/2026';
+const VERSION = 'v54 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1757,8 +1779,15 @@ function handleMsg(msg) {
       rtcMic.set(msg.from, !!msg.mic);
       if (msg.mic) {
         if (rtcOn && rtcIniciyo(msg.from)) rtcOfrecer(msg.from); else rtcPar(msg.from);
-      } else {
+      } else if (!rtcConectaCon(msg.from)) {
+        // Cerró el micro y no queda cámara ni pantalla de por medio: se corta.
         rtcSalirDePeer(msg.from);
+      } else {
+        // Cerró el micro pero su cámara (o pantalla) sigue: solo se limpia el audio.
+        const v = rtcVivo.get(msg.from);
+        if (v) { try { v.audio.remove(); } catch { /* ya no está */ } rtcVivo.delete(msg.from); }
+        rtcNivel.delete(msg.from);
+        rtcRefrescarBloqueo();
       }
       renderPlayerList(); renderCallUI();
       break;
