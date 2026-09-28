@@ -1465,7 +1465,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v58 · 27/09/2026';
+const VERSION = 'v59 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3448,6 +3448,25 @@ function init() {
   if (recTrash) recTrash.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); cancelRec(); toast('🎤 Grabación cancelada'); });
   chatInput.addEventListener('input', updateSendMic);
   updateSendMic();
+
+  // Tamaño de letra del chat: botones -/+ con la preferencia guardada en el
+  // navegador. El estilo inline le gana al CSS, así vale en cualquier modo.
+  const fsAplicar = () => {
+    const v = +(localStorage.getItem('chatFs') || 0);
+    if (v) chatLog.style.fontSize = v + 'px';
+  };
+  const fsPaso = (d) => {
+    const actual = +(localStorage.getItem('chatFs') || 0) ||
+      Math.round(parseFloat(getComputedStyle(chatLog).fontSize)) || 9;
+    const v = Math.max(6, Math.min(14, actual + d));
+    localStorage.setItem('chatFs', String(v));
+    chatLog.style.fontSize = v + 'px';
+  };
+  const fsMenos = document.getElementById('fsMinus');
+  const fsMas = document.getElementById('fsPlus');
+  if (fsMenos) fsMenos.onclick = () => fsPaso(-1);
+  if (fsMas) fsMas.onclick = () => fsPaso(1);
+  fsAplicar();
 
   // panel de diagnóstico: tocar el reloj lo abre/cierra
   const np = document.getElementById('netPanel');

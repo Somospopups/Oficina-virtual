@@ -382,7 +382,7 @@ body.desktop-rails #chatPanel {
 }
 body.desktop-rails #chatLog {
   height: auto; min-height: 0; flex: 1 1 auto;
-  padding: 11px 10px; font-size: 10px; line-height: 2;
+  padding: 11px 10px; font-size: 9px; line-height: 2;
 }
 body.desktop-rails #chatRow { padding: 4px; }
 body.desktop-rails #chatPill { gap: 3px; }
@@ -588,3 +588,14 @@ body.desktop-rails #callVolBox {
   width: calc(var(--desktop-rail-width) - 24px); box-sizing: border-box;
 }
 body.desktop-rails #callVolBox #callVol { flex: 1 1 auto; width: 100%; min-width: 0; }
+
+
+/* Botones -/+ para el tamano de letra del chat */
+#chatFsCtl { position: absolute; top: 4px; right: 6px; display: flex; gap: 3px; z-index: 3; opacity: 0.5; }
+#chatFsCtl:hover { opacity: 1; }
+#chatFsCtl button {
+  width: 20px; height: 20px; padding: 0; cursor: pointer; line-height: 1;
+  background: #1b2230; border: 2px solid #2c3550; border-radius: 5px;
+  color: #cdd5e4; font-size: 10px; font-family: inherit;
+}
+#chatFsCtl button:hover { background: #26304a; }
