@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v75 · 27/09/2026';
+const VERSION = 'v76 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3170,6 +3170,45 @@ window.addEventListener('resize', resize);
 
 const skyCv = document.createElement('canvas');
 skyCv.width = WIN.w; skyCv.height = WIN.h;
+// ---------- Clima real de Córdoba en el ventanal ----------
+// Open-Meteo: gratis, sin API key y con CORS abierto. Se consulta cada 10
+// minutos; si falla, el ventanal queda como siempre (despejado). Como todos
+// consultan el mismo clima, todos ven lo mismo sin mensajes de por medio.
+const clima = { code: 0, nubes: 0, ok: false, rayo: 0 };
+function climaTraer() {
+  fetch('https://api.open-meteo.com/v1/forecast?latitude=-31.42&longitude=-64.18&current=weather_code,cloud_cover')
+    .then((r) => r.json())
+    .then((j) => {
+      if (!j || !j.current) return;
+      clima.code = j.current.weather_code | 0;
+      clima.nubes = (j.current.cloud_cover || 0) / 100;
+      clima.ok = true;
+    })
+    .catch(() => { /* sin clima: ventanal normal */ });
+}
+climaTraer();
+setInterval(climaTraer, 10 * 60 * 1000);
+function climaTipo() {
+  const c = clima.code;
+  if (c >= 95) return 'tormenta';
+  if ((c >= 61 && c <= 67) || (c >= 80 && c <= 82)) return 'lluvia';
+  if ((c >= 71 && c <= 77) || c === 85 || c === 86) return 'nieve';
+  if (c >= 51 && c <= 57) return 'llovizna';
+  if (c === 45 || c === 48) return 'niebla';
+  return 'despejado';
+}
+function climaEmoji() {
+  if (!clima.ok) return '';
+  const t = climaTipo();
+  if (t === 'tormenta') return '⛈';
+  if (t === 'lluvia') return '🌧';
+  if (t === 'llovizna') return '🌦';
+  if (t === 'nieve') return '❄️';
+  if (t === 'niebla') return '🌫';
+  if (clima.nubes > 0.65) return '☁️';
+  return '';
+}
+
 function drawSky(now, hf, sky) {
   const g = skyCv.getContext('2d');
   const W = WIN.w, H = WIN.h;
@@ -3211,6 +3250,50 @@ function drawSky(now, hf, sky) {
         const on = rnd(wx, wy, 21) > 0.45;
         if (night > 0.4) { if (on) { g.fillStyle = `rgba(255,215,106,${(0.4 + night * 0.6).toFixed(2)})`; g.fillRect(wx, wy, 1, 2); } }
         else { g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(wx, wy, 1, 2); }
+      }
+    }
+  }
+  // ---- Clima real por encima del skyline (y debajo del marco) ----
+  if (clima.ok) {
+    const tipo = climaTipo();
+    const extra = Math.round(clima.nubes * 6);
+    const oscura = tipo === 'tormenta' || tipo === 'lluvia';
+    for (let i = 0; i < extra; i++) {
+      const cx = ((now * (0.006 + i * 0.001) + i * 47) % (W + 60)) - 30;
+      const cy = 4 + rnd(i, 51, 8) * (H * 0.45);
+      g.fillStyle = oscura ? 'rgba(70,78,96,0.75)' : `rgba(226,232,240,${(0.45 + clima.nubes * 0.3).toFixed(2)})`;
+      g.fillRect(cx, cy, 30, 5); g.fillRect(cx + 5, cy - 3, 18, 3); g.fillRect(cx + 8, cy + 5, 16, 3);
+    }
+    if (tipo === 'niebla') {
+      g.fillStyle = 'rgba(190,198,208,0.30)'; g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(190,198,208,0.40)'; g.fillRect(0, H * 0.4, W, H * 0.6);
+    }
+    if (tipo === 'lluvia' || tipo === 'llovizna' || tipo === 'tormenta') {
+      const nGotas = tipo === 'llovizna' ? 26 : 60;
+      g.strokeStyle = tipo === 'llovizna' ? 'rgba(190,210,235,0.35)' : 'rgba(170,195,230,0.55)';
+      g.lineWidth = 1;
+      g.beginPath();
+      for (let i = 0; i < nGotas; i++) {
+        const rx = (rnd(i, 61, 4) * W + now * (0.12 + rnd(i, 67, 2) * 0.1)) % W;
+        const ry = (rnd(i, 71, 6) * H + now * (0.25 + rnd(i, 73, 3) * 0.15)) % H;
+        g.moveTo(rx, ry); g.lineTo(rx - 1.5, ry + 5);
+      }
+      g.stroke();
+    }
+    if (tipo === 'nieve') {
+      g.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let i = 0; i < 34; i++) {
+        const rx = (rnd(i, 81, 4) * W + Math.sin(now * 0.001 + i) * 6 + now * 0.01) % W;
+        const ry = (rnd(i, 83, 6) * H + now * (0.02 + rnd(i, 87, 3) * 0.02)) % H;
+        g.fillRect(rx, ry, 1.5, 1.5);
+      }
+    }
+    if (tipo === 'tormenta') {
+      // Relámpago: destello local, no hace falta sincronizarlo (es ambiente)
+      if (now > clima.rayo && Math.random() < 0.005) clima.rayo = now + 160;
+      if (now < clima.rayo) {
+        g.fillStyle = `rgba(240,245,255,${(0.5 + Math.random() * 0.3).toFixed(2)})`;
+        g.fillRect(0, 0, W, H);
       }
     }
   }
@@ -3564,7 +3647,8 @@ function render() {
   }
   if (!catDibujado) drawCat(now, nocturno);
 
-  clockBox.textContent = `${phaseName(hf)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` + (USE_P2P ? ` · 📡${p2pPeerCount}` : '');
+  const ce = climaEmoji();
+  clockBox.textContent = `${phaseName(hf)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` + (ce ? ` · ${ce}` : '') + (USE_P2P ? ` · 📡${p2pPeerCount}` : '');
 
   // Marco visual de escritorio: oscurece solo las bandas exteriores; el área de
   // la oficina queda intacta y sus límites coinciden con los paneles laterales.
