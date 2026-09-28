@@ -100,6 +100,7 @@ const ROSTER = [
   { dni: '33245911', name: 'Ger',  char: 'ger',  seat: 1 },
   { dni: '31923010', name: 'Facu', char: 'facu', seat: 2 },
   { dni: '34186736', name: 'Ovni', char: 'ovni', seat: 3 },
+  { dni: '54472249', name: 'Milo', char: 'milo', seat: 0 },  // escritorio delantero izq. (el único libre)
 ];
 // Paleta muestreada de los PNG de referencia (sprites/*.png), no aproximada a ojo:
 // así el chibi de grilla (fallback), el sentado y los PNG comparten los mismos
@@ -108,6 +109,7 @@ const CHAR_DEF = {
   ger:  { skin: '#f5b984', skinD: '#d69a68', hair: '#2a1a12', beard: '#3a2418', beardStyle: 'goatee', shirt: '#201e24', pants: '#4c6886', shoe: '#141418', sole: '#d8d8dc', wide: false, hairStyle: 'spiky', dot: '#8a6a4a' },
   facu: { skin: '#f0a876', skinD: '#d08c5c', hair: '#0d0d12', beard: '#0d0d12', beardStyle: 'full',  shirt: '#2e6198', pants: '#537793', shoe: '#5a4432', sole: null,      wide: true,  hairStyle: 'full',  dot: '#2e6198' },
   ovni: { skin: '#f7b985', skinD: '#d89e6a', hair: '#1a1512', beard: '#241c18', beardStyle: 'goatee', shirt: '#fcb306', pants: '#25232d', shoe: '#e8e8e8', sole: '#9aa2ae', wide: false, hairStyle: 'cap',   dot: '#fcb306', jacket: true },
+  milo: { skin: '#f2b083', skinD: '#d4946a', hair: '#7a4a2a', beard: '#7a4a2a', beardStyle: null, shirt: '#f4f4f6', pants: '#17171d', shoe: '#101014', sole: '#e0e0e4', wide: false, hairStyle: 'full', dot: '#b98a55' },
 };
 function charOf(key) { return CHAR_DEF[key] || CHAR_DEF.ger; }
 
@@ -193,7 +195,7 @@ function detailStand(g, c, dir, frame) {
 const charAssets = {};   // charKey -> { down, left, right, up, sit }
 // Las poses sentadas de referencia nacen en estas orientaciones; se espejan
 // automáticamente cuando alguien ocupa un puesto del lado opuesto.
-const SIT_BASE_FACE = { ger: 'left', facu: 'right', ovni: 'right' };
+const SIT_BASE_FACE = { ger: 'left', facu: 'right', ovni: 'right', milo: 'left' };
 let assetsReady = false;
 
 function flipCanvas(src) {
@@ -1094,6 +1096,12 @@ function loadCharAssets() {
     im.onload = () => {
       const r = flipCanvas(im);
       charAssets[k] = { down: im, left: r, right: r, up: oscurecer(im) };
+      if (k === 'milo') {
+        // Milo tiene espalda REAL dibujada (no la silueta oscurecida)
+        const esp = new Image();
+        esp.onload = () => { charAssets.milo.up = esp; };
+        esp.src = 'sprites/milo_up.png?v=1';
+      }
       loadSeat();
     };
     im.onerror = () => { loadSeat(); }; // los sprites por código siguen disponibles
@@ -1664,7 +1672,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v89 · 28/09/2026';
+const VERSION = 'v90 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3562,13 +3570,21 @@ function catAplicarMimo(id) {
   cat.heartsUntil = performance.now() + 3000;
   beep(430, 0.05); setTimeout(() => beep(350, 0.07), 130);  // ronroneo cortito
 }
-// Frames de caminata por personaje (por ahora solo Ger, a modo de prueba).
-// Quieto usa SIEMPRE el sprite original; estos solo aparecen al moverse.
+// Frames de caminata por personaje y dirección. Quieto usa SIEMPRE el sprite
+// original; estos solo aparecen al moverse. Si falta la dirección se usa 'down'.
 const walkAssets = {};
 {
-  const arr = [];
-  for (let i = 1; i <= 4; i++) { const im = new Image(); im.src = `sprites/ger_walk${i}.png?v=1`; arr.push(im); }
-  walkAssets.ger = arr;
+  const img = (n) => { const i = new Image(); i.src = `sprites/${n}.png?v=1`; return i; };
+  const g2 = img('ger_walk2'), g3 = img('ger_walk3'), g4 = img('ger_walk4');
+  walkAssets.ger = { down: [g2, g3, g4, g3] };
+  const l1 = img('milo_wl1'), l2 = img('milo_wl2'), l3 = img('milo_wl3');
+  const r1 = img('milo_wr1'), r2 = img('milo_wr2'), r3 = img('milo_wr3');
+  walkAssets.milo = {
+    down: [img('milo_wf1'), img('milo_wf2')],
+    up: [img('milo_wu1'), img('milo_wu2')],
+    left: [l1, l2, l3, l2],
+    right: [r1, r2, r3, r2],
+  };
 }
 // Sprites de Michi (hoja del usuario, recortada y con fondo transparente)
 const catImgs = {};
@@ -3762,11 +3778,13 @@ function render() {
       // paso → zancada izquierda → paso. El tamaño (s) sale del sprite base
       // para que no cambie la altura al arrancar o frenar.
       let dspr = spr;
-      const wf = walkAssets[p.char || 'ger'];
-      if (p.moving && wf) {
-        const seq = [1, 2, 3, 2];
-        const wi = wf[seq[Math.floor(now / 160) % 4]];
-        if (wi && wi.complete && wi.naturalWidth) dspr = wi;
+      const wa = walkAssets[p.char || 'ger'];
+      if (p.moving && wa) {
+        const arr = wa[p.dir] || wa.down;
+        if (arr && arr.length) {
+          const wi = arr[Math.floor(now / 160) % arr.length];
+          if (wi && wi.complete && wi.naturalWidth) dspr = wi;
+        }
       }
       const h = 44 * s, w = h * (dspr.width / dspr.height);
       ctx.imageSmoothingEnabled = conAsset;              // ver nota arriba del setTransform
