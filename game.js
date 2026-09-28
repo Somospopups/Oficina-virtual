@@ -244,7 +244,7 @@ let rtcStream = null, rtcTrack = null, rtcOn = false, rtcAviso = false, rtcBloqu
 // Reusa la malla de audio: no es una red nueva, es agregar un track de video a las
 // conexiones que ya están. Solo uno a la vez, y mudo (el audio lo lleva el micro
 // aparte; mezclarlo se acopla y ademas es unaDecision de privacidad).
-let rtcPantalla = null, rtcPantallaTrack = null, rtcComparto = false, rtcReneg = false;
+let rtcPantalla = null, rtcPantallaTrack = null, rtcComparto = false, rtcReneg = false, rtcRenegPend = false;
 const rtcComparte = new Map();  // peerId -> true si está compartiendo pantalla
 const rtcShareSid = new Map();  // peerId -> id del stream de su pantalla
 
@@ -279,8 +279,15 @@ async function rtcCompartir() {
     return;
   }
   if (rtcComparte.size) {
-    toast('🖥 Ya hay alguien compartiendo pantalla. Solo una a la vez.');
-    return;
+    // Ocupado de verdad = hay un video de pantalla ajeno en el aire. Si los
+    // mapas quedaron sucios de una sesión anterior pero no se está mostrando
+    // nada, se limpian y se deja compartir: si no, el botón quedaba muerto.
+    if (document.getElementById('rtcVideo')) {
+      toast('🖥 Ya hay alguien compartiendo pantalla. Solo una a la vez.');
+      return;
+    }
+    rtcComparte.clear();
+    rtcShareSid.clear();
   }
   let stream;
   try {
@@ -332,7 +339,10 @@ function rtcDejarDeCompartir() {
 // Agrega o saca el track de pantalla y vuelve a ofertar. Solo comparte uno a la vez,
 // así que las renegociaciones nunca se cruzan entre dos pares.
 async function rtcRenegociar() {
-  if (rtcReneg) return;
+  // Si ya hay una renegociación en curso NO se descarta: se anota y se corre
+  // otra al terminar. Descartarla era el bug de "dejo de compartir y al
+  // volver a compartir no sale": el track nuevo nunca llegaba a ofertarse.
+  if (rtcReneg) { rtcRenegPend = true; return; }
   rtcReneg = true;
   try {
     for (const [peer, p] of rtcMesh) {
@@ -349,7 +359,10 @@ async function rtcRenegociar() {
         send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, reneg: 1, spec: String(peer).startsWith('0tv') ? 1 : undefined });
       } catch { /* se reintenta con el siguiente hello */ }
     }
-  } finally { rtcReneg = false; }
+  } finally {
+    rtcReneg = false;
+    if (rtcRenegPend) { rtcRenegPend = false; rtcRenegociar(); }
+  }
 }
 
 function rtcVerPantalla(peer, stream) {
@@ -381,6 +394,7 @@ function rtcVerPantalla(peer, stream) {
 
 function rtcOcultarPantalla() {
   rtcComparte.clear();
+  rtcShareSid.clear();
   const v = document.getElementById('rtcVideo');
   if (v) { try { v.srcObject = null; } catch { /* ya no está */ } v.remove(); }
   const panel = document.getElementById('videoPanel');
@@ -1550,7 +1564,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v65 · 27/09/2026';
+const VERSION = 'v66 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1951,7 +1965,10 @@ function handleMsg(msg) {
       } else {
         rtcComparte.delete(msg.from);
         rtcShareSid.delete(msg.from);
-        if (!rtcComparte.size) rtcOcultarPantalla();
+        // Solo comparte uno a la vez: el "off" limpia TODO sin condiciones.
+        // Antes se ocultaba solo si el mapa quedaba vacío, y una entrada
+        // vieja con otra clave dejaba la pantalla clavada para siempre.
+        rtcOcultarPantalla();
       }
       break;
     }
