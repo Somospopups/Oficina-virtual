@@ -1069,6 +1069,11 @@ function renderCallUI() {
   renderCamStrip(); // que los botoncitos de cada cuadro reflejen mic/cámara al toque
 }
 
+// Vistas por dirección REALES (espalda dibujada, perfiles) para quien las tenga
+const DIR_SPRITES = {
+  milo: { up: 'sprites/milo_up.png?v=1' },
+  ger:  { up: 'sprites/ger_up.png?v=1', left: 'sprites/ger_perfil_izq.png?v=1', right: 'sprites/ger_perfil_der.png?v=1' },
+};
 function loadCharAssets() {
   const keys = Object.keys(CHAR_DEF);
   return Promise.all(keys.map((k) => new Promise((res) => {
@@ -1096,11 +1101,13 @@ function loadCharAssets() {
     im.onload = () => {
       const r = flipCanvas(im);
       charAssets[k] = { down: im, left: r, right: r, up: oscurecer(im) };
-      if (k === 'milo') {
-        // Milo tiene espalda REAL dibujada (no la silueta oscurecida)
-        const esp = new Image();
-        esp.onload = () => { charAssets.milo.up = esp; };
-        esp.src = 'sprites/milo_up.png?v=1';
+      const ov = DIR_SPRITES[k];
+      if (ov) {
+        for (const d in ov) {
+          const di = new Image();
+          di.onload = ((dd, dimg) => () => { charAssets[k][dd] = dimg; })(d, di);
+          di.src = ov[d];
+        }
       }
       loadSeat();
     };
@@ -1672,7 +1679,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v93 · 28/09/2026';
+const VERSION = 'v94 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3511,6 +3518,9 @@ function cafeAplicar(id) {
 }
 const miloToma = new Image();
 miloToma.src = 'sprites/milo_toma.png?v=1';
+// Ger sentado tomando su café (mientras dura el buff): ciclo de 4 frames
+const gerSitCafe = [1, 2, 3, 4].map((i) => { const im = new Image(); im.src = `sprites/ger_sc${i}.png?v=1`; return im; });
+const gerSitCafeFlip = [];
 const cafeImg = new Image();
 cafeImg.src = 'sprites/cafetera.png?v=1';
 function drawCafetera(now) {
@@ -3592,7 +3602,9 @@ const walkAssets = {};
 {
   const img = (n) => { const i = new Image(); i.src = `sprites/${n}.png?v=1`; return i; };
   const g2 = img('ger_walk2'), g3 = img('ger_walk3'), g4 = img('ger_walk4');
-  walkAssets.ger = { down: [g2, g3, g4, g3] };
+  const gl = [], gr = [];
+  for (let i = 1; i <= 8; i++) { gl.push(img(`ger_l${i}`)); gr.push(img(`ger_r${i}`)); }
+  walkAssets.ger = { down: [g2, g3, g4, g3], left: gl, right: gr, up: [img('ger_wu1'), img('ger_wu2')] };
   const l1 = img('milo_wl1'), l2 = img('milo_wl2'), l3 = img('milo_wl3');
   const r1 = img('milo_wr1'), r2 = img('milo_wr2'), r3 = img('milo_wr3');
   walkAssets.milo = {
@@ -3766,7 +3778,16 @@ function render() {
     if (p.seated) {
       const ss = sitScale(p.y);
       const sframe = Math.floor(now / 280) % 2;
-      const spr = getSitSprite(p.char || 'ger', p.x < VW / 2 ? 'left' : 'right', true, sframe);
+      let spr = getSitSprite(p.char || 'ger', p.x < VW / 2 ? 'left' : 'right', true, sframe);
+      // Ger con buff de café: sentado toma su cafecito en ciclo (frames de la hoja)
+      if (p.char === 'ger' && p.cafeUntil && now < p.cafeUntil) {
+        const ci = Math.floor(now / 340) % gerSitCafe.length;
+        const fr = gerSitCafe[ci];
+        if (fr && fr.complete && fr.naturalWidth) {
+          if (p.x < VW / 2) spr = fr;  // los frames miran a la izquierda
+          else { if (!gerSitCafeFlip[ci]) gerSitCafeFlip[ci] = flipCanvas(fr); spr = gerSitCafeFlip[ci]; }
+        }
+      }
       // Conserva la proporción natural de cada conjunto personaje + silla gamer.
       const h = 48 * ss * ((CHAR_DEF[p.char || 'ger'] || {}).kid ? 0.9 : 1), w = h * (spr.width / spr.height);
       ctx.imageSmoothingEnabled = true;              // sprites sentados de alta resolución
@@ -3798,7 +3819,8 @@ function render() {
       if (p.moving && wa) {
         const arr = wa[p.dir] || wa.down;
         if (arr && arr.length) {
-          const wi = arr[Math.floor(now / 160) % arr.length];
+          const paso = arr.length > 4 ? 110 : 160;  // ciclos largos, frames más rápidos
+          const wi = arr[Math.floor(now / paso) % arr.length];
           if (wi && wi.complete && wi.naturalWidth) dspr = wi;
         }
       }
