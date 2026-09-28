@@ -1465,7 +1465,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v60 · 27/09/2026';
+const VERSION = 'v61 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2898,10 +2898,17 @@ function resize() {
   canvas.width = window.innerWidth; canvas.height = window.innerHeight;
   backdropDirty = true;
   viewScale = Math.min(canvas.width / VW, canvas.height / VH);
+  // En pantalla ancha (PC y TV) SIEMPRE hay rieles laterales. Si el aspecto de
+  // la pantalla hace que la oficina no deje 220px por lado (caso típico: TV
+  // 16:9), se achica la oficina hasta reservarlos. Así el TV, el monitor y
+  // cualquier pantalla ancha se ven exactamente igual.
+  if (canvas.width > 900 && (canvas.width - VW * viewScale) / 2 < 220) {
+    viewScale = Math.min((canvas.width - 440) / VW, canvas.height / VH);
+  }
   viewOX = (canvas.width - VW * viewScale) / 2;
   viewOY = (canvas.height - VH * viewScale) / 2;
   document.documentElement.style.setProperty('--desktop-rail-width', Math.max(0, Math.round(viewOX)) + 'px');
-  document.body.classList.toggle('desktop-rails', canvas.width > 900 && viewOX >= 220);
+  document.body.classList.toggle('desktop-rails', canvas.width > 900);
   layoutDesktopAudio();
   ctx.imageSmoothingEnabled = false;
   layoutMobile();
