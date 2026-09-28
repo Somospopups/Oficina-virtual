@@ -378,7 +378,16 @@ function rtcVerPantalla(peer, stream) {
     box.appendChild(v);
   }
   v.srcObject = stream;
-  v.play().catch(() => {});
+  // El play puede fallar: autoplay bloqueado (típico del navegador del TV) o
+  // track todavía sin cuadros justo después de una renegociación (pasa al
+  // RE-compartir). Un solo intento dejaba el botón de play clavado para
+  // siempre: ahora se reintenta cuando llegan los primeros cuadros, cuando
+  // hay metadata, y ante cualquier gesto (rtcDesbloquearPorGesto).
+  const intentar = () => { if (v.isConnected && v.paused) v.play().catch(() => {}); };
+  intentar();
+  v.onloadedmetadata = intentar;
+  const tr = stream.getVideoTracks()[0];
+  if (tr) tr.onunmute = intentar;
   rtcComparte.set(peer, true);
   const panel = document.getElementById('videoPanel');
   if (panel) panel.classList.remove('hidden');
@@ -535,7 +544,18 @@ function renderCamStrip() {
     const stream = s.me
       ? (rtcCamOn ? rtcCamStream : null)
       : ((rtcCamPeers.get(s.id) && !rtcCamOculto.has(s.id)) ? (rtcCamVivo.get(s.id) || null) : null);
-    if (v.srcObject !== stream) { v.srcObject = stream; if (stream) v.play().catch(() => {}); }
+    if (v.srcObject !== stream) {
+      v.srcObject = stream;
+      if (stream) {
+        // Mismo criterio que la pantalla compartida: un solo play() que falla
+        // deja la cámara clavada; se reintenta al primer cuadro y por gesto.
+        const intentar = () => { if (v.isConnected && v.paused) v.play().catch(() => {}); };
+        intentar();
+        v.onloadedmetadata = intentar;
+        const tr = stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
+        if (tr) tr.onunmute = intentar;
+      }
+    }
     el.classList.toggle('off', !stream);
     el.classList.toggle('me', !!s.me);
     nom.textContent = s.name;
@@ -759,6 +779,12 @@ function rtcReintentar(audio, peer) {
 // el autoplay. Ya no hace falta: cualquier click o tecla del usuario es un gesto
 // válido, así que se reintenta solo y el audio se destraba sin que nadie lo note.
 function rtcDesbloquearPorGesto() {
+  // Videos pausados (pantalla compartida o cámaras): cualquier gesto es una
+  // oportunidad de destrabarlos. En el TV el navegador es más estricto con el
+  // autoplay y esto es lo que revive el video sin que el usuario haga nada raro.
+  document.querySelectorAll('video').forEach((v) => {
+    if (v.paused && v.srcObject) v.play().catch(() => { /* habrá otro gesto */ });
+  });
   if (!rtcBloqueado || !rtcVivo.size) return;
   try {
     const ctx = audioCtx || (audioCtx = new (window.AudioContext || window.webkitAudioContext)());
@@ -1568,7 +1594,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v67 · 27/09/2026';
+const VERSION = 'v68 · 27/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
