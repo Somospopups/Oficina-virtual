@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v80 · 28/09/2026';
+const VERSION = 'v81 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3174,22 +3174,21 @@ skyCv.width = WIN.w; skyCv.height = WIN.h;
 // Open-Meteo: gratis, sin API key y con CORS abierto. Se consulta cada 10
 // minutos; si falla, el ventanal queda como siempre (despejado). Como todos
 // consultan el mismo clima, todos ven lo mismo sin mensajes de por medio.
-const clima = { code: 0, nubes: 0, ok: false, rayo: 0 };
-function climaTraer() {
-  fetch('https://api.open-meteo.com/v1/forecast?latitude=-31.42&longitude=-64.18&current=weather_code,cloud_cover')
-    .then((r) => r.json())
-    .then((j) => {
-      if (!j || !j.current) return;
-      clima.code = j.current.weather_code | 0;
-      clima.nubes = (j.current.cloud_cover || 0) / 100;
-      clima.ok = true;
-    })
-    .catch(() => { /* sin clima: ventanal normal */ });
+const clima = { tipo: 'despejado', nubes: 0, ok: false, rayo: 0, om: null, wt: null };
+// Doble fuente: Open-Meteo (modelo) + wttr.in (observación). El modelo a veces
+// no ve la lluvia que está cayendo de verdad, así que combinamos y gana la
+// condición MÁS severa. Ambas gratis, sin API key y con CORS abierto.
+const CLIMA_RANGO = { despejado: 0, niebla: 1, llovizna: 2, nieve: 3, lluvia: 3, tormenta: 4 };
+function climaCombinar() {
+  const fu = [clima.om, clima.wt].filter(Boolean);
+  if (!fu.length) return;
+  let peor = fu[0];
+  for (const f of fu) if (CLIMA_RANGO[f.tipo] > CLIMA_RANGO[peor.tipo]) peor = f;
+  clima.tipo = peor.tipo;
+  clima.nubes = Math.max(...fu.map((f) => f.nubes));
+  clima.ok = true;
 }
-climaTraer();
-setInterval(climaTraer, 10 * 60 * 1000);
-function climaTipo() {
-  const c = clima.code;
+function climaTipoWMO(c) {
   if (c >= 95) return 'tormenta';
   if ((c >= 61 && c <= 67) || (c >= 80 && c <= 82)) return 'lluvia';
   if ((c >= 71 && c <= 77) || c === 85 || c === 86) return 'nieve';
@@ -3197,6 +3196,40 @@ function climaTipo() {
   if (c === 45 || c === 48) return 'niebla';
   return 'despejado';
 }
+function climaTipoWWO(c, mm) {
+  // Códigos WorldWeatherOnline (los que usa wttr.in) + mm de precipitación
+  if ([200, 386, 389, 392, 395].includes(c)) return 'tormenta';
+  if ([179, 182, 185, 227, 230, 320, 323, 326, 329, 332, 335, 338, 350, 368, 371, 374, 377].includes(c)) return 'nieve';
+  if ([299, 302, 305, 308, 356, 359].includes(c) || mm >= 2) return 'lluvia';
+  if ([176, 263, 266, 281, 284, 293, 296, 311, 314, 317, 353].includes(c)) return mm >= 1 ? 'lluvia' : 'llovizna';
+  if (mm > 0) return 'llovizna';
+  if ([143, 248, 260].includes(c)) return 'niebla';
+  return 'despejado';
+}
+function climaTraer() {
+  fetch('https://api.open-meteo.com/v1/forecast?latitude=-31.42&longitude=-64.18&current=weather_code,cloud_cover,precipitation')
+    .then((r) => r.json())
+    .then((j) => {
+      if (!j || !j.current) return;
+      let tipo = climaTipoWMO(j.current.weather_code | 0);
+      if (tipo === 'despejado' && (j.current.precipitation || 0) > 0) tipo = 'llovizna';
+      clima.om = { tipo, nubes: (j.current.cloud_cover || 0) / 100 };
+      climaCombinar();
+    })
+    .catch(() => { /* sin esta fuente: queda la otra o ventanal normal */ });
+  fetch('https://wttr.in/-31.42,-64.18?format=j1')
+    .then((r) => r.json())
+    .then((j) => {
+      const c = j && j.current_condition && j.current_condition[0];
+      if (!c) return;
+      clima.wt = { tipo: climaTipoWWO(+c.weatherCode || 0, parseFloat(c.precipMM) || 0), nubes: (+c.cloudcover || 0) / 100 };
+      climaCombinar();
+    })
+    .catch(() => { /* idem */ });
+}
+climaTraer();
+setInterval(climaTraer, 10 * 60 * 1000);
+function climaTipo() { return clima.tipo; }
 function climaEmoji() {
   if (!clima.ok) return '';
   const t = climaTipo();
