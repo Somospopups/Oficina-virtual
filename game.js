@@ -1664,7 +1664,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v86 · 28/09/2026';
+const VERSION = 'v87 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3562,6 +3562,11 @@ function catAplicarMimo(id) {
   cat.heartsUntil = performance.now() + 3000;
   beep(430, 0.05); setTimeout(() => beep(350, 0.07), 130);  // ronroneo cortito
 }
+// Sprites de Michi (hoja del usuario, recortada y con fondo transparente)
+const catImgs = {};
+for (const n of ['sleep', 'sit', 'stand_f', 'stand_l', 'stand_r', 'walk_l1', 'walk_l2', 'walk_l3', 'walk_r1', 'walk_r2', 'walk_r3', 'happy']) {
+  const i = new Image(); i.src = `sprites/cat/${n}.png?v=1`; catImgs[n] = i;
+}
 function catMiau() {
   // Maullido sintetizado: sube ("mia...") y baja ("...au")
   try {
@@ -3591,40 +3596,28 @@ function drawCat(now, nocturno) {
   const g = ctx;
   g.fillStyle = 'rgba(0,0,0,0.22)';
   g.beginPath(); g.ellipse(cat.x, cat.y + 1.5 * u, 7.5 * u, 2.2 * u, 0, 0, Math.PI * 2); g.fill();
-  g.save(); g.translate(cat.x, cat.y); g.scale(cat.dir * u, u);
-  const N = '#e0913f', O = '#b46f28', C = '#f6e7c9';  // naranja atigrado, rayas, panza
-  if (pose === 'sleep') {
-    const br = 1 + Math.sin(now * 0.002) * 0.06;  // respira
-    g.save(); g.scale(1, br);
-    g.fillStyle = N; g.fillRect(-7, -6, 14, 6);
-    g.fillStyle = O; g.fillRect(-5, -6, 2, 2); g.fillRect(-1, -6, 2, 2); g.fillRect(3, -6, 2, 2);
-    g.fillStyle = N; g.fillRect(2, -8, 5, 4);
-    g.fillStyle = O; g.fillRect(3, -9, 1, 1); g.fillRect(6, -9, 1, 1);
-    g.fillRect(-9, -3, 3, 1);
-    g.restore();
-  } else if (pose === 'sit') {
-    g.fillStyle = N; g.fillRect(-4, -8, 7, 8);
-    g.fillStyle = C; g.fillRect(-2, -5, 3, 5);
-    g.fillStyle = N; g.fillRect(-3, -13, 7, 6);
-    g.fillStyle = O; g.fillRect(-3, -15, 2, 2); g.fillRect(2, -15, 2, 2);
-    g.fillStyle = '#213d2a'; g.fillRect(0, -11, 1, 1); g.fillRect(2, -11, 1, 1);
-    const sw = Math.sin(now * 0.004) > 0 ? 1 : 0;
-    g.fillStyle = O; g.fillRect(-7, -3 + sw, 3, 1); g.fillRect(-8, -6, 1, 4);
+  // Pose → sprite: dormido / caminando (ciclo de 3 frames por dirección) /
+  // feliz con corazón (recién mimado) / sentado / parado de frente
+  const corazon = performance.now() < cat.heartsUntil;
+  let nombre, hpx;
+  if (pose === 'sleep') { nombre = 'sleep'; hpx = 11; }
+  else if (pose === 'walk') { nombre = (cat.dir > 0 ? 'walk_r' : 'walk_l') + (1 + Math.floor(now / 160) % 3); hpx = 14; }
+  else if (corazon) { nombre = 'happy'; hpx = 16; }
+  else if (pose === 'sit') { nombre = 'sit'; hpx = 15; }
+  else { nombre = 'stand_f'; hpx = 15; }
+  const img = catImgs[nombre];
+  if (img && img.complete && img.naturalWidth) {
+    let h = hpx * u;
+    if (nombre === 'sleep') h *= 1 + Math.sin(now * 0.002) * 0.04;  // respira
+    const w = h * (img.naturalWidth / img.naturalHeight);
+    const sm = g.imageSmoothingEnabled;
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(img, cat.x - w / 2, cat.y - h + 2 * u, w, h);
+    g.imageSmoothingEnabled = sm;
   } else {
-    const f = Math.floor(now / 170) % 2;
-    g.fillStyle = N; g.fillRect(-7, -8, 13, 5);
-    g.fillStyle = O; g.fillRect(-5, -8, 2, 2); g.fillRect(-1, -8, 2, 2); g.fillRect(3, -8, 2, 2);
-    g.fillStyle = C; g.fillRect(-4, -4, 8, 1);
-    g.fillStyle = N;
-    if (pose === 'walk') { g.fillRect(-6 + f, -3, 2, 3); g.fillRect(-2 - f, -3, 2, 3); g.fillRect(1 + f, -3, 2, 3); g.fillRect(4 - f, -3, 2, 3); }
-    else { g.fillRect(-6, -3, 2, 3); g.fillRect(-2, -3, 2, 3); g.fillRect(2, -3, 2, 3); g.fillRect(4, -3, 2, 3); }
-    g.fillRect(4, -12, 6, 6);
-    g.fillStyle = O; g.fillRect(4, -14, 2, 2); g.fillRect(8, -14, 2, 2);
-    g.fillStyle = '#213d2a'; g.fillRect(8, -10, 1, 1);
-    g.fillStyle = '#d98a8a'; g.fillRect(10, -9, 1, 1);
-    g.fillStyle = O; g.fillRect(-9, -12 + Math.round(Math.sin(now * 0.005)), 2, 5);
+    // Fallback mientras cargan los sprites
+    g.fillStyle = '#8d8d99'; g.fillRect(cat.x - 6 * u, cat.y - 5 * u, 12 * u, 6 * u);
   }
-  g.restore();
   if (performance.now() < cat.heartsUntil) {
     const k = 1 - (cat.heartsUntil - performance.now()) / 3000;
     g.globalAlpha = 1 - k;
