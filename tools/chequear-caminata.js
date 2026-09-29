@@ -66,111 +66,23 @@ function decodePNG(file) {
   return { W, H, ch, buf: out };
 }
 
-// ---------- ¿El ciclo hace caminar o hace saltar? ----------
-// Un ciclo lateral es [zancada, paso, zancada, paso]. Las DOS zancadas tienen que
-// llevar la pierna Delante distinta; si no, el personaje saca la misma pierna dos
-// veces por ciclo y no camina: salta sobre una pierna. No se nota mirando un
-// frame suelto (wl1 y wl3 son dos dibujos bien distintos por arriba, el brazo
-// cambia de lugar), hay que mirar la silueta de las piernas.
-//
-// Se recorta desde debajo de la rodilla y se compara. Piernas casi iguales = se
-// ve al caminar.
-function piernas(png) {
-  const { W, H, ch, buf } = png;
-  const op = (x, y) => buf[(y * W + x) * ch + 3] > 128;
-  let yTop = H, yBot = -1, xMin = W, xMax = -1;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      if (op(x, y)) {
-        if (y < yTop) yTop = y; if (y > yBot) yBot = y;
-        if (x < xMin) xMin = x; if (x > xMax) xMax = x;
-      }
-    }
-  }
-  if (yBot < yTop) return null;
-  const desde = yTop + Math.floor((yBot - yTop + 1) * 0.62);
-  const w = xMax - xMin + 1, h = yBot - desde + 1;
-  const mask = new Uint8Array(w * h);
-  for (let y = desde; y <= yBot; y++) {
-    for (let x = xMin; x <= xMax; x++) if (op(x, y)) mask[(y - desde) * w + (x - xMin)] = 1;
-  }
-  return { mask, w, h };
-}
-
-// Medirlo por "cuanto se parecen las piernas" NO sirve: dos zancadas con la
-// misma pierna adelante pueden ser muy distintas entre si (una con la rodilla
-// doblada y otra recta) y dos zancadas con piernas alternadas pueden parecerse
-// mucho. Lo que distingue una de la otra es la PIEL: si el ciclo camina, la
-// segunda zancada es casi el ESPEJO de la primera. Por eso se comparan las dos
-// zancadas tal cual y contra el espejo, y se mira el cociente. Calibrado con
-// Ger, que esta dibujado a mano y alterna bien (0.62), contra los que saltan
-// (Facu 0.18, Milo 0.30). Por debajo de 0.45 el personaje no esta caminando.
-
-// Fraccion de pixeles que difieren entre dos siluetas de piernas, alineadas por
-// el piso y centradas en x.
-function difPiernas(a, b) {
-  if (!a || !b) return 1;
-  const W = Math.max(a.w, b.w), H = Math.max(a.h, b.h);
-  const pon = (s) => {
-    const o = new Uint8Array(W * H);
-    const dx = ((W - s.w) / 2) | 0;
-    for (let y = 0; y < s.h; y++) {
-      for (let x = 0; x < s.w; x++) o[(H - s.h + y) * W + dx + x] = s.mask[y * s.w + x];
-    }
-    return o;
-  };
-  const A = pon(a), B = pon(b);
-  let d = 0, n = 0;
-  for (let i = 0; i < A.length; i++) { if (A[i]) n++; if (A[i] !== B[i]) d++; }
-  return d / Math.max(1, n);
-}
-
-// Cociente "las zancadas son iguales" / "las zancadas son espejo".
-const MAX_SALTO = 0.45;
-const espejo = (s) => {
-  if (!s) return null;
-  const o = new Uint8Array(s.mask.length);
-  for (let y = 0; y < s.h; y++) {
-    for (let x = 0; x < s.w; x++) o[y * s.w + x] = s.mask[y * s.w + (s.w - 1 - x)];
-  }
-  return { mask: o, w: s.w, h: s.h };
-};
-
-function saltoEnCiclo(frames) {
-  if (frames.length < 4) return null;   // ciclo de 2 frames: no hay dos zancadas
-  const s = frames.map((f) => infoPiernas(f));
-  const cocientes = [];
-  for (let i = 0; i + 2 < frames.length; i += 2) {
-    const directo = difPiernas(s[i], s[i + 2]);
-    const espejado = difPiernas(s[i], espejo(s[i + 2]));
-    cocientes.push(directo / Math.max(0.01, espejado));
-  }
-  return cocientes[0];
-}
-
-const cachePiernas = {};
-function infoPiernas(nombre) {
-  if (!cachePiernas[nombre]) {
-    const f = path.join(raiz, 'sprites', `${nombre}.png`);
-    cachePiernas[nombre] = fs.existsSync(f) ? piernas(decodePNG(f)) : null;
-  }
-  return cachePiernas[nombre];
-}
-
 // ---------- Hacia dónde mira ----------
-// La señal es DÓNDE ESTÁ LA PIEL dentro de la cabeza, no los ojos.
+// Los ojos son lo único casi blanco de la cara (la remera es negra y la piel
+// bronceada), así que la posición del ojo dentro de la cabeza dice hacia dónde
+// mira. Pero hay dos trampas:
 //
-// Se empezó por los ojos (blancos, dentro de una remera negra) y falló: con
-// pelo grande y barba la cabeza es casi simétrica, el ojo cae en el medio y el
-// frame se lee como "de frente". Con Milo pasaba siempre, y sus ciclos quedaban
-// sin validar. La piel sí es asimétrica —nariz, pómulo, mandíbula se corren hacia
-// donde mira— y funciona con pelo rizado, barba y ojos de 9 px por igual.
-//
-// La cabeza se aísla como la componente conexa mayor del tercio superior, porque
-// en un perfil el 35% de arriba también trae el hombro y el brazo adelantado.
+//  1) El "35% de arriba" no es solo la cabeza: en un perfil también entran el
+//     hombro y el brazo adelantado, y entonces el ojo queda desplazado hacia el
+//     lado contrario. Por eso primero se aísla la componente conexa de la cabeza.
+//  2) De espaldas NO hay ojos, pero quedan motas blancas sueltas del halo del
+//     recorte. Contar píxeles no sirve: hay que exigir que el blanco sea UNA sola
+//     mancha compacta. En un perfil real el ojo mide ~100 px; en una espalda son
+//     15-30 motas de 2 a 6 px.
+const MIN_OJO_LATERAL = 8;    // px: en un perfil el ojo siempre se ve, aunque sea chiquito
+const MIN_OJO_FRENTE = 40;    // px: de espaldas las motas blancas son halo del recorte
 
 // Mayor componente conexa (8 vecinos) de un mapa de booleanos.
-// Devuelve {n, pix}: cuántas celdas tiene la mayor y cuáles son.
+// Devuelve {n, pix} con la cantidad de celdas de la mayor y la lista de celdas.
 function mayorComponente(mascara, W, H) {
   const visit = new Uint8Array(W * H);
   const pila = new Int32Array(W * H);
@@ -201,43 +113,39 @@ function mayorComponente(mascara, W, H) {
   return { n: mejor.length, pix: mejor };
 }
 
-function esPiel(r, g, b) {
-  return r > 120 && r < 255 && g > 80 && b > 50 && (r - b) > 28 && (r - g) > 15;
-}
-
-function haciaDondeMira(png) {
+function haciaDondeMira(png, MIN_OJO) {
   const { W, H, ch, buf } = png;
-  const op = (x, y) => buf[(y * W + x) * ch + 3] > 128;
+  const lim = Math.max(8, Math.floor(H * 0.35));
+  const opaco = (x, y) => buf[(y * W + x) * ch + (ch === 4 ? 3 : 3)] > 128;
+  const blanco = (x, y) => {
+    const o = (y * W + x) * ch;
+    return buf[o] > 225 && buf[o + 1] > 225 && buf[o + 2] > 225 &&
+           (ch === 4 ? buf[o + 3] : 255) > 128;
+  };
 
-  // alto real de la figura
-  let yTop = H, yBot = -1;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      if (op(x, y)) { if (y < yTop) yTop = y; if (y > yBot) yBot = y; break; }
-    }
-  }
-  if (yBot < yTop) return { lado: 'VACIO' };
-  const lim = yTop + Math.max(8, Math.floor((yBot - yTop + 1) * 0.32));
-
-  // cabeza = componente conexa mayor de la zona superior
+  // 1) la cabeza = mayor componente opaca del tercio superior
   const mOp = new Uint8Array(W * lim);
-  for (let y = yTop; y < lim; y++) for (let x = 0; x < W; x++) if (op(x, y)) mOp[y * W + x] = 1;
+  for (let y = 0; y < lim; y++) for (let x = 0; x < W; x++) if (opaco(x, y)) mOp[y * W + x] = 1;
   const cabeza = mayorComponente(mOp, W, lim);
-  if (!cabeza.n) return { lado: 'VACIO' };
+  if (!cabeza.n) return { lado: 'VACIO', pos: 0.5 };
 
   let hx0 = Infinity, hx1 = -1;
   for (const i of cabeza.pix) { const x = i % W; if (x < hx0) hx0 = x; if (x > hx1) hx1 = x; }
   const ancho = Math.max(1, hx1 - hx0 + 1);
 
-  let sx = 0, n = 0;
-  for (const i of cabeza.pix) {
-    const y = (i / W) | 0, x = i % W;
-    const o = (y * W + x) * ch;
-    if (esPiel(buf[o], buf[o + 1], buf[o + 2])) { sx += x; n++; }
-  }
-  if (n < 15) return { lado: 'ESPALDA' };     // de espaldas no se ve piel en la cara
-  const pos = (sx / n - hx0) / ancho;
-  return { lado: pos > 0.5 ? 'DER' : 'IZQ', pos, piel: n };
+  // 2) el ojo = mayor mancha blanca DENTRO de la cabeza
+  const enCabeza = new Uint8Array(W * lim);
+  for (const i of cabeza.pix) enCabeza[i] = 1;
+  const mBl = new Uint8Array(W * lim);
+  for (let y = 0; y < lim; y++) for (let x = 0; x < W; x++) if (enCabeza[y * W + x] && blanco(x, y)) mBl[y * W + x] = 1;
+  const ojo = mayorComponente(mBl, W, lim);
+  if (ojo.n < MIN_OJO) return { lado: 'ESPALDA', pos: 0.5, manchas: ojo.n, area: ojo.n };
+
+  let sx = 0;
+  for (const i of ojo.pix) sx += i % W;
+  const pos = (sx / ojo.n - hx0) / ancho;   // 0 = ojo al borde izq, 1 = al der
+  if (Math.abs(pos - 0.5) < 0.15) return { lado: 'FRENTE', pos, manchas: ojo.n };
+  return { lado: pos < 0.5 ? 'IZQ' : 'DER', pos, manchas: ojo.n };
 }
 
 // ---------- Ciclos, leídos de game.js ----------
@@ -348,14 +256,15 @@ function sentidosRelativos(nombres) {
 }
 
 const cache = {};
-const info = (nombre) => {
-  if (!cache[nombre]) {
+const info = (nombre, minOjo) => {
+  const k = nombre + '|' + minOjo;
+  if (!cache[k]) {
     const f = path.join(raiz, 'sprites', `${nombre}.png`);
-    cache[nombre] = fs.existsSync(f)
-      ? haciaDondeMira(decodePNG(f))
-      : { lado: 'FALTA' };
+    cache[k] = fs.existsSync(f)
+      ? haciaDondeMira(decodePNG(f), minOjo)
+      : { lado: 'FALTA', pos: 0.5, area: 0 };
   }
-  return cache[nombre];
+  return cache[k];
 };
 
 let malos = 0;
@@ -369,45 +278,37 @@ for (const { char, dir, frames } of ciclos) {
     continue;
   }
 
-  // La prueba que decide es la PIEL (arriba): cada frame dice para dónde mira.
-  // El reflejo de la firma queda como apoyo, porque con personajes de pose muy
-  // cambiante (piernas juntas vs. zancada abierta) la diferencia de pose tapa la
-  // de dirección y leía "coherente" sobre un ciclo realmente mezclado.
-  const lados = frames.map((f) => info(f).lado);
-  const leibles = lados.filter((l) => l === 'IZQ' || l === 'DER');
-  const distintos = new Set(leibles);
-  const esperado = dir === 'left' ? 'IZQ' : 'DER';
+  // 1) la prueba que decide: todos los frames del ciclo mirando para el mismo lado
   const rel = sentidosRelativos(frames);
-  const linea = `${frames.map((f, i) => `${f}(${lados[i]})`).join('  ')}  |  ${rel.join(',')}`;
+  const alReves = frames.filter((f, i) => rel && rel[i] === 'al reves');
 
-  if (distintos.size > 1) {
+  // 2) dato de apoyo: hacia dónde mira (solo informativo; con pelo grande o
+  //    ojos chicos no siempre se puede leer, y no debe frenar el chequeo)
+  const minOjo = MIN_OJO_LATERAL;
+  const ojos = frames.map((f) => ({ f, ...info(f, minOjo) }));
+  const lados = new Set(ojos.filter((r) => r.lado === 'IZQ' || r.lado === 'DER').map((r) => r.lado));
+  const esperado = dir === 'left' ? 'IZQ' : 'DER';
+  const dato = lados.size === 1 ? [...lados][0] : (lados.size ? '?' : 'ilegible');
+
+  const linea = `${ojos.map((r) => `${r.f}(${r.lado})`).join('  ')}  |  ${rel.map((r) => r).join(',')}`;
+
+  if (alReves.length) {
+    console.log(`  ❌ ${char}/${dir.padEnd(5)}  MEDIA VUELTA   ${linea}`);
+    console.log(`       estos frames están del lado contrario al resto: el personaje gira`);
+    console.log(`       a mitad del ciclo -> ${alReves.join(', ')}`);
+    malos++;
+    continue;
+  }
+  if (dato === esperado) {
+    console.log(`  ✅ ${char}/${dir.padEnd(5)}  ${esperado.padEnd(7)}         ${linea}`);
+  } else if (lados.size > 1) {
     console.log(`  ❌ ${char}/${dir.padEnd(5)}  MEZCLA           ${linea}`);
-    console.log(`       hay frames mirando al lado contrario dentro del mismo ciclo:`);
-    console.log(`       ${frames.filter((f, i) => lados[i] !== lados[0]).join(', ')} ->`);
-    console.log(`       espejalos, o renombrá los archivos para que el nombre coincida`);
+    console.log(`       hay frames mirando a los dos lados dentro del mismo ciclo`);
     malos++;
-  } else if (distintos.size === 1 && [...distintos][0] !== esperado) {
-    console.log(`  ❌ ${char}/${dir.padEnd(5)}  AL REVES         ${linea}`);
-    console.log(`       el ciclo se llama "${dir}" pero los frames miran al revés:`);
-    console.log(`       espejá el conjunto entero, o renombrá _wl* <-> _wr*.`);
-    malos++;
-  } else if (distintos.size === 0) {
-    console.log(`  ➖ ${char}/${dir.padEnd(5)}  ILEGIBLE         ${linea}`);
-    console.log(`       no se ve piel en la cara de estos frames; no se puede reprobar.`);
   } else {
-    // Que mire bien no alcanza: ademas tiene que alternar las piernas.
-    const sal = saltoEnCiclo(frames);
-    let salta = false;
-    if (sal !== null && sal < MAX_SALTO) salta = true;
-    if (salta) {
-      console.log(`  ❌ ${char}/${dir.padEnd(5)}  SALTA            ${linea}`);
-      console.log(`       las dos zancadas usan la misma pierna (cociente ${sal.toFixed(2)} < ${MAX_SALTO}):`);
-      console.log(`       el personaje no camina, rebota sobre una sola pierna.`);
-      malos++;
-    } else {
-      const dTxt = sal !== null ? `  piernas alternadas (${sal.toFixed(2)})` : '';
-      console.log(`  ✅ ${char}/${dir.padEnd(5)}  ${esperado.padEnd(7)}         ${linea}${dTxt}`);
-    }
+    console.log(`  ➖ ${char}/${dir.padEnd(5)}  ${dato.padEnd(7)}         ${linea}`);
+    console.log(`       todos los frames son coherentes, pero no se puede leer de qué`);
+    console.log(`       lado miran (pelo grande o ojos chicos). No se puede reprobar.`);
   }
 }
 

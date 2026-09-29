@@ -1174,28 +1174,22 @@ function loadCharAssets() {
       const base = normalizarFigura(im);
       const r = flipCanvas(base.img);
       charAssets[k] = { down: base.img, left: r, right: r, up: oscurecer(base.img), baseH: base.alto };
-      if (k === 'milo' || k === 'ger' || k === 'ovni' || k === 'facu') {
-        // Milo, Ger, Ovni y Facu tienen espalda REAL dibujada (no la silueta
-        // oscurecida). Ovni la gano en la v101 y Facu en la v102: hasta la v100
-        // su pose de "arriba" era el propio frente apagado, asi que se alejaba
-        // de vos y te miraba.
+      if (k === 'milo' || k === 'ger' || k === 'ovni') {
+        // Milo, Ger y Ovni tienen espalda REAL dibujada (no la silueta
+        // oscurecida). Ovni la gano en la v101: hasta la v100 su pose de "arriba"
+        // era el propio frente apagado, asi que se alejaba de vos y te miraba.
         const esp = new Image();
         esp.onload = () => { charAssets[k].up = normalizarFigura(esp, base.alto).img; };
-        esp.src = `sprites/${k}_up.png?v=1.102.0`;
+        esp.src = `sprites/${k}_up.png?v=1.101.0`;
       }
       // Si el personaje tiene hoja propia con las 4 direcciones (Ger, Milo y
       // Ovni), sus PNG se normalizan contra su sprite de frente. Si no, se arma
       // la caminata muneco-de-papel desde su unico PNG: el frente sale bien, pero
       // de espaldas es la silueta oscurecida y de perfil el frente espejado, asi
-      // que camina mirando al reves. Ovni y Facu conservan el frente de papel
-      // (el dibujo original del personaje) y usan su hoja para el resto.
+      // que camina mirando al reves. Ovni conserva el frente de papel (el
+      // dibujo original del personaje) y usa su hoja para el resto.
       if (walkSources[k]) {
-        // Si la hoja no trae 'down' (Ovni y Facu), el frente sigue siendo el
-        // recorte de papel sobre su PNG original, que es el dibujo bueno del
-        // personaje, y la caminata hacia la camara se arma sola. Sin esto
-        // wa.down queda undefined, el render cae al sprite quieto y el
-        // personaje patina hacia la camara sin mover las piernas.
-        if (!walkSources[k].down) walkAssets[k] = { down: buildPasoFrames(base.img) };
+        if (k === 'ovni') walkAssets[k] = { down: buildPasoFrames(base.img) };
         normalizarCaminata(k, base.alto);
       } else {
         walkAssets[k] = {
@@ -1775,7 +1769,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v102 · 28/09/2026';
+const VERSION = 'v101 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3708,7 +3702,7 @@ const walkSources = {};
   // El ?v= se sube cada vez que cambia el CONTENIDO de un PNG con este nombre, o
   // el navegador sigue mostrando el viejo desde su caché. Al intercambiar
   // ger_wl2.png y ger_wr2.png la URL de cada uno cambió de contenido: v1 -> v1.100.0
-  const img = (n) => { const i = new Image(); i.src = `sprites/${n}.png?v=1.102.0`; return i; };
+  const img = (n) => { const i = new Image(); i.src = `sprites/${n}.png?v=1.100.0`; return i; };
   const g2 = img('ger_walk2'), g3 = img('ger_walk3'), g4 = img('ger_walk4');
   const gl1 = img('ger_wl1'), gl2 = img('ger_wl2'), gl3 = img('ger_wl3');
   const gr1 = img('ger_wr1'), gr2 = img('ger_wr2'), gr3 = img('ger_wr3');
@@ -3735,17 +3729,6 @@ const walkSources = {};
     up: [img('ovni_wu1'), img('ovni_wu2')],
     left: [ol1, ol2, ol3, ol2],
     right: [or1, or2, or3, or2],
-  };
-  // Facu (v102). Tampoco tiene 'down': su PNG original es el dibujo bueno del
-  // personaje y define el alto de figura, igual que Ovni. La hoja cubre la
-  // espalda y los dos perfiles, que antes no existian (era el frente espejado
-  // en los dos lados, o sea que giraba la cabeza a mitad de zancada).
-  const fl1 = img('facu_wl1'), fl2 = img('facu_wl2'), fl3 = img('facu_wl3');
-  const fr1 = img('facu_wr1'), fr2 = img('facu_wr2'), fr3 = img('facu_wr3');
-  walkSources.facu = {
-    up: [img('facu_wu1'), img('facu_wu2')],
-    left: [fl1, fl2, fl3, fl2],
-    right: [fr1, fr2, fr3, fr2],
   };
 }
 // Reescala todos los frames de caminata de un personaje al alto de su figura de
