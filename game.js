@@ -1181,9 +1181,18 @@ function loadCharAssets() {
         esp.src = `sprites/${k}_up.png?v=1`;
       }
       // Ovni y Facu: caminata muñeco-de-papel desde su propio PNG (misma
-      // calidad exacta). Ger y Milo tienen su propia hoja con las 4 direcciones.
-      if (k !== 'ger' && k !== 'milo') walkAssets[k] = { down: buildPasoFrames(base.img) };
-      else normalizarCaminata(k, base.alto);
+      // calidad exacta), ahora en las 4 direcciones: de espaldas recorta la
+      // silueta oscurecida y de perfil recorta la versión espejada (mismas
+      // imágenes que ya usa la pose quieta, así no hay salto de estilo al
+      // arrancar a caminar). Ger y Milo tienen su propia hoja con las 4 direcciones.
+      if (k !== 'ger' && k !== 'milo') {
+        walkAssets[k] = {
+          down: buildPasoFrames(base.img),
+          up: buildPasoFrames(charAssets[k].up),
+          left: buildPasoFrames(r),
+          right: buildPasoFrames(r),
+        };
+      } else normalizarCaminata(k, base.alto);
       loadSeat();
     };
     im.onerror = () => { loadSeat(); }; // los sprites por código siguen disponibles
@@ -1754,7 +1763,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v98 · 28/09/2026';
+const VERSION = 'v99 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
