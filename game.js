@@ -1174,25 +1174,31 @@ function loadCharAssets() {
       const base = normalizarFigura(im);
       const r = flipCanvas(base.img);
       charAssets[k] = { down: base.img, left: r, right: r, up: oscurecer(base.img), baseH: base.alto };
-      if (k === 'milo' || k === 'ger') {
-        // Milo y Ger tienen espalda REAL dibujada (no la silueta oscurecida)
+      if (k === 'milo' || k === 'ger' || k === 'ovni') {
+        // Milo, Ger y Ovni tienen espalda REAL dibujada (no la silueta
+        // oscurecida). Ovni la gano en la v101: hasta la v100 su pose de "arriba"
+        // era el propio frente apagado, asi que se alejaba de vos y te miraba.
         const esp = new Image();
         esp.onload = () => { charAssets[k].up = normalizarFigura(esp, base.alto).img; };
-        esp.src = `sprites/${k}_up.png?v=1`;
+        esp.src = `sprites/${k}_up.png?v=1.101.0`;
       }
-      // Ovni y Facu: caminata muñeco-de-papel desde su propio PNG (misma
-      // calidad exacta), ahora en las 4 direcciones: de espaldas recorta la
-      // silueta oscurecida y de perfil recorta la versión espejada (mismas
-      // imágenes que ya usa la pose quieta, así no hay salto de estilo al
-      // arrancar a caminar). Ger y Milo tienen su propia hoja con las 4 direcciones.
-      if (k !== 'ger' && k !== 'milo') {
+      // Si el personaje tiene hoja propia con las 4 direcciones (Ger, Milo y
+      // Ovni), sus PNG se normalizan contra su sprite de frente. Si no, se arma
+      // la caminata muneco-de-papel desde su unico PNG: el frente sale bien, pero
+      // de espaldas es la silueta oscurecida y de perfil el frente espejado, asi
+      // que camina mirando al reves. Ovni conserva el frente de papel (el
+      // dibujo original del personaje) y usa su hoja para el resto.
+      if (walkSources[k]) {
+        if (k === 'ovni') walkAssets[k] = { down: buildPasoFrames(base.img) };
+        normalizarCaminata(k, base.alto);
+      } else {
         walkAssets[k] = {
           down: buildPasoFrames(base.img),
           up: buildPasoFrames(charAssets[k].up),
           left: buildPasoFrames(r),
           right: buildPasoFrames(r),
         };
-      } else normalizarCaminata(k, base.alto);
+      }
       loadSeat();
     };
     im.onerror = () => { loadSeat(); }; // los sprites por código siguen disponibles
@@ -1763,7 +1769,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v100 · 28/09/2026';
+const VERSION = 'v101 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3714,13 +3720,25 @@ const walkSources = {};
     left: [l1, l2, l3, l2],
     right: [r1, r2, r3, r2],
   };
+  // Ovni (v101). No tiene 'down' a proposito: el frente sigue siendo el recorte
+  // de papel sobre su PNG original, que es el dibujo bueno del personaje. La
+  // hoja cubre solo las direcciones que antes no existian.
+  const ol1 = img('ovni_wl1'), ol2 = img('ovni_wl2'), ol3 = img('ovni_wl3');
+  const or1 = img('ovni_wr1'), or2 = img('ovni_wr2'), or3 = img('ovni_wr3');
+  walkSources.ovni = {
+    up: [img('ovni_wu1'), img('ovni_wu2')],
+    left: [ol1, ol2, ol3, ol2],
+    right: [or1, or2, or3, or2],
+  };
 }
 // Reescala todos los frames de caminata de un personaje al alto de su figura de
 // referencia. Los que todavía no cargaron se normalizan solos al llegar.
 function normalizarCaminata(k, alto) {
   const src = walkSources[k];
   if (!src) return;
-  walkAssets[k] = {};
+  // No se pisa lo que ya haya: Ovni precarga 'down' con el recorte de papel y
+  // esta funcion solo completa las direcciones que trae en walkSources.
+  walkAssets[k] = walkAssets[k] || {};
   for (const dir of Object.keys(src)) {
     // El orden del ciclo es fijo (zancada → paso → ...), así que cada frame tiene
     // su lugar y el hueco queda en null hasta que la imagen termina de cargar: el
