@@ -223,6 +223,53 @@ function oscurecer(src) {
   return cv;
 }
 
+// ---------- Normalizado de frames ----------
+// Los PNG del equipo llegaron en tandas con lienzos de distinto alto (el de
+// frente mide 493 px; la espalda y los frames de caminata, 700). Si cada frame
+// se dibuja con el alto de SU lienzo, el personaje cambia de tamaño al girar o
+// al caminar: en la v97 la espalda se veía hasta 42% más alta que el frente, y
+// además el tope de escala se recalculaba con cada cambio de dirección.
+// Acá cada imagen se recorta a su figura (el canal alfa) y se reescala a un alto
+// común por personaje, así el alto en pantalla es el mismo en todas las poses.
+// Se mide una sola vez, cuando termina de cargar cada PNG.
+function cajaDeFigura(img) {
+  try {
+    const cv = document.createElement('canvas');
+    cv.width = img.width; cv.height = img.height;
+    const g = cv.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, cv.width, cv.height).data;
+    let x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < cv.height; y++) {
+      for (let x = 0; x < cv.width; x++) {
+        if (d[(y * cv.width + x) * 4 + 3] > 16) {
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (x1 < 0) return null;
+    return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+  } catch { return null; }   // sin permiso para leer píxeles: se usa la imagen tal cual
+}
+// Devuelve un canvas donde la figura ocupa TODO el alto (pies en el borde de
+// abajo, que es donde el render los apoya) y el ancho es el natural de la pose.
+function normalizarFigura(img, altoFigura) {
+  const caja = cajaDeFigura(img);
+  if (!caja) return { img, alto: img.height };
+  const alto = altoFigura || caja.h;
+  const ancho = Math.max(1, Math.round(caja.w * (alto / caja.h)));
+  const cv = document.createElement('canvas');
+  cv.width = ancho; cv.height = alto;
+  const g = cv.getContext('2d');
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(img, caja.x, caja.y, caja.w, caja.h, 0, 0, ancho, alto);
+  return { img: cv, alto };
+}
+
 // ---------- Llamada de la oficina: micro compartido (malla WebRTC) ----------
 // Audio nada más, no video. La idea es poder DEJAR EL MICRO ABIERTO y hablar
 // siempre con quien esté en la oficina, sin apretar para hablar. Con 3 personas
@@ -1121,17 +1168,22 @@ function loadCharAssets() {
     // borde del lienzo. Ese camino ya no se usa.
     const im = new Image();
     im.onload = () => {
-      const r = flipCanvas(im);
-      charAssets[k] = { down: im, left: r, right: r, up: oscurecer(im) };
+      // Primero se normaliza el sprite base: define el alto de figura de este
+      // personaje (todas las direcciones y los frames de caminata se miden contra
+      // él para que el tamaño no cambie nunca).
+      const base = normalizarFigura(im);
+      const r = flipCanvas(base.img);
+      charAssets[k] = { down: base.img, left: r, right: r, up: oscurecer(base.img), baseH: base.alto };
       if (k === 'milo' || k === 'ger') {
         // Milo y Ger tienen espalda REAL dibujada (no la silueta oscurecida)
         const esp = new Image();
-        esp.onload = () => { charAssets[k].up = esp; };
+        esp.onload = () => { charAssets[k].up = normalizarFigura(esp, base.alto).img; };
         esp.src = `sprites/${k}_up.png?v=1`;
       }
       // Ovni y Facu: caminata muñeco-de-papel desde su propio PNG (misma
       // calidad exacta). Ger y Milo tienen su propia hoja con las 4 direcciones.
-      if (k !== 'ger' && k !== 'milo') walkAssets[k] = { down: buildPasoFrames(im) };
+      if (k !== 'ger' && k !== 'milo') walkAssets[k] = { down: buildPasoFrames(base.img) };
+      else normalizarCaminata(k, base.alto);
       loadSeat();
     };
     im.onerror = () => { loadSeat(); }; // los sprites por código siguen disponibles
@@ -1702,7 +1754,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v97 · 28/09/2026';
+const VERSION = 'v98 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3618,13 +3670,17 @@ function catAplicarMimo(id) {
 }
 // Frames de caminata por personaje y dirección. Quieto usa SIEMPRE el sprite
 // original; estos solo aparecen al moverse. Si falta la dirección se usa 'down'.
+// Los PNG se guardan crudos acá y se normalizan cuando carga el sprite base del
+// personaje (normalizarCaminata), para que todas las poses compartan el mismo
+// alto de figura y el personaje no cambie de tamaño al empezar a caminar.
 const walkAssets = {};
+const walkSources = {};
 {
   const img = (n) => { const i = new Image(); i.src = `sprites/${n}.png?v=1`; return i; };
   const g2 = img('ger_walk2'), g3 = img('ger_walk3'), g4 = img('ger_walk4');
   const gl1 = img('ger_wl1'), gl2 = img('ger_wl2'), gl3 = img('ger_wl3');
   const gr1 = img('ger_wr1'), gr2 = img('ger_wr2'), gr3 = img('ger_wr3');
-  walkAssets.ger = {
+  walkSources.ger = {
     down: [g2, g3, g4, g3],
     up: [img('ger_wu1'), img('ger_wu2')],
     left: [gl1, gl2, gl3, gl2],
@@ -3632,12 +3688,30 @@ const walkAssets = {};
   };
   const l1 = img('milo_wl1'), l2 = img('milo_wl2'), l3 = img('milo_wl3');
   const r1 = img('milo_wr1'), r2 = img('milo_wr2'), r3 = img('milo_wr3');
-  walkAssets.milo = {
+  walkSources.milo = {
     down: [img('milo_wf1'), img('milo_wf2')],
     up: [img('milo_wu1'), img('milo_wu2')],
     left: [l1, l2, l3, l2],
     right: [r1, r2, r3, r2],
   };
+}
+// Reescala todos los frames de caminata de un personaje al alto de su figura de
+// referencia. Los que todavía no cargaron se normalizan solos al llegar.
+function normalizarCaminata(k, alto) {
+  const src = walkSources[k];
+  if (!src) return;
+  walkAssets[k] = {};
+  for (const dir of Object.keys(src)) {
+    // El orden del ciclo es fijo (zancada → paso → ...), así que cada frame tiene
+    // su lugar y el hueco queda en null hasta que la imagen termina de cargar: el
+    // render, mientras tanto, usa el sprite quieto. Nada de dibujar el PNG crudo.
+    const slots = walkAssets[k][dir] = new Array(src[dir].length).fill(null);
+    src[dir].forEach((im, i) => {
+      const aplicar = () => { slots[i] = normalizarFigura(im, alto).img; };
+      if (im.complete && im.naturalWidth) aplicar();
+      else im.addEventListener('load', aplicar, { once: true });
+    });
+  }
 }
 // Sprites de Michi (hoja del usuario, recortada y con fondo transparente)
 const catImgs = {};
@@ -3813,20 +3887,18 @@ function render() {
       topY = p.y - h; shR = 15 * ss; fs = Math.round(3.1 * ss);
     } else {
       const spr = getSprite(p.char || 'ger', p.dir || 'down', 0);
-      const conAsset = assetsReady && !!(charAssets[p.char || 'ger'] && charAssets[p.char || 'ger'].down);
-      // La altura en pantalla no cambia respecto al sprite por código (44*s), pero
-      // el ancho sale de la proporción real del sprite: los PNG de referencia son
-      // mucho más esbeltos que el chibi de la grilla de 4x.
-      //
-      // Tope de altura: los PNG de referencia miden ~500px de alto, así que
-      // reescalados por encima de su tamaño natural se ven blandos. La escala de
-      // profundidad sigue mandando hasta llegar a 1:1 y después el personaje deja de
-      // crecer. Los pies quedan siempre en p.y, así que sigue plantado en el piso, y
-      // como shR y fs salen de la misma s, la sombra y el nombre encajan con el
-      // tamaño nuevo. El tope es solo para los PNG: el chibi de la grilla es de
-      // 128x176 y su look pixelado se banca cualquier escala.
+      const ca = charAssets[p.char || 'ger'] || {};
+      const conAsset = assetsReady && !!(ca.down);
+      // La altura en pantalla no cambia respecto al sprite por código (44*s).
+      // El tope de escala sale SIEMPRE del alto de figura del sprite base (de
+      // frente), no del sprite de la dirección actual: la espalda mide 700 px
+      // contra 493 del frente, así que con el tope por dirección el personaje se
+      // dibujaba hasta 42% más alto al caminar hacia arriba. Como todos los PNG
+      // pasan por normalizarFigura(), la figura ocupa todo el lienzo y el mismo
+      // 44*s da el mismo alto de cabeza a pies en cualquier pose.
       const sRaw = depthScale(p.y);
-      const s = conAsset ? Math.min(sRaw, spr.height / 44) : sRaw;
+      const baseH = ca.baseH || spr.height;
+      const s = conAsset ? Math.min(sRaw, baseH / 44) : sRaw;
       // Ciclo de caminata real si el personaje tiene frames: zancada derecha →
       // paso → zancada izquierda → paso. El tamaño (s) sale del sprite base
       // para que no cambie la altura al arrancar o frenar.
@@ -3836,7 +3908,9 @@ function render() {
         const arr = wa[p.dir] || wa.down;
         if (arr && arr.length) {
           const wi = arr[Math.floor(now / 160) % arr.length];
-          if (wi && wi.complete && wi.naturalWidth) dspr = wi;
+          // Los frames normalizados son canvas (sin .complete/.naturalWidth): basta
+          // con que el hueco esté lleno. El hueco vacío cae al sprite quieto.
+          if (wi && wi.width) dspr = wi;
         }
       }
       if (!p.moving && p.char === 'milo' && p.tomaUntil && now < p.tomaUntil && miloToma.complete && miloToma.naturalWidth) {
@@ -3847,20 +3921,11 @@ function render() {
       ctx.imageSmoothingEnabled = conAsset;              // ver nota arriba del setTransform
       if (conAsset) ctx.imageSmoothingQuality = 'high';
 
-      // Caminata: el sprite se dibuja SIEMPRE con la misma forma, igual que
-      // parado. Solo se mueve de posición (rebote y balanceo); no hay squash ni
-      // estiramiento, que deformaban la silueta y lo hacían ver distinto de la
-      // pose quieta. La foto de referencia es una pose única y su sombra entre las
-      // piernas es tono opaco, así que no hay pasos que recortar: separar el sprite
-      // en capas parte la ropa y deja artefactos.
-      if (p.moving) {
-        const ph = Math.floor(now / 150) % 2;
-        const dy = ph ? -s * 0.4 : s * 0.1;
-        const dx = ph ? s * 0.28 : -s * 0.28;
-        ctx.drawImage(dspr, p.x - w / 2 + dx, p.y - h + dy, w, h);
-      } else {
-        ctx.drawImage(dspr, p.x - w / 2, p.y - h, w, h);
-      }
+      // Todos los frames se dibujan en la misma caja: los pies en p.y y el centro
+      // en p.x. El movimiento de piernas ya viene dentro de los frames, así que no
+      // se le suma rebote ni balanceo artificial (eso movía el sprite de costado y
+      // se sumaba al cambio de tamaño que veía el equipo).
+      ctx.drawImage(dspr, p.x - w / 2, p.y - h, w, h);
       topY = p.y - h; shR = 11 * s * (spr.width / spr.height) * (32 / 44) * 1.9; fs = Math.round(3.1 * s);
     }
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
@@ -4070,7 +4135,9 @@ function init() {
     if (p.seated) return 48 * sitScale(p.y) * (kid ? 0.9 : 1);
     const spr = charAssets[p.char || 'ger'] && charAssets[p.char || 'ger'].down;
     const sRaw = depthScale(p.y);
-    const s = spr ? Math.min(sRaw, spr.height / 44) : sRaw;
+    // Mismo tope que en el render: el alto de figura del sprite base.
+    const baseH = (charAssets[p.char || 'ger'] || {}).baseH || (spr ? spr.height : 44);
+    const s = spr ? Math.min(sRaw, baseH / 44) : sRaw;
     return 44 * s * (kid ? 0.78 : 1);
   }
   function accAbrir(items, titulo, cx, cy) {

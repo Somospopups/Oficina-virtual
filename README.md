@@ -55,11 +55,22 @@ El mapa está calcado de la foto del espacio del equipo, en versión pixel art c
 - **Cliente**: canvas 2D vanilla, sin frameworks. Todo el pixel art se genera
   por código (tilemap 44×30 pre-renderizado + sprites de personaje por
   dirección/frame). Interpolación suave de jugadores remotos.
+- **Sprites con altura pareja**: los PNG de `sprites/` llegaron en tandas con
+  lienzos de distinto alto (el de frente mide 493 px; espalda y caminata, 700).
+  Al cargar, `game.js` recorta cada figura por su canal alfa y la reescala a un
+  alto común por personaje, así el personaje no cambia de tamaño al girar,
+  caminar o frenar. Si se agregan PNG nuevos, no hace falta tocarlos: se
+  normalizan solos.
 - Archivos:
   - `server.js` — servidor HTTP + WebSocket
-  - `public/index.html` — pantalla de ingreso, HUD y ayuda
-  - `public/style.css` — estilos pixel
-  - `public/game.js` — mapa, sprites, física, red y UI
+  - `index.html` / `style.css` / `game.js` — la oficina (se sirve tal cual desde
+    la raíz, igual en GitHub Pages que con `node server.js`)
+  - `opciones.html` — panel de opciones
+  - `sprites/` — sprites de personajes, michi y objetos
+  - `tools/limpiar-fondo-sprites.js` — revisa los PNG de `sprites/` y saca el
+    fondo claro opaco de los que salieron sin transparencia (los que ya están
+    bien no se tocan). Uso: `node tools/limpiar-fondo-sprites.js --check` para
+    revisar sin escribir, o sin `--check` para limpiar.
 
 ## 🚀 Despliegue para el equipo
 
