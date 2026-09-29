@@ -1174,13 +1174,20 @@ function loadCharAssets() {
       const base = normalizarFigura(im);
       const r = flipCanvas(base.img);
       charAssets[k] = { down: base.img, left: r, right: r, up: oscurecer(base.img), baseH: base.alto };
-      if (k === 'milo' || k === 'ger' || k === 'ovni') {
-        // Milo, Ger y Ovni tienen espalda REAL dibujada (no la silueta
-        // oscurecida). Ovni la gano en la v101: hasta la v100 su pose de "arriba"
-        // era el propio frente apagado, asi que se alejaba de vos y te miraba.
+      if (k === 'milo' || k === 'ger' || k === 'ovni' || k === 'facu') {
+        // Milo, Ger, Ovni y Facu tienen espalda REAL dibujada (no la silueta
+        // oscurecida). Ovni la gano en la v101 y Facu en la v103: hasta la v100
+        // su pose de "arriba" era el propio frente apagado, asi que se alejaba
+        // de vos y te miraba.
+        //
+        // La de Facu NO se redibujo: se derivo de su propio sprite de frente.
+        // Se copia el archivo entero y solo se tapa la cara con el pelo, usando
+        // la silueta rizada del pelo del original. El cuerpo no se toca ni un
+        // pixel, asi que los huecos entre los brazos y el cuerpo y entre las
+        // piernas quedan exactamente igual que en el frente.
         const esp = new Image();
         esp.onload = () => { charAssets[k].up = normalizarFigura(esp, base.alto).img; };
-        esp.src = `sprites/${k}_up.png?v=1.101.0`;
+        esp.src = `sprites/${k}_up.png?v=1.103.0`;
       }
       // Si el personaje tiene hoja propia con las 4 direcciones (Ger, Milo y
       // Ovni), sus PNG se normalizan contra su sprite de frente. Si no, se arma
@@ -1769,7 +1776,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v101 · 28/09/2026';
+const VERSION = 'v103 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
