@@ -1763,7 +1763,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v99 · 28/09/2026';
+const VERSION = 'v100 · 28/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3682,10 +3682,21 @@ function catAplicarMimo(id) {
 // Los PNG se guardan crudos acá y se normalizan cuando carga el sprite base del
 // personaje (normalizarCaminata), para que todas las poses compartan el mismo
 // alto de figura y el personaje no cambie de tamaño al empezar a caminar.
+//
+// REGLA AL AGREGAR FRAMES: el nombre tiene que decir hacia dónde mira el dibujo.
+// _wl* mira a la IZQUIERDA y _wr* a la DERECHA, TODOS los frames de un mismo ciclo
+// miran para el mismo lado. Ger venía con ger_wl2.png y ger_wr2.png guardados al
+// revés, así que al caminar a la izquierda el ciclo era IZQ -> DER -> IZQ -> DER y
+// el personaje daba media vuelta dos veces por vuelta (v100). Se corrigió
+// intercambiando los dos archivos, no las referencias, para que el nombre no
+// vuelva a mentir. Se verifica con: node tools/chequear-caminata.js
 const walkAssets = {};
 const walkSources = {};
 {
-  const img = (n) => { const i = new Image(); i.src = `sprites/${n}.png?v=1`; return i; };
+  // El ?v= se sube cada vez que cambia el CONTENIDO de un PNG con este nombre, o
+  // el navegador sigue mostrando el viejo desde su caché. Al intercambiar
+  // ger_wl2.png y ger_wr2.png la URL de cada uno cambió de contenido: v1 -> v1.100.0
+  const img = (n) => { const i = new Image(); i.src = `sprites/${n}.png?v=1.100.0`; return i; };
   const g2 = img('ger_walk2'), g3 = img('ger_walk3'), g4 = img('ger_walk4');
   const gl1 = img('ger_wl1'), gl2 = img('ger_wl2'), gl3 = img('ger_wl3');
   const gr1 = img('ger_wr1'), gr2 = img('ger_wr2'), gr3 = img('ger_wr3');
