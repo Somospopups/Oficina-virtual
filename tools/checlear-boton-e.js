@@ -37,14 +37,29 @@ const ok = (c, et) => { console.log(`  ${c ? '✅' : '❌'} ${et}`); if (!c) mal
 console.log('🕹️ Controles táctiles en el celu + dibujos siempre frescos (v111)\n');
 
 const movilTemprano = css.slice(css.indexOf('@media (max-width: 900px)'), css.indexOf('@media (max-width: 900px)') + 4000);
-const movilTarde = css.slice(css.lastIndexOf('@media (max-width: 900px)'));
+// el ÚLTIMO media query del celu que tenga reglas de la tira (puede haber
+// media queries más al final para otra cosa, como los cuatro botones de arriba)
+let movilTarde = '';
+{
+  let i = css.indexOf('@media (max-width: 900px)');
+  while (i !== -1) {
+    const bloque = css.slice(i, css.indexOf('\n}', i) + 2);
+    if (/#camStrip/.test(bloque)) movilTarde = bloque;
+    i = css.indexOf('@media (max-width: 900px)', i + 1);
+  }
+}
 
 // 1) los dos controles tienen que prenderse en el celu
 ok(/#stick\s*\{[^}]*display:\s*block/.test(movilTemprano), 'la regla móvil de #stick tiene display:block');
 ok(/#btnE\s*\{[^}]*display:\s*block/.test(movilTemprano), 'la regla móvil de #btnE tiene display:block');
 ok(/#btnE\s*\{[^}]*z-index:\s*36/.test(movilTemprano), 'la E va por encima del aro (que el toque del centro sea la E)');
 ok(/#btnE\s*\{[^}]*width:\s*42px/.test(movilTemprano), 'la E arranca chica: si se come el centro, no se mueve');
-ok(/#stick\s*\{[^}]*width:\s*130px/.test(movilTemprano), 'el aro arranca grande: tiene que quedar ancho para el pulgar');
+ok(/relojEl\.style\.maxWidth = \(libre >= 60 \? libre : 60\)/.test(js),
+   'el reloj se acota justo hasta la barra de botones (nunca debajo, nunca recortado de más)');
+ok(/callBarEl\.insertBefore\(musicEl, callBarEl\.firstChild\)/.test(js) && /topEl\.appendChild\(musicEl\)/.test(js),
+   'los cuatro botones de arriba comparten una sola barra en el celu (separación igual) y el escritorio no se toca');
+ok(/#callBar \{ gap: 6px; \}/.test(css), 'la separación entre los cuatro botones es la misma para todos');
+ok(/#stick\s*\{[^}]*width:\s*118px/.test(movilTemprano), 'el aro arranca en 118px: chico pero con aro libre de 41px para el pulgar');
 
 // 2) la tira de cámaras en fila: la regla tiene que ir en el media query DEL FIN
 ok(/#camStrip\s*\{[^}]*flex-direction:\s*row/.test(movilTarde),

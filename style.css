@@ -231,11 +231,13 @@ body.spectator-mode #btnE { display: none !important; }
      OJO con el display: la regla base de los dos es display:none (solo existen
      en táctil). Si se cae alguna de estas dos líneas, en el celu no aparece
      NADA. */
-  #stick { display: block; left: auto; right: 10px; bottom: auto; top: 54vh; width: 130px; height: 130px; }
+  /* v112: el aro arranca en 118 (antes 130). Es solo el valor de arranque: en el
+     celu layoutMobile() lo calcula y lo centra debajo de la fila de cámaras. */
+  #stick { display: block; left: auto; right: 10px; bottom: auto; top: 54vh; width: 118px; height: 118px; }
   #btnE {
     display: block;
     left: auto;
-    right: 54px;                 /* 10 + (130 - 42) / 2: dead center del aro */
+    right: 52px;                 /* 10 + (118 - 35) / 2: dead center del aro */
     top: calc(54vh + 44px); bottom: auto;
     width: 42px; height: 42px; line-height: 38px; font-size: 15px;
     z-index: 36;                 /* arriba del aro: que el toque del centro sea la E */
@@ -588,6 +590,27 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
   font-size: 14px !important; line-height: 1;
 }
 #callVolBox { box-sizing: border-box; height: 38px; }
+
+/* ---- En el celu los cuatro botones de arriba, parejos ----
+   Los cuatro (radio, micro, cámara y pantalla) se miden con la MISMA separación:
+   el de la radio se cuelga de la barra de la llamada (ver layoutMobile), así que
+   los cuatro quedan en un solo flex con un solo gap. Antes el de la radio estaba
+   en #topbar y los otros tres en #callBar: cada grupo ponía su gap y entre la
+   radio y el micro quedaba un hueco distinto. */
+@media (max-width: 900px) {
+  #callBar { gap: 6px; }
+  /* El reloj nunca se mete debajo de la barra de botones: el ancho exacto se lo
+     calcula layoutMobile() (ya sabe dónde empieza la barra). Acá solo el
+     recorte con puntos suspensivos, por si el texto es largo de más. */
+  #clock { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+/* En pantallas angostas los cuatro botones achican un poco para que el reloj
+   siga entrando sin recortarse tanto. */
+@media (max-width: 350px) {
+  #callBar { gap: 4px; }
+  #micCallBtn, #camBtn, #shareBtn, #musicBtn { width: 34px; height: 34px; font-size: 13px !important; }
+  #callVolBox { height: 34px; }
+}
 
 /* En desktop-rails la barra de llamada va arriba a la derecha, en fila,
    justo debajo del panel de jugadores (top/right los pone layoutDesktopAudio). */

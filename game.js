@@ -1816,7 +1816,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v111 · 30/09/2026';
+const VERSION = 'v112 · 30/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3333,6 +3333,25 @@ function layoutMobile() {
   const chatEl = document.getElementById('chatPanel');
   const btnEEl = document.getElementById('btnE');
   const knobEl = document.getElementById('stickKnob');
+  // Los cuatro botones de arriba (radio, micro, cámara y pantalla) tienen que
+  // quedar con la MISMA separación entre ellos. El de la radio vivía dentro de
+  // #topbar y los otros tres en #callBar, así que cada grupo ponía su propio
+  // gap y entre la radio y el micro quedaba un hueco distinto (7px contra 6px).
+  // Se moves el mismo botón de un contenedor al otro según el modo: en el celu
+  // los cuatro van juntos en una sola fila; en escritorio vuelve a su lugar de
+  // siempre, arriba a la izquierda junto al reloj.
+  const musicEl = document.getElementById('musicBtn');
+  const topEl = document.getElementById('topbar');
+  const callBarEl = document.getElementById('callBar');
+  if (musicEl && topEl && callBarEl) {
+    const destino = mob ? callBarEl : topEl;
+    if (musicEl.parentElement !== destino) {
+      if (mob) callBarEl.insertBefore(musicEl, callBarEl.firstChild);
+      else topEl.appendChild(musicEl);
+    }
+  }
+  const relojEl = document.getElementById('clock');
+  if (relojEl) relojEl.style.maxWidth = '';
   if (!mob) {
     if (stickEl) { stickEl.style.top = ''; stickEl.style.bottom = ''; stickEl.style.width = ''; stickEl.style.height = ''; }
     if (knobEl) { knobEl.style.width = ''; knobEl.style.height = ''; knobEl.style.margin = ''; }
@@ -3447,6 +3466,16 @@ function layoutMobile() {
   if (chatEl) {
     chatEl.style.top = Math.round(chatTop) + 'px';
     chatEl.style.bottom = ''; // el CSS móvil lo deja a 8px del borde, al lado de los controles
+  }
+  // El reloj se come justo el ancho que sobra hasta la barra de los cuatro
+  // botones: así entra entero siempre que pueda, y solo se recorta (con
+  // puntitos) en las pantallas más angostas. Se mide con la barra ya
+  // posicionada por el CSS, así que nunca se superponen.
+  if (relojEl && callBarEl) {
+    const barraX = callBarEl.getBoundingClientRect().left;
+    const relojX = relojEl.getBoundingClientRect().left;
+    const libre = Math.floor(barraX - relojX - 6);
+    relojEl.style.maxWidth = (libre >= 60 ? libre : 60) + 'px';
   }
 }
 window.addEventListener('resize', resize);
