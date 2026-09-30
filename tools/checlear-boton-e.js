@@ -89,7 +89,8 @@ ok(/stripEl\.style\.width = anchoLibre \+ 'px'/.test(js), 'la tira llega hasta e
 ok(/const FILM_IDEAL = 88/.test(js), 'los cuadros de video se agrandan (88px)');
 ok(!/HUECO_TIRA|filmAncho/.test(js),
    'los cuadros ya no se encogen para que entren 3: la fila se desliza');
-ok(/chatTop = sceneBottom \+ 6 \+ film \+ 6/.test(js), 'el chat baja lo justo para hacerle lugar a la tira');
+ok(/const FILM_ARRIBA = 8/.test(js) && /chatTop = sceneBottom \+ FILM_ARRIBA \+ film \+ abajo/.test(js),
+   'el chat baja lo justo para hacerle lugar a la tira, con aire entre los dos');
 ok(/else\s*\{\s*stripEl\.style\.display = 'none'/.test(js), 'si no entra, la tira se esconde');
 
 // 6b) fila deslizable y el que habla siempre primero

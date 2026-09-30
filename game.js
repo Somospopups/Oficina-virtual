@@ -1800,7 +1800,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v109 · 30/09/2026';
+const VERSION = 'v110 · 30/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3392,17 +3392,23 @@ function layoutMobile() {
   // fila scrollea con el dedo (overflow-x: auto en el CSS del celu), así que a
   // medida que se suma gente se va deslizando para ver el resto.
   const FILM_IDEAL = 88, FILM_MIN = 44, CHAT_MIN = 140;
-  let chatTop = sceneBottom + 6;
+  // Aire alrededor de la fila de cuadros. Abajo va mas generoso que arriba: es
+  // el respiro que separa los videos del chat y se ve mas armonioso. Si el
+  // cuadro queda chico (celular bajo) se usa menos aire abajo, asi no se lo
+  // estrangula dos veces: primero por el alto del chat y despues por el hueco.
+  const FILM_ARRIBA = 8;
+  let chatTop = sceneBottom + FILM_ARRIBA;
   if (stripEl) {
-    const hueco = h - sceneBottom - 12;
-    const film = Math.round(Math.min(FILM_IDEAL, hueco - CHAT_MIN));
+    let abajo = 16;
+    let film = Math.round(Math.min(FILM_IDEAL, h - sceneBottom - FILM_ARRIBA - abajo - CHAT_MIN));
+    if (film < 72) { abajo = 10; film = Math.round(Math.min(FILM_IDEAL, h - sceneBottom - FILM_ARRIBA - abajo - CHAT_MIN)); }
     if (stripEl.hidden) {
       stripEl.style.display = '';
     } else if (film >= FILM_MIN) {
       stripEl.style.display = '';
       stripEl.style.left = '8px';
       stripEl.style.right = 'auto';
-      stripEl.style.top = Math.round(sceneBottom + 6) + 'px';
+      stripEl.style.top = Math.round(sceneBottom + FILM_ARRIBA) + 'px';
       stripEl.style.width = anchoLibre + 'px';   // hasta el borde del joystick
       stripEl.style.height = film + 'px';
       stripEl.style.flexDirection = 'row';
@@ -3411,7 +3417,7 @@ function layoutMobile() {
         el.style.height = film + 'px';
         el.style.flex = '0 0 auto';
       }
-      chatTop = sceneBottom + 6 + film + 6;
+      chatTop = sceneBottom + FILM_ARRIBA + film + abajo;
     } else {
       stripEl.style.display = 'none';
     }

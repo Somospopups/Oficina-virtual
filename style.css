@@ -132,13 +132,23 @@ button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 rgba(0,0,0
 #hint.show { display: block; }
 #hint b { color: #ffd76a; }
 
+/* El toast se esconde subiendo 80px, pero con textos de varias lineas el marco
+   amarillo (box-shadow) se asomaba arriba y quedaba un rectangulo vacio flotando
+   sobre el reloj. Ahora sube su propio alto +26px y ademas se apaga del todo. */
 #toast {
-  position: fixed; top: 14px; left: 50%; z-index: 999; transform: translateX(-50%) translateY(-80px);
+  position: fixed; top: 14px; left: 50%; z-index: 999;
+  transform: translateX(-50%) translateY(calc(-100% - 26px));
+  opacity: 0; visibility: hidden;
   background: #1b2130; border: 3px solid #0c0f16; box-shadow: 0 0 0 2px #ffd76a;
-  font-size: 9px; padding: 10px 16px; transition: transform 0.25s ease; line-height: 1.7;
+  font-size: 9px; padding: 10px 16px; line-height: 1.7;
   max-width: calc(100vw - 24px); text-align: center;
+  transition: transform 0.25s ease, opacity 0.22s ease, visibility 0s linear 0.25s;
 }
-#toast.show { transform: translateX(-50%) translateY(0); }
+#toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1; visibility: visible;
+  transition: transform 0.25s ease, opacity 0.22s ease;
+}
 
 .key {
   background: #10141d; border: 2px solid #3b4560; padding: 1px 5px;
