@@ -540,7 +540,7 @@ async function rtcCamPrender() {
     } else necesitaReneg = true;
   }
   if (necesitaReneg) await rtcRenegociar();
-  toast('📷 Cámara prendida: se ve en los cuadrados de la derecha.');
+  toast('📷 Cámara prendida: se ve en los cuadros de video.');
 }
 function rtcCamApagar() {
   // Apagar la cámara apaga SOLO la mía: el canal queda vivo (replaceTrack a
@@ -597,8 +597,11 @@ function renderCamStrip() {
   const strip = document.getElementById('camStrip');
   if (!strip) return;
   const alguna = rtcCamOn || rtcCamPeers.size > 0 || camStripSticky;
+  // La tira, en el celu, ocupa la franja entre la oficina y el chat y empuja el
+  // chat hacia abajo: si aparece o desaparece, hay que recalcular el layout.
+  const cambio = strip.hidden !== !alguna;
   strip.hidden = !alguna;
-  if (!alguna) return;
+  if (!alguna) { if (cambio) layoutMobile(); return; }
   camStripSticky = true;
   while (strip.children.length < 3) {
     const d = document.createElement('div');
@@ -698,6 +701,7 @@ function renderCamStrip() {
     }
   });
   layoutDesktopAudio(); // recalcular alturas ahora que los cuadros existen
+  if (cambio) layoutMobile(); // y en el celu, la franja de la tira y el chat
 }
 
 // El que tiene el id más chico alfabéticamente inicia. Así nunca se cruzan dos
@@ -1097,7 +1101,7 @@ function renderCallUI() {
   if (cb) {
     cb.classList.toggle('on', rtcCamOn);
     cb.style.opacity = rtcCamOn ? '1' : '0.65';
-    cb.title = rtcCamOn ? 'Cámara prendida: tocá para apagarla' : 'Prender tu cámara: se ve en los cuadrados de la derecha';
+    cb.title = rtcCamOn ? 'Cámara prendida: tocá para apagarla' : 'Prender tu cámara: aparece en los cuadros de video';
   }
   const sh = document.getElementById('shareBtn');
   if (sh) {
@@ -1769,7 +1773,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v106 · 29/09/2026';
+const VERSION = 'v107 · 30/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1816,6 +1820,7 @@ function myPublic() {
 }
 function sendMoveNow() { const p = myPublic(); if (p) send(Object.assign({ type: 'move' }, p)); }
 
+function esMovil() { return window.matchMedia('(max-width: 900px)').matches; }
 function layoutDesktopAudio() {
   const button = document.getElementById('musicBtn');
   const panel = document.getElementById('musicPanel');
@@ -1829,10 +1834,20 @@ function layoutDesktopAudio() {
     panel.style.top = ''; panel.style.right = ''; panel.style.left = '';
     if (call) { call.style.top = ''; call.style.right = ''; call.style.bottom = ''; }
     if (vol) { vol.style.top = ''; vol.style.right = ''; }
+    if (esMovil()) {
+      // En el celu el chat, la tira de cámaras y los controles se acomodan JUNTOS
+      // en layoutMobile (la tira va en la franja entre la oficina y el chat, y
+      // el chat baja para hacerle lugar). Si se limpian los estilos acá, cada
+      // mensaje del server que llega a renderPlayerList borra esa posición y el
+      // chat vuelve a su sitio: el layout del celu no se sostenía.
+      layoutMobile();
+      return;
+    }
     if (chatP) { chatP.style.top = ''; chatP.style.bottom = ''; chatP.style.height = ''; }
     if (strip) {
-      strip.style.top = ''; strip.style.right = ''; strip.style.bottom = ''; strip.style.overflowY = '';
-      for (const el of strip.children) { el.style.height = ''; el.style.flex = ''; }
+      strip.style.left = ''; strip.style.top = ''; strip.style.right = ''; strip.style.bottom = '';
+      strip.style.width = ''; strip.style.height = ''; strip.style.overflowY = ''; strip.style.flexDirection = ''; strip.style.display = '';
+      for (const el of strip.children) { el.style.width = ''; el.style.height = ''; el.style.flex = ''; }
     }
     return;
   }
@@ -3286,46 +3301,38 @@ function layoutMobile() {
     if (chatEl) { chatEl.style.top = ''; chatEl.style.bottom = ''; }
     return;
   }
-  // diseño congelado v1.11.1: escena centrada, chat bajo la imagen (sin meterse
-  // en la columna de los controles)
+  // diseño congelado v1.11.1: escena centrada, chat abajo, controles contra el
+  // borde inferior derecho
   const sceneBottom = viewOY + VH * viewScale;
   const h = canvas.height;
-  if (chatEl) {
-    chatEl.style.top = (sceneBottom + 6) + 'px';
-    chatEl.style.bottom = ''; // el CSS móvil lo deja a 8px del borde, al lado de los controles
-  }
-  // Joystick y botón de acción son UNA SOLA columna, en la franja derecha que
-  // le deja el chat: stick arriba, E abajo. Antes la E andaba sola del otro
-  // lado, flotando encima del dibujo, y había que ir con la vista de un borde
-  // al otro para moverse y para interactuar.
-  //
-  // Se mide la franja real que queda bajo la escena. Si en un celu más bajo no
-  // entran los dos completos, se achican juntos (el joystick mantiene su
-  // proporción y el botón baja el tamaño de la letra con él) en vez de pisar
-  // el chat o salirse de la pantalla.
-  const STICK_FULL = 92, E_FULL = 76, GAP_FULL = 10;
-  const margen = 12;                 // del borde derecho, igual que el CSS
-  const banda = h - sceneBottom;
-  const totalFull = STICK_FULL + GAP_FULL + E_FULL;
-  let sS = STICK_FULL, eS = E_FULL, gap = GAP_FULL;
-  if (totalFull > banda - 8) {
-    const k = Math.max(0.5, (banda - 8) / totalFull);
-    sS = Math.round(STICK_FULL * k);
-    eS = Math.round(E_FULL * k);
-    gap = Math.round(GAP_FULL * k);
-  }
-  const total = sS + gap + eS;
-  const top = Math.max(sceneBottom + 4, sceneBottom + (banda - total) / 2);
+  const vw = window.innerWidth;
+  const stripEl = document.getElementById('camStrip');
+
+  // ---- Controles: UN solo círculo contra el borde inferior derecho. El joystick
+  // es el aro de afuera y la E de acción va EN EL CENTRO, así el pulgar no tiene
+  // que viajar de un borde al otro de la pantalla para moverse y para interactuar.
+  // El tamaño sale del hueco real que deja el chat (si el celu es angosto, el
+  // círculo se achica antes que pisar el chat).
+  const MARGEN = 10;
+  const STICK_FULL = 104, E_PORC = 0.44;
+  const chatDerecha = chatEl ? Math.round(chatEl.getBoundingClientRect().right) : vw - 118;
+  const hueco = Math.max(64, vw - MARGEN - chatDerecha - 4);
+  const sS = Math.max(72, Math.min(STICK_FULL, hueco));
+  const eS = Math.round(sS * E_PORC);
+  const stickTop = Math.round(h - MARGEN - sS);
+  const stickLeft = Math.round(vw - MARGEN - sS);
   if (stickEl) {
+    stickEl.style.top = stickTop + 'px';
     stickEl.style.bottom = 'auto';
-    stickEl.style.top = top + 'px';
+    stickEl.style.left = stickLeft + 'px';
+    stickEl.style.right = 'auto';
     stickEl.style.width = sS + 'px';
     stickEl.style.height = sS + 'px';
   }
   if (knobEl) {
     // el knob va centrado con márgenes negativos: hay que recalcularlo si el
     // joystick se achicó, o se sale del círculo
-    const kS = Math.round(36 * sS / STICK_FULL);
+    const kS = Math.round(36 * sS / 92);
     knobEl.style.width = kS + 'px';
     knobEl.style.height = kS + 'px';
     knobEl.style.margin = (-kS / 2) + 'px 0 0 ' + (-kS / 2) + 'px';
@@ -3334,14 +3341,48 @@ function layoutMobile() {
     // display:block explicito, nunca ''. La regla base es display:none, asi que
     // limpiar el estilo lo dejaba invisible en el celu (ya paso).
     btnEEl.style.display = 'block';
+    btnEEl.style.left = Math.round(stickLeft + (sS - eS) / 2) + 'px';
+    btnEEl.style.right = 'auto';
+    btnEEl.style.top = Math.round(stickTop + (sS - eS) / 2) + 'px';
     btnEEl.style.bottom = 'auto';
-    btnEEl.style.left = 'auto';
-    btnEEl.style.top = (top + sS + gap) + 'px';
-    btnEEl.style.right = Math.round(margen + (sS - eS) / 2) + 'px';
     btnEEl.style.width = eS + 'px';
     btnEEl.style.height = eS + 'px';
     btnEEl.style.lineHeight = (eS - 4) + 'px';
-    btnEEl.style.fontSize = Math.round(eS * 0.32) + 'px';
+    btnEEl.style.fontSize = Math.round(eS * 0.37) + 'px';
+  }
+
+  // ---- Tira de cámaras: una LÍNEA HORIZONTAL en la franja que queda entre la
+  // oficina y el chat. El chat baja lo justo para hacerle lugar; en un celu
+  // chico la tira se achica, y si tampoco entra se esconde (mejor eso que
+  // dejar el chat sin aire).
+  const FILM_IDEAL = 72, FILM_MIN = 44, CHAT_MIN = 150;
+  let chatTop = sceneBottom + 6;
+  if (stripEl) {
+    const banda = h - sceneBottom - 12;
+    const film = Math.round(Math.min(FILM_IDEAL, banda - CHAT_MIN));
+    if (stripEl.hidden) {
+      stripEl.style.display = '';
+    } else if (film >= FILM_MIN) {
+      stripEl.style.display = '';
+      stripEl.style.left = '8px';
+      stripEl.style.right = 'auto';
+      stripEl.style.top = Math.round(sceneBottom + 6) + 'px';
+      stripEl.style.width = '';   // la fila se mide sola con los cuadros que tiene
+      stripEl.style.height = film + 'px';
+      stripEl.style.flexDirection = 'row';
+      for (const el of stripEl.children) {
+        el.style.width = film + 'px';
+        el.style.height = film + 'px';
+        el.style.flex = '0 0 auto';
+      }
+      chatTop = sceneBottom + 6 + film + 6;
+    } else {
+      stripEl.style.display = 'none';
+    }
+  }
+  if (chatEl) {
+    chatEl.style.top = Math.round(chatTop) + 'px';
+    chatEl.style.bottom = ''; // el CSS móvil lo deja a 8px del borde, al lado de los controles
   }
 }
 window.addEventListener('resize', resize);

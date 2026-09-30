@@ -211,20 +211,30 @@ body.spectator-mode #btnE { display: none !important; }
      especificidad a #videoPanel.float, y sin esto el panel flotante terminaba
      arriba a la derecha con top:98px en vez de centrado. */
   #videoPanel:not(.float) { left: 8px; right: 8px; top: 46px; width: auto; }
-  #stick { display: block; left: auto; right: 12px; }
-  /* El joystick y el botón de acción forman UNA columna en la franja derecha
-     que le deja el chat: stick arriba, E abajo. El alto y el centrado exacto
-     los calcula layoutMobile (game.js) midiendo la franja que queda bajo la
-     escena; acá solo está el estado inicial para el primer pintado.
+  /* Controles táctiles: UN solo círculo contra el borde inferior derecho. El
+     joystick es el aro de afuera y la E de acción va EN EL CENTRO, así el
+     pulgar no tiene que viajar de un borde al otro de la pantalla. El tamaño
+     exacto y el centrado los calcula layoutMobile (game.js); acá está el
+     estado inicial para el primer pintado.
 
-     OJO con el display: la regla base es display:none (el botón solo existe en
-     táctil). Hay que volver a ponerlo acá, porque si se cae de nuevo el botón
-     no aparece NADA en el celu. */
+     OJO con el display: la regla base de los dos es display:none (solo existen
+     en táctil). Si se cae alguna de estas dos líneas, en el celu no aparece
+     NADA. */
+  #stick { display: block; left: auto; right: 10px; bottom: 10px; width: 104px; height: 104px; }
   #btnE {
     display: block;
-    left: auto; right: 20px;   /* 12 + (92 - 76) / 2: centrado bajo el joystick */
-    width: 76px; height: 76px; line-height: 72px;
+    left: auto;
+    right: 41px; bottom: 39px;   /* 10 + (104 - 46) / 2: dead center del joystick */
+    width: 46px; height: 46px; line-height: 42px; font-size: 17px;
+    z-index: 36;                 /* arriba del joystick: que el toque sea de la E */
   }
+  #btnE.activo { box-shadow: 0 0 0 4px rgba(255, 215, 106, 0.18); }
+  /* La tira de cámaras, en el celu, es una línea horizontal en la franja que
+     queda entre la oficina y el chat. La posición y el alto los mide
+     layoutMobile; la base es solo el estado inicial. */
+  #camStrip { flex-direction: row; left: 8px; right: auto; top: auto; width: auto; overflow-x: auto; }
+  #camStrip .cam-slot { height: auto; }
+  #camStrip .cc { width: 22px; height: 22px; font-size: 10px; border-radius: 6px; }
   #micBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
 }
 
