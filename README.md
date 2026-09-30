@@ -22,6 +22,18 @@ node server.js       # escucha en 0.0.0.0:3000 (o $PORT)
 Compartís `http://tu-host:3000`. En este modo la sincronización usa
 WebSockets contra este servidor. Tip: `?name=Laura` pre-carga el nombre.
 
+## 🖼️ Si tocás un dibujo, corré esto antes de publicar
+
+```bash
+node tools/generar-assets.js     # reescribe assets.js con el hash de cada PNG
+node tools/checlear-boton-e.js   # falla si un dibujo quedó sin regenerar
+```
+
+Cada imagen se pide con un **hash de su propio contenido** (`sprites/ger_sit.png?v=6cc8f410`).
+Así, al reemplazar un dibujo el navegador descarga el nuevo y **nunca muestra una
+versión vieja** del caché, ni al entrar ni dentro de la oficina. No hay que subir
+ningún `?v=` a mano: se calculan solos y el guard te avisa si se olvidó.
+
 ## 🎮 Controles
 
 | Tecla | Acción |

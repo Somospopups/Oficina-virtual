@@ -7,6 +7,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <script>document.write('<link rel="stylesheet" href="style.css?t=' + Date.now() + '">');</script>
+<!-- assets.js: el hash de contenido de cada dibujo (lo genera
+     tools/generar-assets.js). Se carga con timestamp para que nunca se use una
+     versión vieja del mapa, y con ?v= distinto los PNG siempre frescos. -->
+<script>document.write('<script src="assets.js?t=' + Date.now() + '"><\/script>');</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
 </head>
 <body>

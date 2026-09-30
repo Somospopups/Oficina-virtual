@@ -23,8 +23,10 @@
 // desde el centro).
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const raiz = path.resolve(__dirname, '..');
+const RAIZ = raiz;
 const css = fs.readFileSync(path.join(raiz, 'style.css'), 'utf8');
 const js = fs.readFileSync(path.join(raiz, 'game.js'), 'utf8');
 const html = fs.readFileSync(path.join(raiz, 'index.html'), 'utf8');
@@ -32,7 +34,7 @@ const html = fs.readFileSync(path.join(raiz, 'index.html'), 'utf8');
 let malas = 0;
 const ok = (c, et) => { console.log(`  ${c ? '✅' : '❌'} ${et}`); if (!c) malas++; };
 
-console.log('🕹️ Controles táctiles en el celu (v108)\n');
+console.log('🕹️ Controles táctiles en el celu + dibujos siempre frescos (v111)\n');
 
 const movilTemprano = css.slice(css.indexOf('@media (max-width: 900px)'), css.indexOf('@media (max-width: 900px)') + 4000);
 const movilTarde = css.slice(css.lastIndexOf('@media (max-width: 900px)'));
@@ -53,14 +55,19 @@ ok(!/#camStrip\s*\{[^}]*flex-direction:\s*row/.test(movilTemprano.slice(0, movil
    'no queda una regla de tira en el media query de arriba, que la pisa la base');
 
 // 3) la E en el centro del aro, y el aro centrado en el lado derecho
-ok(/btnEEl\.style\.left = Math\.round\(stickLeft \+ \(sS - eS\) \/ 2\)/.test(js),
+ok(/btnEEl\.style\.left = Math\.round\(stickLeft \+ \(sS - eFinal\) \/ 2\)/.test(js),
    'la E se centra horizontalmente en el aro');
-ok(/btnEEl\.style\.top = Math\.round\(stickTop \+ \(sS - eS\) \/ 2\)/.test(js),
+ok(/btnEEl\.style\.top = Math\.round\(stickTop \+ \(sS - eFinal\) \/ 2\)/.test(js),
    'la E se centra verticalmente en el aro');
-ok(/const stickTop = Math\.round\(sceneBottom \+ \(banda - sS\) \/ 2\)/.test(js),
-   'el control va CENTRADO en la franja derecha, no pegado a la esquina');
-ok(/STICK_MAX = 130, STICK_MIN = 118, E_PORC = 0\.32/.test(js),
-   'el aro se agranda hasta 130 y nunca baja de 118 (por debajo el pulgar no llega)');
+// v111: el círculo se centra en la franja que queda DEBAJO de la fila de
+// cámaras, para no invadirle el renglón (antes se solapaba con los cuadros).
+ok(/const libre = h - tiraBottom - 8/.test(js) &&
+   /const stickTop = Math\.round\(tiraBottom \+ \(libre - sS\) \/ 2\)/.test(js),
+   'el control va CENTRADO en la franja derecha, debajo de la fila de cámaras, no pegado a la esquina');
+ok(/STICK_MAX = 118, STICK_MIN = 106, E_PORC = 0\.30/.test(js),
+   'el aro mide hasta 118 y nunca baja de 106 (por debajo el pulgar no llega)');
+ok(/tiraBottom = chatTop - abajo/.test(js) && /let tiraBottom = sceneBottom/.test(js),
+   'el layoutMobile sabe hasta dónde baja la fila de cámaras antes de ubicar el círculo');
 ok(/chatEl\.style\.right = \(vw - stickLeft \+ CHAT_GAP\) \+ 'px'/.test(js),
    'el chat cede el ancho justo para que el aro no lo pise');
 
@@ -118,6 +125,30 @@ ok(!/cuadrados de la derecha/.test(html) && !/cuadrados de la derecha/.test(js),
    'el botón de la cámara no promete "los cuadrados de la derecha"');
 ok(/id="btnE"/.test(html) && /id="stick"/.test(html) && /id="camStrip"/.test(html),
    'los tres controles siguen en el HTML');
+
+// 9) los dibujos NUNCA pueden salir viejos del caché: cada PNG se pide con un
+// hash de su propio contenido (assets.js, generado por tools/generar-assets.js).
+ok(/assets\.js\?t=/.test(html), 'el mapa de hashes de los dibujos se carga siempre fresco');
+ok(/function urlAsset\(ruta\)/.test(js), 'las imágenes se piden con urlAsset()');
+ok(!/\?v=1\.|\?v=2['"`]/.test(js), 'no queda ningún ?v= escrito a mano (se olvidaría al cambiar un dibujo)');
+ok(/const ASSET_T = 't=' \+ Date\.now\(\)/.test(js) && /\|\| ASSET_T/.test(js),
+   'si el index.html llega viejo al caché, igual se piden los dibujos frescos (respaldo)');
+ok(fs.existsSync(path.join(RAIZ, 'assets.js')), 'assets.js existe en el repo');
+if (fs.existsSync(path.join(RAIZ, 'assets.js'))) {
+  const crudo = fs.readFileSync(path.join(RAIZ, 'assets.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').trim();
+  const mapa = JSON.parse(crudo.replace(/^window\.ASSETS\s*=\s*/, '').replace(/;\s*$/, ''));
+  let desfasados = [], faltan = [];
+  for (const [ruta, v] of Object.entries(mapa)) {
+    const f = path.join(RAIZ, ruta);
+    if (!fs.existsSync(f)) { faltan.push(ruta); continue; }
+    const real = 'v=' + crypto.createHash('md5').update(fs.readFileSync(f)).digest('hex').slice(0, 8);
+    if (real !== v) desfasados.push(ruta);
+  }
+  ok(!faltan.length, 'todos los dibujos del mapa existen', faltan.join(', '));
+  ok(!desfasados.length, 'el hash de cada dibujo coincide con su contenido (nada de dibujos viejos)',
+     desfasados.length ? 'desfasados: ' + desfasados.join(', ') + ' — correr node tools/generar-assets.js' : Object.keys(mapa).length + ' dibujos con hash correcto');
+}
 
 console.log('');
 if (malas) {

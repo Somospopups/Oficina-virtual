@@ -102,6 +102,22 @@ const ROSTER = [
   { dni: '34186736', name: 'Ovni', char: 'ovni', seat: 3 },
   { dni: '54472249', name: 'Milo', char: 'milo', seat: 0 },  // escritorio delantero izq. (el único libre)
 ];
+// ---------- VERSIONADO DE LOS DIBUJOS POR CONTENIDO ----------
+// Antes cada PNG se pedía con un ?v= escrito a mano: si se reemplazaba el
+// dibujo y no se cambiaba ese número, el navegador lo sacaba del caché y se
+// veía la versión vieja (pasaba al entrar, en el login y en la oficina). Ahora
+// la URL se arma con el hash del contenido que genera tools/generar-assets.js:
+// cambia el dibujo -> cambia la URL -> se descarga el nuevo. Siempre.
+//
+// Respaldo: si el navegador tuviera cacheado un index.html viejo (sin el
+// assets.js), en vez de un hash fijo se usa la marca de tiempo de esta carga.
+// Es peor para el tráfico, pero garantiza que nunca se vea un dibujo viejo.
+const ASSET_T = 't=' + Date.now();
+function urlAsset(ruta) {
+  const v = (window.ASSETS && window.ASSETS[ruta]) || ASSET_T;
+  return ruta + '?' + v;
+}
+
 // Paleta muestreada de los PNG de referencia (sprites/*.png), no aproximada a ojo:
 // así el chibi de grilla (fallback), el sentado y los PNG comparten los mismos
 // tonos y no se nota de dónde salió cada uno.
@@ -1190,7 +1206,7 @@ function loadCharAssets() {
         res();
       };
       sit.onerror = () => res(); // el sentado anterior queda como fallback
-      sit.src = `sprites/${k}_sit.png?v=1.24.0`;
+      sit.src = urlAsset(`sprites/${k}_sit.png`);
     };
     // Los de pie son recortes de "Oficina Virtual/De pie.jpg": el diseño aprobado
     // (chibi, cuerpo entero, sneakers a la vista). Antes se cargaba primero un
@@ -1211,7 +1227,7 @@ function loadCharAssets() {
         // era el propio frente apagado, asi que se alejaba de vos y te miraba.
         const esp = new Image();
         esp.onload = () => { charAssets[k].up = normalizarFigura(esp, base.alto).img; };
-        esp.src = `sprites/${k}_up.png?v=1.101.0`;
+        esp.src = urlAsset(`sprites/${k}_up.png`);
       }
       // Si el personaje tiene hoja propia con las 4 direcciones (Ger, Milo y
       // Ovni), sus PNG se normalizan contra su sprite de frente. Si no, se arma
@@ -1233,7 +1249,7 @@ function loadCharAssets() {
       loadSeat();
     };
     im.onerror = () => { loadSeat(); }; // los sprites por código siguen disponibles
-    im.src = `sprites/${k}.png?v=1.33.0`;
+    im.src = urlAsset(`sprites/${k}.png`);
   }))).then(() => {
     assetsReady = true;
     const p = document.getElementById('avatarPreview');
@@ -1769,7 +1785,7 @@ bgImg.onload = () => {
   bgReady = true;
   backdropDirty = true;
 };
-bgImg.src = 'bg_deep2.png?v=2';  // v=2: se borró la maceta del sill (ahí va la cafetera)
+bgImg.src = urlAsset('bg_deep2.png');
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -1784,7 +1800,7 @@ officePreviewImg.onload = () => {
   const preview = document.getElementById('avatarPreview');
   if (preview && !preview.getAttribute('data-char')) previewChar(null);
 };
-officePreviewImg.src = 'sprites/office-icon.png?v=1.29.3';
+officePreviewImg.src = urlAsset('sprites/office-icon.png');
 const chatLog = document.getElementById('chatLog');
 const chatInput = document.getElementById('chatInput');
 const playerListBox = document.getElementById('playerList');
@@ -1800,7 +1816,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v110 · 30/09/2026';
+const VERSION = 'v111 · 30/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3344,42 +3360,11 @@ function layoutMobile() {
   // lo justo para que entren los dos sin pisarse: el aro queda ancho para
   // mover y la franja de abajo sigue siendo del chat.
   const MARGEN = 10, CHAT_GAP = 6;
-  const STICK_MAX = 130, STICK_MIN = 118, E_PORC = 0.32;   // 118 es el mínimo que deja un aro de 28px: por debajo el pulgar no llega
+  const STICK_MAX = 118, STICK_MIN = 106, E_PORC = 0.30;   // el aro libre (118-35)/2 = 41px de radio: el pulgar entra cómodo
   const banda = h - sceneBottom;
-  let sS = Math.round(Math.max(STICK_MIN, Math.min(STICK_MAX, vw * 0.36)));
+  let sS = Math.round(Math.max(STICK_MIN, Math.min(STICK_MAX, vw * 0.33)));
   if (banda < sS + 12) sS = Math.max(80, Math.round(banda - 12)); // pantalla muy baja
-  const eS = Math.round(sS * E_PORC);
   const stickLeft = Math.round(vw - MARGEN - sS);
-  const stickTop = Math.round(sceneBottom + (banda - sS) / 2);   // centrado, no pegado a la esquina
-  if (stickEl) {
-    stickEl.style.top = stickTop + 'px';
-    stickEl.style.bottom = 'auto';
-    stickEl.style.left = stickLeft + 'px';
-    stickEl.style.right = 'auto';
-    stickEl.style.width = sS + 'px';
-    stickEl.style.height = sS + 'px';
-  }
-  if (knobEl) {
-    // el knob va centrado con márgenes negativos: hay que recalcularlo para que
-    // siga centrado en el aro nuevo
-    const kS = Math.round(sS * 0.30);
-    knobEl.style.width = kS + 'px';
-    knobEl.style.height = kS + 'px';
-    knobEl.style.margin = (-kS / 2) + 'px 0 0 ' + (-kS / 2) + 'px';
-  }
-  if (btnEEl) {
-    // display:block explicito, nunca ''. La regla base es display:none, asi que
-    // limpiar el estilo lo dejaba invisible en el celu (ya paso).
-    btnEEl.style.display = 'block';
-    btnEEl.style.left = Math.round(stickLeft + (sS - eS) / 2) + 'px';
-    btnEEl.style.right = 'auto';
-    btnEEl.style.top = Math.round(stickTop + (sS - eS) / 2) + 'px';
-    btnEEl.style.bottom = 'auto';
-    btnEEl.style.width = eS + 'px';
-    btnEEl.style.height = eS + 'px';
-    btnEEl.style.lineHeight = (eS - 4) + 'px';
-    btnEEl.style.fontSize = Math.round(eS * 0.37) + 'px';
-  }
   // El chat cede el ancho justo para que el círculo no lo pise.
   if (chatEl) chatEl.style.right = (vw - stickLeft + CHAT_GAP) + 'px';
   const anchoLibre = stickLeft - 8 - CHAT_GAP;
@@ -3398,6 +3383,7 @@ function layoutMobile() {
   // estrangula dos veces: primero por el alto del chat y despues por el hueco.
   const FILM_ARRIBA = 8;
   let chatTop = sceneBottom + FILM_ARRIBA;
+  let tiraBottom = sceneBottom;   // hasta dónde baja la fila, para no invadirla con el círculo
   if (stripEl) {
     let abajo = 16;
     let film = Math.round(Math.min(FILM_IDEAL, h - sceneBottom - FILM_ARRIBA - abajo - CHAT_MIN));
@@ -3418,9 +3404,45 @@ function layoutMobile() {
         el.style.flex = '0 0 auto';
       }
       chatTop = sceneBottom + FILM_ARRIBA + film + abajo;
+      tiraBottom = chatTop - abajo;
     } else {
       stripEl.style.display = 'none';
     }
+  }
+
+  // ---- El círculo va CENTRADO en la franja que queda DEBAJO de la fila de
+  // cámaras, para no invadirle el renglón. En la banda completa se solapaba con
+  // los cuadros: ahora se descentra hacia abajo lo justo.
+  const libre = h - tiraBottom - 8;
+  if (libre < sS + 10) sS = Math.max(80, Math.round(libre - 10));
+  const stickTop = Math.round(tiraBottom + (libre - sS) / 2);
+  if (stickEl) {
+    stickEl.style.top = stickTop + 'px';
+    stickEl.style.bottom = 'auto';
+    stickEl.style.left = stickLeft + 'px';
+    stickEl.style.right = 'auto';
+    stickEl.style.width = sS + 'px';
+    stickEl.style.height = sS + 'px';
+  }
+  const eFinal = Math.round(sS * E_PORC);
+  if (knobEl) {
+    const kS = Math.round(sS * 0.30);
+    knobEl.style.width = kS + 'px';
+    knobEl.style.height = kS + 'px';
+    knobEl.style.margin = (-kS / 2) + 'px 0 0 ' + (-kS / 2) + 'px';
+  }
+  if (btnEEl) {
+    // display:block explicito, nunca ''. La regla base es display:none, asi que
+    // limpiar el estilo lo dejaba invisible en el celu (ya paso).
+    btnEEl.style.display = 'block';
+    btnEEl.style.left = Math.round(stickLeft + (sS - eFinal) / 2) + 'px';
+    btnEEl.style.right = 'auto';
+    btnEEl.style.top = Math.round(stickTop + (sS - eFinal) / 2) + 'px';
+    btnEEl.style.bottom = 'auto';
+    btnEEl.style.width = eFinal + 'px';
+    btnEEl.style.height = eFinal + 'px';
+    btnEEl.style.lineHeight = (eFinal - 4) + 'px';
+    btnEEl.style.fontSize = Math.round(eFinal * 0.37) + 'px';
   }
   if (chatEl) {
     chatEl.style.top = Math.round(chatTop) + 'px';
@@ -3740,9 +3762,9 @@ function cafeAplicar(id) {
   beep(620, 0.05, 0.03); setTimeout(() => beep(760, 0.06, 0.03), 110);  // ¡café listo!
 }
 const miloToma = new Image();
-miloToma.src = 'sprites/milo_toma.png?v=1';
+miloToma.src = urlAsset('sprites/milo_toma.png');
 const cafeImg = new Image();
-cafeImg.src = 'sprites/cafetera.png?v=1';
+cafeImg.src = urlAsset('sprites/cafetera.png');
 function drawCafetera(now) {
   const g = ctx;
   const bx = CAFE.x, by = 389;  // sobre el sill del ventanal, donde estaba la maceta
@@ -3834,8 +3856,9 @@ const walkSources = {};
 {
   // El ?v= se sube cada vez que cambia el CONTENIDO de un PNG con este nombre, o
   // el navegador sigue mostrando el viejo desde su caché. Al intercambiar
-  // ger_wl2.png y ger_wr2.png la URL de cada uno cambió de contenido: v1 -> v1.100.0
-  const img = (n) => { const i = new Image(); i.src = `sprites/${n}.png?v=1.100.0`; return i; };
+  // ger_wl2.png y ger_wr2.png cambiaron de contenido: el hash de assets.js se
+  // encarga solo, ya no hay que subir un ?v= a mano
+  const img = (n) => { const i = new Image(); i.src = urlAsset(`sprites/${n}.png`); return i; };
   const g2 = img('ger_walk2'), g3 = img('ger_walk3'), g4 = img('ger_walk4');
   const gl1 = img('ger_wl1'), gl2 = img('ger_wl2'), gl3 = img('ger_wl3');
   const gr1 = img('ger_wr1'), gr2 = img('ger_wr2'), gr3 = img('ger_wr3');
@@ -3887,7 +3910,7 @@ function normalizarCaminata(k, alto) {
 // Sprites de Michi (hoja del usuario, recortada y con fondo transparente)
 const catImgs = {};
 for (const n of ['sleep', 'sit', 'stand_f', 'stand_l', 'stand_r', 'walk_l1', 'walk_l2', 'walk_l3', 'walk_r1', 'walk_r2', 'walk_r3', 'happy']) {
-  const i = new Image(); i.src = `sprites/cat/${n}.png?v=1`; catImgs[n] = i;
+  const i = new Image(); i.src = urlAsset(`sprites/cat/${n}.png`); catImgs[n] = i;
 }
 function catMiau() {
   // Maullido sintetizado: sube ("mia...") y baja ("...au")
