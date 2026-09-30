@@ -54,11 +54,23 @@ ok(/#stick\s*\{[^}]*display:\s*block/.test(movilTemprano), 'la regla móvil de #
 ok(/#btnE\s*\{[^}]*display:\s*block/.test(movilTemprano), 'la regla móvil de #btnE tiene display:block');
 ok(/#btnE\s*\{[^}]*z-index:\s*36/.test(movilTemprano), 'la E va por encima del aro (que el toque del centro sea la E)');
 ok(/#btnE\s*\{[^}]*width:\s*42px/.test(movilTemprano), 'la E arranca chica: si se come el centro, no se mueve');
-ok(/relojEl\.style\.maxWidth = \(libre >= 60 \? libre : 60\)/.test(js),
+ok(/relojEl\.style\.maxWidth = \(anchoLibre >= 60 \? anchoLibre : 60\)/.test(js),
    'el reloj se acota justo hasta la barra de botones (nunca debajo, nunca recortado de más)');
+ok(/:root \{ --alto-barra: 34px; \}/.test(css) &&
+   /#micCallBtn, #camBtn, #shareBtn, #musicBtn \{\s*width: var\(--alto-barra\); height: var\(--alto-barra\)/.test(css) &&
+   /#clock \{[^}]*height: var\(--alto-barra\)/.test(css),
+   'los cuatro botones miden lo mismo que el renglón de la hora: no sobresalen');
+ok(/#statusBar, #playerList \{ display: none !important; \}/.test(css),
+   'en el celu no están los botones de estado ni el panel de jugadores (se usan tocando al personaje)');
+ok(/const FILM_IDEAL = 116/.test(js), 'los cuadros de cámara están arriba y más grandes (116px)');
+ok(/const barraBottom = callBarEl \? callBarEl\.getBoundingClientRect\(\)\.bottom/.test(js) &&
+   /stripEl\.style\.top = tiraTop \+ 'px'/.test(js),
+   'la fila de cámaras se ancla abajo de la barra de arriba, no a la oficina');
+ok(/viewOY = zonaTop \+ \(zonaAlto - VH \* escala\) \/ 2/.test(js),
+   'la oficina se centra entre la fila de cámaras y el chat');
 ok(/callBarEl\.insertBefore\(musicEl, callBarEl\.firstChild\)/.test(js) && /topEl\.appendChild\(musicEl\)/.test(js),
    'los cuatro botones de arriba comparten una sola barra en el celu (separación igual) y el escritorio no se toca');
-ok(/#callBar \{ gap: 6px; \}/.test(css), 'la separación entre los cuatro botones es la misma para todos');
+ok(/#callBar \{ gap: 6px; align-items: center; \}/.test(css), 'la separación entre los cuatro botones es la misma para todos');
 ok(/#stick\s*\{[^}]*width:\s*118px/.test(movilTemprano), 'el aro arranca en 118px: chico pero con aro libre de 41px para el pulgar');
 
 // 2) la tira de cámaras en fila: la regla tiene que ir en el media query DEL FIN
@@ -76,12 +88,12 @@ ok(/btnEEl\.style\.top = Math\.round\(stickTop \+ \(sS - eFinal\) \/ 2\)/.test(j
    'la E se centra verticalmente en el aro');
 // v111: el círculo se centra en la franja que queda DEBAJO de la fila de
 // cámaras, para no invadirle el renglón (antes se solapaba con los cuadros).
-ok(/const libre = h - tiraBottom - 8/.test(js) &&
-   /const stickTop = Math\.round\(tiraBottom \+ \(libre - sS\) \/ 2\)/.test(js),
-   'el control va CENTRADO en la franja derecha, debajo de la fila de cámaras, no pegado a la esquina');
+ok(/const stickTop = Math\.round\(chatTop - 6 \+ \(libre - sS\) \/ 2\)/.test(js) &&
+   /const libre = altoChat \+ 6/.test(js),
+   'el control va CENTRADO en la franja del chat, abajo a la derecha, no pegado a la esquina');
 ok(/STICK_MAX = 118, STICK_MIN = 106, E_PORC = 0\.30/.test(js),
    'el aro mide hasta 118 y nunca baja de 106 (por debajo el pulgar no llega)');
-ok(/tiraBottom = chatTop - abajo/.test(js) && /let tiraBottom = sceneBottom/.test(js),
+ok(/const tiraBottom = hayCam && film >= FILM_MIN \? tiraTop \+ film : barraBottom \+ 6/.test(js),
    'el layoutMobile sabe hasta dónde baja la fila de cámaras antes de ubicar el círculo');
 ok(/chatEl\.style\.right = \(vw - stickLeft \+ CHAT_GAP\) \+ 'px'/.test(js),
    'el chat cede el ancho justo para que el aro no lo pise');
@@ -107,13 +119,14 @@ ok(/btnEEl\.style\.display = 'block';/.test(fnLayout.slice(ramaNoMovil.length)),
 
 // 6) la tira: fila en la franja, y el chat baja lo justo
 ok(/stripEl\.style\.flexDirection = 'row'/.test(js), 'la tira se pone en fila');
-ok(/stripEl\.style\.width = anchoLibre \+ 'px'/.test(js), 'la tira llega hasta el borde del aro y no lo pisa');
-ok(/const FILM_IDEAL = 88/.test(js), 'los cuadros de video se agrandan (88px)');
+ok(/stripEl\.style\.width = \(vw - 16\) \+ 'px'/.test(js), 'la fila de cámaras usa todo el ancho (el joystick ya no está al lado)');
 ok(!/HUECO_TIRA|filmAncho/.test(js),
    'los cuadros ya no se encogen para que entren 3: la fila se desliza');
-ok(/const FILM_ARRIBA = 8/.test(js) && /chatTop = sceneBottom \+ FILM_ARRIBA \+ film \+ abajo/.test(js),
-   'el chat baja lo justo para hacerle lugar a la tira, con aire entre los dos');
+ok(/const altoChat = Math\.round\(Math\.max\(CHAT_MIN, Math\.min\(CHAT_MAX, h - tiraBottom - 8 - ESCENA_MIN - 12\)\)/.test(js) &&
+   /const chatTop = h - 8 - altoChat/.test(js),
+   'el chat se queda con el alto justo para no invadir los cuadros ni la oficina');
 ok(/else\s*\{\s*stripEl\.style\.display = 'none'/.test(js), 'si no entra, la tira se esconde');
+ok(/backdropDirty = true/.test(js), 'al mover la oficina se repinta el fondo (si no queda el viejo)');
 
 // 6b) fila deslizable y el que habla siempre primero
 ok(/const MAX = esMovil\(\) \? 8 : 3/.test(js), 'en el celu la fila hace lugar para hasta 8 cámaras');

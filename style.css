@@ -598,18 +598,34 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
    en #topbar y los otros tres en #callBar: cada grupo ponía su gap y entre la
    radio y el micro quedaba un hueco distinto. */
 @media (max-width: 900px) {
-  #callBar { gap: 6px; }
-  /* El reloj nunca se mete debajo de la barra de botones: el ancho exacto se lo
-     calcula layoutMobile() (ya sabe dónde empieza la barra). Acá solo el
-     recorte con puntos suspensivos, por si el texto es largo de más. */
-  #clock { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* v113: los cuatro botones miden lo MISMO que el renglón de la hora, para que
+     no sobresalgan por abajo. --alto-barra manda la altura de toda la fila. */
+  :root { --alto-barra: 34px; }
+  #topbar { align-items: center; }
+  #callBar { gap: 6px; align-items: center; }
+  #micCallBtn, #camBtn, #shareBtn, #musicBtn {
+    width: var(--alto-barra); height: var(--alto-barra);
+  }
+  #callVolBox { height: var(--alto-barra); }
+  #clock {
+    box-sizing: border-box; height: var(--alto-barra); padding: 0 9px;
+    line-height: calc(var(--alto-barra) - 6px);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* v113: en el celu no hacen falta ni los cuatro botones de estado (codeando,
+     en reunión, ya vengo, zumbido) ni el panel de jugadores. Los estados se
+     ponen tocando al personaje, que abre el mismo menú, y ese espacio de
+     arriba lo usan ahora los cuadros de las cámaras, que los pone layoutMobile.
+     Va ACÁ (al final) porque las reglas base de #statusBar y #playerList están
+     antes y a igual especificidad mandaría la última. */
+  #statusBar, #playerList { display: none !important; }
 }
 /* En pantallas angostas los cuatro botones achican un poco para que el reloj
    siga entrando sin recortarse tanto. */
 @media (max-width: 350px) {
+  :root { --alto-barra: 30px; }
   #callBar { gap: 4px; }
-  #micCallBtn, #camBtn, #shareBtn, #musicBtn { width: 34px; height: 34px; font-size: 13px !important; }
-  #callVolBox { height: 34px; }
+  #micCallBtn, #camBtn, #shareBtn, #musicBtn { font-size: 13px !important; }
 }
 
 /* En desktop-rails la barra de llamada va arriba a la derecha, en fila,

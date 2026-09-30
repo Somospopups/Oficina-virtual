@@ -1816,7 +1816,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v112 · 30/09/2026';
+const VERSION = 'v113 · 30/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3363,58 +3363,62 @@ function layoutMobile() {
     if (chatEl) { chatEl.style.top = ''; chatEl.style.bottom = ''; chatEl.style.right = ''; }
     return;
   }
-  // diseño congelado v1.11.1: escena centrada, chat abajo, controles contra el
-  // borde inferior derecho
-  const sceneBottom = viewOY + VH * viewScale;
+  // ---- v113: la pantalla del celu, de arriba hacia abajo:
+  //   1) la barra con el reloj y los cuatro botones
+  //   2) la FILA DE CÁMARAS, que subió de la franja de abajo (entre la oficina y
+  //      el chat) a la de arriba: los cuadros de estado y el panel de jugadores
+  //      ya no se muestran en el celu, así que ese espacio quedó libre y los
+  //      cuadros se agrandan (de 88px a 116px) y usan todo el ancho.
+  //   3) la oficina, centrada en lo que queda en el medio
+  //   4) el chat a la izquierda y el círculo con el joystick a la derecha
   const h = canvas.height;
   const vw = window.innerWidth;
   const stripEl = document.getElementById('camStrip');
 
-  // ---- Controles: UN solo círculo CENTRADO en el lado derecho. El aro es el
-  // joystick y la E va chiquita en el centro. La E tiene que ser PEQUEÑA: si se
-  // come el centro, el pulgar cae siempre en la E y el personaje no se mueve
-  // (que es exactamente lo que pasó con la E de 46px).
-  //
-  // El círculo se hace lo más grande que deja la pantalla, y el chat se acorta
-  // lo justo para que entren los dos sin pisarse: el aro queda ancho para
-  // mover y la franja de abajo sigue siendo del chat.
+  // ---- El círculo: el aro es el joystick y la E va chiquita en el centro.
+  // Chiquita a propósito: si se come el centro, el pulgar cae siempre en la E y
+  // el personaje no se mueve (que es lo que pasó con la E de 46px).
   const MARGEN = 10, CHAT_GAP = 6;
-  const STICK_MAX = 118, STICK_MIN = 106, E_PORC = 0.30;   // el aro libre (118-35)/2 = 41px de radio: el pulgar entra cómodo
-  const banda = h - sceneBottom;
+  const STICK_MAX = 118, STICK_MIN = 106, E_PORC = 0.30;   // aro libre (118-35)/2 = 41px de radio
   let sS = Math.round(Math.max(STICK_MIN, Math.min(STICK_MAX, vw * 0.33)));
-  if (banda < sS + 12) sS = Math.max(80, Math.round(banda - 12)); // pantalla muy baja
   const stickLeft = Math.round(vw - MARGEN - sS);
   // El chat cede el ancho justo para que el círculo no lo pise.
   if (chatEl) chatEl.style.right = (vw - stickLeft + CHAT_GAP) + 'px';
-  const anchoLibre = stickLeft - 8 - CHAT_GAP;
 
-  // ---- Tira de cámaras: una LÍNEA HORIZONTAL en la franja que queda entre la
-  // oficina y el chat. El chat baja lo justo para hacerle lugar; en un celu
-  // chico la tira se achica, y si tampoco entra se esconde (mejor eso que
-  // dejar el chat sin aire).
-  // Cuadros más grandes que antes. No se los achica para que entren todos: la
-  // fila scrollea con el dedo (overflow-x: auto en el CSS del celu), así que a
-  // medida que se suma gente se va deslizando para ver el resto.
-  const FILM_IDEAL = 88, FILM_MIN = 44, CHAT_MIN = 140;
-  // Aire alrededor de la fila de cuadros. Abajo va mas generoso que arriba: es
-  // el respiro que separa los videos del chat y se ve mas armonioso. Si el
-  // cuadro queda chico (celular bajo) se usa menos aire abajo, asi no se lo
-  // estrangula dos veces: primero por el alto del chat y despues por el hueco.
-  const FILM_ARRIBA = 8;
-  let chatTop = sceneBottom + FILM_ARRIBA;
-  let tiraBottom = sceneBottom;   // hasta dónde baja la fila, para no invadirla con el círculo
+  // ---- Reparto vertical. La barra de arriba manda (los cuatro botones no
+  // tienen que sobresalir por debajo del reloj), después los cuadros de las
+  // cámaras, la oficina en el medio y el chat abajo.
+  const barraBottom = callBarEl ? callBarEl.getBoundingClientRect().bottom : 46;
+  const FILM_IDEAL = 116, FILM_MIN = 56;
+  // La oficina nunca se comprime más de lo que ya se comprime por el ancho: si
+  // la franja del medio es más corta que su alto natural, se achica (pero no de
+  // más). Así los cuadros de las cámaras pueden usar el alto que necesitan sin
+  // deformar la oficina.
+  const ESCENA_MIN = Math.round(Math.min(280, VH * vw / VW));
+  const CHAT_MAX = 300, CHAT_MIN = 150;
+  const hayCam = stripEl && !stripEl.hidden;
+  const tiraTop = Math.round(barraBottom + 6);
+  // Los cuadros de las cámaras se quedan con su alto ideal (116px, antes eran
+  // 88 abajo) y el chat toma lo que sobre, nunca menos de CHAT_MIN. Así, en los
+  // celus de altura normal los cuadros van bien grandes y el chat igual crece
+  // porque la franja de abajo ahora la tienen ellos dos.
+  const paraFilm = hayCam ? h - tiraTop - 8 - ESCENA_MIN - 12 - CHAT_MIN : 0;
+  const film = Math.round(Math.max(FILM_MIN, Math.min(FILM_IDEAL, paraFilm)));
+  const tiraBottom = hayCam && film >= FILM_MIN ? tiraTop + film : barraBottom + 6;
+  const altoChat = Math.round(Math.max(CHAT_MIN, Math.min(CHAT_MAX, h - tiraBottom - 8 - ESCENA_MIN - 12)));
+  const chatTop = h - 8 - altoChat;
+
+  // La fila de cámaras: ahora arriba, con todo el ancho (el joystick ya no está
+  // al lado, está abajo). Scrollea con el dedo si entra más gente.
   if (stripEl) {
-    let abajo = 16;
-    let film = Math.round(Math.min(FILM_IDEAL, h - sceneBottom - FILM_ARRIBA - abajo - CHAT_MIN));
-    if (film < 72) { abajo = 10; film = Math.round(Math.min(FILM_IDEAL, h - sceneBottom - FILM_ARRIBA - abajo - CHAT_MIN)); }
-    if (stripEl.hidden) {
+    if (!hayCam) {
       stripEl.style.display = '';
     } else if (film >= FILM_MIN) {
       stripEl.style.display = '';
       stripEl.style.left = '8px';
       stripEl.style.right = 'auto';
-      stripEl.style.top = Math.round(sceneBottom + FILM_ARRIBA) + 'px';
-      stripEl.style.width = anchoLibre + 'px';   // hasta el borde del joystick
+      stripEl.style.top = tiraTop + 'px';
+      stripEl.style.width = (vw - 16) + 'px';
       stripEl.style.height = film + 'px';
       stripEl.style.flexDirection = 'row';
       for (const el of stripEl.children) {
@@ -3422,19 +3426,27 @@ function layoutMobile() {
         el.style.height = film + 'px';
         el.style.flex = '0 0 auto';
       }
-      chatTop = sceneBottom + FILM_ARRIBA + film + abajo;
-      tiraBottom = chatTop - abajo;
     } else {
       stripEl.style.display = 'none';
     }
   }
 
-  // ---- El círculo va CENTRADO en la franja que queda DEBAJO de la fila de
-  // cámaras, para no invadirle el renglón. En la banda completa se solapaba con
-  // los cuadros: ahora se descentra hacia abajo lo justo.
-  const libre = h - tiraBottom - 8;
+  // La oficina se dibuja en la franja del medio. Antes se centraba en toda la
+  // pantalla y por eso quedaba aire abajo; ahora se centra entre los cuadros y
+  // el chat, así que la pantalla se reparte parejo.
+  const zonaTop = tiraBottom + 8;
+  const zonaAlto = Math.max(160, chatTop - 6 - zonaTop);
+  const escala = Math.min(vw / VW, zonaAlto / VH);
+  viewScale = escala;
+  viewOX = (vw - VW * escala) / 2;
+  viewOY = zonaTop + (zonaAlto - VH * escala) / 2;
+  backdropDirty = true;   // el fondo se repinta con la oficina en su nuevo lugar
+
+  // El círculo, centrado en la franja del chat (abajo a la derecha), así queda
+  // al nivel del chat y sin invadir los cuadros de arriba.
+  const libre = altoChat + 6;
   if (libre < sS + 10) sS = Math.max(80, Math.round(libre - 10));
-  const stickTop = Math.round(tiraBottom + (libre - sS) / 2);
+  const stickTop = Math.round(chatTop - 6 + (libre - sS) / 2);
   if (stickEl) {
     stickEl.style.top = stickTop + 'px';
     stickEl.style.bottom = 'auto';
@@ -3445,6 +3457,8 @@ function layoutMobile() {
   }
   const eFinal = Math.round(sS * E_PORC);
   if (knobEl) {
+    // el knob va centrado con márgenes negativos: hay que recalcularlo para que
+    // siga centrado en el aro nuevo
     const kS = Math.round(sS * 0.30);
     knobEl.style.width = kS + 'px';
     knobEl.style.height = kS + 'px';
@@ -3469,13 +3483,12 @@ function layoutMobile() {
   }
   // El reloj se come justo el ancho que sobra hasta la barra de los cuatro
   // botones: así entra entero siempre que pueda, y solo se recorta (con
-  // puntitos) en las pantallas más angostas. Se mide con la barra ya
-  // posicionada por el CSS, así que nunca se superponen.
+  // puntitos) en las pantallas más angostas.
   if (relojEl && callBarEl) {
     const barraX = callBarEl.getBoundingClientRect().left;
     const relojX = relojEl.getBoundingClientRect().left;
-    const libre = Math.floor(barraX - relojX - 6);
-    relojEl.style.maxWidth = (libre >= 60 ? libre : 60) + 'px';
+    const anchoLibre = Math.floor(barraX - relojX - 6);
+    relojEl.style.maxWidth = (anchoLibre >= 60 ? anchoLibre : 60) + 'px';
   }
 }
 window.addEventListener('resize', resize);
