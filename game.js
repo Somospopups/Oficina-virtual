@@ -1769,7 +1769,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v101 · 28/09/2026';
+const VERSION = 'v106 · 29/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3274,61 +3274,74 @@ function layoutMobile() {
   const stickEl = document.getElementById('stick');
   const chatEl = document.getElementById('chatPanel');
   const btnEEl = document.getElementById('btnE');
+  const knobEl = document.getElementById('stickKnob');
   if (!mob) {
-    if (stickEl) stickEl.style.bottom = '';
-    if (btnEEl) { btnEEl.style.bottom = ''; btnEEl.style.top = ''; btnEEl.style.display = ''; }
+    if (stickEl) { stickEl.style.top = ''; stickEl.style.bottom = ''; stickEl.style.width = ''; stickEl.style.height = ''; }
+    if (knobEl) { knobEl.style.width = ''; knobEl.style.height = ''; knobEl.style.margin = ''; }
+    if (btnEEl) {
+      btnEEl.style.top = ''; btnEEl.style.bottom = ''; btnEEl.style.left = ''; btnEEl.style.right = '';
+      btnEEl.style.width = ''; btnEEl.style.height = ''; btnEEl.style.lineHeight = ''; btnEEl.style.fontSize = '';
+      btnEEl.style.display = '';
+    }
     if (chatEl) { chatEl.style.top = ''; chatEl.style.bottom = ''; }
     return;
   }
   // diseño congelado v1.11.1: escena centrada, chat bajo la imagen (sin meterse
-  // en la columna del stick) y stick centrado en la franja que queda abajo
+  // en la columna de los controles)
   const sceneBottom = viewOY + VH * viewScale;
   const h = canvas.height;
-  const stickH = 92;
-  const band = h - sceneBottom;
-  const stickBottom = Math.max(10, (band - stickH) / 2);
-  if (stickEl) stickEl.style.bottom = stickBottom + 'px';
   if (chatEl) {
     chatEl.style.top = (sceneBottom + 6) + 'px';
-    chatEl.style.bottom = ''; // el CSS móvil lo deja a 8px del borde, al lado del stick
+    chatEl.style.bottom = ''; // el CSS móvil lo deja a 8px del borde, al lado de los controles
   }
-  // El botón de acción se ancla DEBAJO de la lista de estados, no al fondo al
-  // lado del stick. Antes flotaba abajo, encima del panel de chat, y quedaba
-  // al otro extremo de la pantalla respecto de donde uno elige el estado.
-  // Se mide el alto real de la lista (los botones cambian de alto con el texto y
-  // pueden envolver) en vez de clavarle un valor fijo.
+  // Joystick y botón de acción son UNA SOLA columna, en la franja derecha que
+  // le deja el chat: stick arriba, E abajo. Antes la E andaba sola del otro
+  // lado, flotando encima del dibujo, y había que ir con la vista de un borde
+  // al otro para moverse y para interactuar.
+  //
+  // Se mide la franja real que queda bajo la escena. Si en un celu más bajo no
+  // entran los dos completos, se achican juntos (el joystick mantiene su
+  // proporción y el botón baja el tamaño de la letra con él) en vez de pisar
+  // el chat o salirse de la pantalla.
+  const STICK_FULL = 92, E_FULL = 76, GAP_FULL = 10;
+  const margen = 12;                 // del borde derecho, igual que el CSS
+  const banda = h - sceneBottom;
+  const totalFull = STICK_FULL + GAP_FULL + E_FULL;
+  let sS = STICK_FULL, eS = E_FULL, gap = GAP_FULL;
+  if (totalFull > banda - 8) {
+    const k = Math.max(0.5, (banda - 8) / totalFull);
+    sS = Math.round(STICK_FULL * k);
+    eS = Math.round(E_FULL * k);
+    gap = Math.round(GAP_FULL * k);
+  }
+  const total = sS + gap + eS;
+  const top = Math.max(sceneBottom + 4, sceneBottom + (banda - total) / 2);
+  if (stickEl) {
+    stickEl.style.bottom = 'auto';
+    stickEl.style.top = top + 'px';
+    stickEl.style.width = sS + 'px';
+    stickEl.style.height = sS + 'px';
+  }
+  if (knobEl) {
+    // el knob va centrado con márgenes negativos: hay que recalcularlo si el
+    // joystick se achicó, o se sale del círculo
+    const kS = Math.round(36 * sS / STICK_FULL);
+    knobEl.style.width = kS + 'px';
+    knobEl.style.height = kS + 'px';
+    knobEl.style.margin = (-kS / 2) + 'px 0 0 ' + (-kS / 2) + 'px';
+  }
   if (btnEEl) {
-    const barra = document.getElementById('statusBar');
-    if (barra && barra.offsetHeight) {
-      const r = barra.getBoundingClientRect();
-      btnEEl.style.bottom = 'auto';
-      btnEEl.style.top = (r.bottom + 14) + 'px';
-      // En una pantalla baja la lista puede llegar cerca del chat. En vez de
-      // taparlo, el botón se achica; si tampoco entra, se esconde y queda el
-      // menu de acciones de la tecla E.
-      const tope = chatEl ? chatEl.getBoundingClientRect().top - 8 : h;
-      const disponible = tope - (r.bottom + 14);
-      const L = 76;
-      if (disponible < 40) {
-        btnEEl.style.display = 'none';
-      } else if (disponible < L) {
-        const n = Math.max(40, Math.floor(disponible));
-        btnEEl.style.display = 'block';
-        btnEEl.style.width = n + 'px';
-        btnEEl.style.height = n + 'px';
-        btnEEl.style.lineHeight = (n - 4) + 'px';
-        btnEEl.style.fontSize = Math.round(n * 0.32) + 'px';
-      } else {
-        // display:block explicito, no ''. La regla base es display:none, asi
-        // que limpiar el estilo lo dejaba invisible en el celu.
-        btnEEl.style.display = 'block';
-        btnEEl.style.width = ''; btnEEl.style.height = '';
-        btnEEl.style.lineHeight = ''; btnEEl.style.fontSize = '';
-      }
-    } else {
-      btnEEl.style.top = '';
-      btnEEl.style.bottom = (stickBottom + 8) + 'px';
-    }
+    // display:block explicito, nunca ''. La regla base es display:none, asi que
+    // limpiar el estilo lo dejaba invisible en el celu (ya paso).
+    btnEEl.style.display = 'block';
+    btnEEl.style.bottom = 'auto';
+    btnEEl.style.left = 'auto';
+    btnEEl.style.top = (top + sS + gap) + 'px';
+    btnEEl.style.right = Math.round(margen + (sS - eS) / 2) + 'px';
+    btnEEl.style.width = eS + 'px';
+    btnEEl.style.height = eS + 'px';
+    btnEEl.style.lineHeight = (eS - 4) + 'px';
+    btnEEl.style.fontSize = Math.round(eS * 0.32) + 'px';
   }
 }
 window.addEventListener('resize', resize);
