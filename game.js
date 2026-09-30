@@ -1773,7 +1773,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v107 · 30/09/2026';
+const VERSION = 'v108 · 30/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3298,7 +3298,7 @@ function layoutMobile() {
       btnEEl.style.width = ''; btnEEl.style.height = ''; btnEEl.style.lineHeight = ''; btnEEl.style.fontSize = '';
       btnEEl.style.display = '';
     }
-    if (chatEl) { chatEl.style.top = ''; chatEl.style.bottom = ''; }
+    if (chatEl) { chatEl.style.top = ''; chatEl.style.bottom = ''; chatEl.style.right = ''; }
     return;
   }
   // diseño congelado v1.11.1: escena centrada, chat abajo, controles contra el
@@ -3308,19 +3308,22 @@ function layoutMobile() {
   const vw = window.innerWidth;
   const stripEl = document.getElementById('camStrip');
 
-  // ---- Controles: UN solo círculo contra el borde inferior derecho. El joystick
-  // es el aro de afuera y la E de acción va EN EL CENTRO, así el pulgar no tiene
-  // que viajar de un borde al otro de la pantalla para moverse y para interactuar.
-  // El tamaño sale del hueco real que deja el chat (si el celu es angosto, el
-  // círculo se achica antes que pisar el chat).
-  const MARGEN = 10;
-  const STICK_FULL = 104, E_PORC = 0.44;
-  const chatDerecha = chatEl ? Math.round(chatEl.getBoundingClientRect().right) : vw - 118;
-  const hueco = Math.max(64, vw - MARGEN - chatDerecha - 4);
-  const sS = Math.max(72, Math.min(STICK_FULL, hueco));
+  // ---- Controles: UN solo círculo CENTRADO en el lado derecho. El aro es el
+  // joystick y la E va chiquita en el centro. La E tiene que ser PEQUEÑA: si se
+  // come el centro, el pulgar cae siempre en la E y el personaje no se mueve
+  // (que es exactamente lo que pasó con la E de 46px).
+  //
+  // El círculo se hace lo más grande que deja la pantalla, y el chat se acorta
+  // lo justo para que entren los dos sin pisarse: el aro queda ancho para
+  // mover y la franja de abajo sigue siendo del chat.
+  const MARGEN = 10, CHAT_GAP = 6;
+  const STICK_MAX = 130, STICK_MIN = 118, E_PORC = 0.32;   // 118 es el mínimo que deja un aro de 28px: por debajo el pulgar no llega
+  const banda = h - sceneBottom;
+  let sS = Math.round(Math.max(STICK_MIN, Math.min(STICK_MAX, vw * 0.36)));
+  if (banda < sS + 12) sS = Math.max(80, Math.round(banda - 12)); // pantalla muy baja
   const eS = Math.round(sS * E_PORC);
-  const stickTop = Math.round(h - MARGEN - sS);
   const stickLeft = Math.round(vw - MARGEN - sS);
+  const stickTop = Math.round(sceneBottom + (banda - sS) / 2);   // centrado, no pegado a la esquina
   if (stickEl) {
     stickEl.style.top = stickTop + 'px';
     stickEl.style.bottom = 'auto';
@@ -3330,9 +3333,9 @@ function layoutMobile() {
     stickEl.style.height = sS + 'px';
   }
   if (knobEl) {
-    // el knob va centrado con márgenes negativos: hay que recalcularlo si el
-    // joystick se achicó, o se sale del círculo
-    const kS = Math.round(36 * sS / 92);
+    // el knob va centrado con márgenes negativos: hay que recalcularlo para que
+    // siga centrado en el aro nuevo
+    const kS = Math.round(sS * 0.30);
     knobEl.style.width = kS + 'px';
     knobEl.style.height = kS + 'px';
     knobEl.style.margin = (-kS / 2) + 'px 0 0 ' + (-kS / 2) + 'px';
@@ -3350,16 +3353,21 @@ function layoutMobile() {
     btnEEl.style.lineHeight = (eS - 4) + 'px';
     btnEEl.style.fontSize = Math.round(eS * 0.37) + 'px';
   }
+  // El chat cede el ancho justo para que el círculo no lo pise.
+  if (chatEl) chatEl.style.right = (vw - stickLeft + CHAT_GAP) + 'px';
+  const anchoLibre = stickLeft - 8 - CHAT_GAP;
 
   // ---- Tira de cámaras: una LÍNEA HORIZONTAL en la franja que queda entre la
   // oficina y el chat. El chat baja lo justo para hacerle lugar; en un celu
   // chico la tira se achica, y si tampoco entra se esconde (mejor eso que
   // dejar el chat sin aire).
-  const FILM_IDEAL = 72, FILM_MIN = 44, CHAT_MIN = 150;
+  const FILM_IDEAL = 72, FILM_MIN = 44, CHAT_MIN = 150, HUECO_TIRA = 16;
   let chatTop = sceneBottom + 6;
   if (stripEl) {
-    const banda = h - sceneBottom - 12;
-    const film = Math.round(Math.min(FILM_IDEAL, banda - CHAT_MIN));
+    const hueco = h - sceneBottom - 12;
+    // los tres cuadros tienen que entrar a lo ancho, sin pisar el joystick
+    const filmAncho = Math.floor((anchoLibre - HUECO_TIRA) / 3);
+    const film = Math.round(Math.min(FILM_IDEAL, filmAncho, hueco - CHAT_MIN));
     if (stripEl.hidden) {
       stripEl.style.display = '';
     } else if (film >= FILM_MIN) {
@@ -3367,7 +3375,7 @@ function layoutMobile() {
       stripEl.style.left = '8px';
       stripEl.style.right = 'auto';
       stripEl.style.top = Math.round(sceneBottom + 6) + 'px';
-      stripEl.style.width = '';   // la fila se mide sola con los cuadros que tiene
+      stripEl.style.width = anchoLibre + 'px';   // hasta el borde del joystick
       stripEl.style.height = film + 'px';
       stripEl.style.flexDirection = 'row';
       for (const el of stripEl.children) {
@@ -4336,13 +4344,9 @@ function init() {
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') accCerrar(); });
 
-  // botón de acción táctil (móvil): misma E que en PC
+  // Controles táctiles (móvil): UN solo círculo. El aro es el joystick y en el
+  // centro está la E de acción (la misma E que en PC).
   const btnEEl = document.getElementById('btnE');
-  if (btnEEl) {
-    btnEEl.addEventListener('touchstart', (e) => { e.preventDefault(); accionE(); }, { passive: false });
-    btnEEl.addEventListener('mousedown', (e) => { e.preventDefault(); accionE(); });
-  }
-  // stick táctil (móvil)
   state.stick = { x: 0, y: 0, active: false };
   const stickEl = document.getElementById('stick'), knobEl = document.getElementById('stickKnob');
   if (stickEl && knobEl) {
@@ -4357,14 +4361,42 @@ function init() {
       knobEl.style.transform = `translate(${vx}px, ${vy}px)`;
       state.stick.x = vx / max; state.stick.y = vy / max; state.stick.active = true;
     };
+    const end = () => { sid = null; state.stick.x = 0; state.stick.y = 0; state.stick.active = false; knobEl.style.transform = ''; };
     stickEl.addEventListener('pointerdown', (e) => { sid = e.pointerId; try { stickEl.setPointerCapture(sid); } catch {} setFrom(e); e.preventDefault(); });
     stickEl.addEventListener('pointermove', (e) => { if (sid === e.pointerId) setFrom(e); });
-    const end = () => { sid = null; state.stick.x = 0; state.stick.y = 0; state.stick.active = false; knobEl.style.transform = ''; };
     stickEl.addEventListener('pointerup', end);
     stickEl.addEventListener('pointercancel', end);
     window.addEventListener('pointerup', end);
     window.addEventListener('pointercancel', end);
     window.addEventListener('blur', end);
+
+    // La E vive en el CENTRO del aro, y el pulgar cae en el medio casi siempre.
+    // Por eso el botón no se queda con el gesto: si el dedo empieza en la E y
+    // después se arrastra, el gesto pasa al joystick. Tap en el centro = acción,
+    // arrastre desde el centro = moverse. Con esto no hay forma de tocar el
+    // control y que no pase nada.
+    if (btnEEl) {
+      let eid = null, ex0 = 0, ey0 = 0, esStick = false;
+      const HUECO = 9;   // px de arrastre para decidir que es joystick
+      btnEEl.addEventListener('pointerdown', (e) => {
+        eid = e.pointerId; ex0 = e.clientX; ey0 = e.clientY; esStick = false;
+        try { btnEEl.setPointerCapture(eid); } catch {}
+        e.preventDefault();
+      });
+      btnEEl.addEventListener('pointermove', (e) => {
+        if (eid !== e.pointerId) return;
+        if (!esStick && Math.hypot(e.clientX - ex0, e.clientY - ey0) > HUECO) esStick = true;
+        if (esStick) { setFrom(e); e.preventDefault(); }
+      });
+      const finE = (e) => {
+        if (eid !== e.pointerId) return;
+        eid = null;
+        if (esStick) { end(); return; }   // fue joystick: no hay acción
+        accionE();                        // fue un toque: la acción de la E
+      };
+      btnEEl.addEventListener('pointerup', finE);
+      btnEEl.addEventListener('pointercancel', (e) => { if (eid === e.pointerId) { eid = null; end(); } });
+    }
   }
 
   const sendBtn = document.getElementById('sendBtn');

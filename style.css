@@ -193,7 +193,7 @@ body.spectator-mode #btnE { display: none !important; }
   }
   .status-btn { font-size: 8px; padding: 8px 6px; text-align: center; white-space: normal; line-height: 1.5; box-sizing: border-box; box-shadow: 2px 2px 0 rgba(0,0,0,0.5); }
   .status-btn .key { display: none; }
-  #chatPanel { left: 8px; right: 118px; width: auto; bottom: 8px; display: flex; flex-direction: column; }
+  #chatPanel { left: 8px; right: 134px; width: auto; bottom: 8px; display: flex; flex-direction: column; }
   #chatLog { height: auto; flex: 1 1 auto; min-height: 60px; font-size: 8px; }
   #playerList {
     display: block; top: 62px; right: 6px; width: calc(50vw - 14px);
@@ -211,30 +211,26 @@ body.spectator-mode #btnE { display: none !important; }
      especificidad a #videoPanel.float, y sin esto el panel flotante terminaba
      arriba a la derecha con top:98px en vez de centrado. */
   #videoPanel:not(.float) { left: 8px; right: 8px; top: 46px; width: auto; }
-  /* Controles táctiles: UN solo círculo contra el borde inferior derecho. El
-     joystick es el aro de afuera y la E de acción va EN EL CENTRO, así el
-     pulgar no tiene que viajar de un borde al otro de la pantalla. El tamaño
-     exacto y el centrado los calcula layoutMobile (game.js); acá está el
-     estado inicial para el primer pintado.
+  /* Controles táctiles: UN solo círculo, CENTRADO en el lado derecho. El aro es
+     el joystick y la E de acción va en el centro, chiquita, para que quede un
+     aro ancho donde meter el pulgar: si la E se come el centro, el personaje no
+     se mueve, porque el dedo cae en la E y no en el joystick.
+     El tamaño, el centrado y el ancho del chat los calcula layoutMobile
+     (game.js); acá está el estado inicial para el primer pintado.
 
      OJO con el display: la regla base de los dos es display:none (solo existen
      en táctil). Si se cae alguna de estas dos líneas, en el celu no aparece
      NADA. */
-  #stick { display: block; left: auto; right: 10px; bottom: 10px; width: 104px; height: 104px; }
+  #stick { display: block; left: auto; right: 10px; bottom: auto; top: 54vh; width: 130px; height: 130px; }
   #btnE {
     display: block;
     left: auto;
-    right: 41px; bottom: 39px;   /* 10 + (104 - 46) / 2: dead center del joystick */
-    width: 46px; height: 46px; line-height: 42px; font-size: 17px;
-    z-index: 36;                 /* arriba del joystick: que el toque sea de la E */
+    right: 54px;                 /* 10 + (130 - 42) / 2: dead center del aro */
+    top: calc(54vh + 44px); bottom: auto;
+    width: 42px; height: 42px; line-height: 38px; font-size: 15px;
+    z-index: 36;                 /* arriba del aro: que el toque del centro sea la E */
   }
   #btnE.activo { box-shadow: 0 0 0 4px rgba(255, 215, 106, 0.18); }
-  /* La tira de cámaras, en el celu, es una línea horizontal en la franja que
-     queda entre la oficina y el chat. La posición y el alto los mide
-     layoutMobile; la base es solo el estado inicial. */
-  #camStrip { flex-direction: row; left: 8px; right: auto; top: auto; width: auto; overflow-x: auto; }
-  #camStrip .cam-slot { height: auto; }
-  #camStrip .cc { width: 22px; height: 22px; font-size: 10px; border-radius: 6px; }
   #micBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
 }
 
@@ -553,6 +549,16 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
      mas abajo (y=62), asi que tampoco molesta. La radio queda en 92px para no
      quedar debajo. */
   #musicPanel { left: 8px; right: auto; top: 92px; width: min(240px, calc(100vw - 16px)); }
+  /* La tira de cámaras, en el celu, es una LÍNEA HORIZONTAL en la franja que
+     queda entre la oficina y el chat.
+
+     Va ACÁ y no en el bloque del principio a propósito: la regla base de
+     #camStrip está más abajo en el archivo y la pisaba (la tira se quedaba
+     con los 110px de la columna del riel y de los tres cuadros se veía uno
+     solo). En CSS, a igual especificidad, manda la última. */
+  #camStrip { flex-direction: row; left: 8px; right: auto; top: auto; width: auto; overflow-x: auto; }
+  #camStrip .cam-slot { height: auto; }
+  #camStrip .cc { width: 22px; height: 22px; font-size: 10px; border-radius: 6px; }
 }
 
 /* ---- Botones del margen derecho: todos del mismo tamaño y alineados ----
