@@ -59,6 +59,7 @@ const ROSTER = [
   { dni: '33245911', name: 'Ger',  char: 'ger' },
   { dni: '31923010', name: 'Facu', char: 'facu' },
   { dni: '34186736', name: 'Ovni', char: 'ovni' },
+  { dni: '32769127', name: 'Ove',  char: 'ove'  },
 ];
 
 function publicState() {

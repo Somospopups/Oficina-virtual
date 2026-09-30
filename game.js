@@ -101,6 +101,7 @@ const ROSTER = [
   { dni: '31923010', name: 'Facu', char: 'facu', seat: 2 },
   { dni: '34186736', name: 'Ovni', char: 'ovni', seat: 3 },
   { dni: '54472249', name: 'Milo', char: 'milo', seat: 0 },  // escritorio delantero izq. (el único libre)
+  { dni: '32769127', name: 'Ove',  char: 'ove'  },  // sin puesto fijo: se sienta en el que quede libre
 ];
 // ---------- VERSIONADO DE LOS DIBUJOS POR CONTENIDO ----------
 // Antes cada PNG se pedía con un ?v= escrito a mano: si se reemplazaba el
@@ -126,6 +127,7 @@ const CHAR_DEF = {
   facu: { skin: '#f0a876', skinD: '#d08c5c', hair: '#0d0d12', beard: '#0d0d12', beardStyle: 'full',  shirt: '#2e6198', pants: '#537793', shoe: '#5a4432', sole: null,      wide: true,  hairStyle: 'full',  dot: '#2e6198' },
   ovni: { skin: '#f7b985', skinD: '#d89e6a', hair: '#1a1512', beard: '#241c18', beardStyle: 'goatee', shirt: '#fcb306', pants: '#25232d', shoe: '#e8e8e8', sole: '#9aa2ae', wide: false, hairStyle: 'cap',   dot: '#fcb306', jacket: true },
   milo: { skin: '#f2b083', skinD: '#d4946a', hair: '#7a4a2a', beard: '#7a4a2a', beardStyle: null, shirt: '#f4f4f6', pants: '#17171d', shoe: '#101014', sole: '#e0e0e4', wide: false, hairStyle: 'full', dot: '#b98a55', kid: true },
+  ove:  { skin: '#e8a878', skinD: '#c78a5e', hair: '#241a14', beard: '#2e211a', beardStyle: 'goatee', shirt: '#201e24', pants: '#4a6480', shoe: '#141418', sole: '#d8d8dc', wide: false, hairStyle: 'spiky', dot: '#4a6480' },
 };
 function charOf(key) { return CHAR_DEF[key] || CHAR_DEF.ger; }
 
@@ -211,7 +213,7 @@ function detailStand(g, c, dir, frame) {
 const charAssets = {};   // charKey -> { down, left, right, up, sit }
 // Las poses sentadas de referencia nacen en estas orientaciones; se espejan
 // automáticamente cuando alguien ocupa un puesto del lado opuesto.
-const SIT_BASE_FACE = { ger: 'left', facu: 'right', ovni: 'right', milo: 'right' };
+const SIT_BASE_FACE = { ger: 'left', facu: 'right', ovni: 'right', milo: 'right', ove: 'left' };
 let assetsReady = false;
 
 function flipCanvas(src) {
@@ -1223,7 +1225,7 @@ function loadCharAssets() {
       const base = normalizarFigura(im);
       const r = flipCanvas(base.img);
       charAssets[k] = { down: base.img, left: r, right: r, up: oscurecer(base.img), baseH: base.alto };
-      if (k === 'milo' || k === 'ger' || k === 'ovni') {
+      if (k === 'milo' || k === 'ger' || k === 'ovni' || k === 'ove') {
         // Milo, Ger y Ovni tienen espalda REAL dibujada (no la silueta
         // oscurecida). Ovni la gano en la v101: hasta la v100 su pose de "arriba"
         // era el propio frente apagado, asi que se alejaba de vos y te miraba.
@@ -3935,6 +3937,16 @@ const walkSources = {};
     up: [img('ovni_wu1'), img('ovni_wu2')],
     left: [ol1, ol2, ol3, ol2],
     right: [or1, or2, or3, or2],
+  };
+  // Ove: hoja propia con las 4 direcciones. El perfil de la hoja mira a la
+  // IZQUIERDA (wl) y el derecho es su espejo (wr), igual que Ger y Milo.
+  const el1 = img('ove_wl1'), el2 = img('ove_wl2'), el3 = img('ove_wl3');
+  const er1 = img('ove_wr1'), er2 = img('ove_wr2'), er3 = img('ove_wr3');
+  walkSources.ove = {
+    down: [img('ove_walk1'), img('ove_walk2'), img('ove_walk3'), img('ove_walk2')],
+    up: [img('ove_wu1'), img('ove_wu2')],
+    left: [el1, el2, el3, el2],
+    right: [er1, er2, er3, er2],
   };
 }
 // Reescala todos los frames de caminata de un personaje al alto de su figura de
