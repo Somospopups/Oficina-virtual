@@ -651,9 +651,11 @@ function renderCamStrip() {
     || (b.me ? 1 : 0) - (a.me ? 1 : 0)        // si nadie habla, tu cuadro primero, como siempre
     || (rtcCamPeers.get(b.id) ? 1 : 0) - (rtcCamPeers.get(a.id) ? 1 : 0)
     || String(a.name).localeCompare(String(b.name)));
-  // Nunca menos de 3 (aunque estés solo: la tira es pegajosa) ni más que la
-  // gente que hay: los cuadros de sobra se esconden.
-  const cuantos = esMovil() ? Math.min(MAX, Math.max(3, todos.length)) : 3;
+  // Ni más que la gente que hay: los cuadros de sobra se esconden. Antes en el
+  // celu se mostraba un mínimo de 3 aunque estuvieras solo, y quedaban huecos
+  // vacíos en la fila, que se veían como agujeros entre los cuadros. Ahora en el
+  // celu se ve solo la gente que hay.
+  const cuantos = Math.min(MAX, esMovil() ? Math.max(1, todos.length) : 3);
   const slots = todos.slice(0, MAX).map((p) => (p.me ? { name: p.name, me: true } : { id: p.id, name: p.name }));
   while (slots.length < MAX) slots.push(null);
   slots.forEach((s, i) => {
@@ -1816,7 +1818,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v113 · 30/09/2026';
+const VERSION = 'v114 · 30/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3389,7 +3391,10 @@ function layoutMobile() {
   // tienen que sobresalir por debajo del reloj), después los cuadros de las
   // cámaras, la oficina en el medio y el chat abajo.
   const barraBottom = callBarEl ? callBarEl.getBoundingClientRect().bottom : 46;
-  const FILM_IDEAL = 116, FILM_MIN = 56;
+  const FILM_IDEAL = 140, FILM_MIN = 56;
+  // Un solo aire para todos los cortes: barra -> fila de cámaras -> oficina. Con
+  // el mismo margen en los tres, los bloques se leen parejos.
+  const AIRE = 12;
   // La oficina nunca se comprime más de lo que ya se comprime por el ancho: si
   // la franja del medio es más corta que su alto natural, se achica (pero no de
   // más). Así los cuadros de las cámaras pueden usar el alto que necesitan sin
@@ -3397,15 +3402,15 @@ function layoutMobile() {
   const ESCENA_MIN = Math.round(Math.min(280, VH * vw / VW));
   const CHAT_MAX = 300, CHAT_MIN = 150;
   const hayCam = stripEl && !stripEl.hidden;
-  const tiraTop = Math.round(barraBottom + 6);
+  const tiraTop = Math.round(barraBottom + AIRE);
   // Los cuadros de las cámaras se quedan con su alto ideal (116px, antes eran
   // 88 abajo) y el chat toma lo que sobre, nunca menos de CHAT_MIN. Así, en los
   // celus de altura normal los cuadros van bien grandes y el chat igual crece
   // porque la franja de abajo ahora la tienen ellos dos.
   const paraFilm = hayCam ? h - tiraTop - 8 - ESCENA_MIN - 12 - CHAT_MIN : 0;
   const film = Math.round(Math.max(FILM_MIN, Math.min(FILM_IDEAL, paraFilm)));
-  const tiraBottom = hayCam && film >= FILM_MIN ? tiraTop + film : barraBottom + 6;
-  const altoChat = Math.round(Math.max(CHAT_MIN, Math.min(CHAT_MAX, h - tiraBottom - 8 - ESCENA_MIN - 12)));
+  const tiraBottom = hayCam && film >= FILM_MIN ? tiraTop + film : barraBottom + AIRE;
+  const altoChat = Math.round(Math.max(CHAT_MIN, Math.min(CHAT_MAX, h - tiraBottom - AIRE - ESCENA_MIN - 12)));
   const chatTop = h - 8 - altoChat;
 
   // La fila de cámaras: ahora arriba, con todo el ancho (el joystick ya no está
@@ -3434,12 +3439,15 @@ function layoutMobile() {
   // La oficina se dibuja en la franja del medio. Antes se centraba en toda la
   // pantalla y por eso quedaba aire abajo; ahora se centra entre los cuadros y
   // el chat, así que la pantalla se reparte parejo.
-  const zonaTop = tiraBottom + 8;
-  const zonaAlto = Math.max(160, chatTop - 6 - zonaTop);
+  // La oficina se pega justo debajo de la fila de cámaras (mismo aire que el de
+  // arriba) y el sobrante queda entre la oficina y el chat, que es la separación
+  // natural entre la oficina y la zona de mensajes.
+  const zonaTop = tiraBottom + AIRE;
+  const zonaAlto = Math.max(160, chatTop - AIRE - zonaTop);
   const escala = Math.min(vw / VW, zonaAlto / VH);
   viewScale = escala;
   viewOX = (vw - VW * escala) / 2;
-  viewOY = zonaTop + (zonaAlto - VH * escala) / 2;
+  viewOY = zonaTop;
   backdropDirty = true;   // el fondo se repinta con la oficina en su nuevo lugar
 
   // El círculo, centrado en la franja del chat (abajo a la derecha), así queda
