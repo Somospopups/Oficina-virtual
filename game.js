@@ -593,6 +593,7 @@ function rtcCamVer(peer, stream) {
 // escondiera al apagar, el botoncito 📷 del cuadro desaparecería con ella y no
 // habría desde dónde volver a prenderla.
 let camStripSticky = false;
+let camStripPrimero = '';   // quién está primero en la fila, para scrollear cuando cambia
 function renderCamStrip() {
   const strip = document.getElementById('camStrip');
   if (!strip) return;
@@ -601,9 +602,12 @@ function renderCamStrip() {
   // chat hacia abajo: si aparece o desaparece, hay que recalcular el layout.
   const cambio = strip.hidden !== !alguna;
   strip.hidden = !alguna;
-  if (!alguna) { if (cambio) layoutMobile(); return; }
+  if (!alguna) { if (cambio) { camStripPrimero = ''; layoutMobile(); } return; }
   camStripSticky = true;
-  while (strip.children.length < 3) {
+  // En el celu la fila scrollea, así que entra más gente que en el escritorio
+  // (donde la tira es una columna con un tercio del alto del riel).
+  const MAX = esMovil() ? 8 : 3;
+  while (strip.children.length < MAX) {
     const d = document.createElement('div');
     d.className = 'cam-slot off';
     const v = document.createElement('video');
@@ -617,17 +621,28 @@ function renderCamStrip() {
     d.append(v, off, nom, ct);
     strip.appendChild(d);
   }
-  const otros = [...state.players.values()]
-    .filter((p) => p.id && p.id !== state.myId)
-    .sort((a, b) => ((rtcCamPeers.get(b.id) ? 1 : 0) - (rtcCamPeers.get(a.id) ? 1 : 0)) || String(a.name).localeCompare(String(b.name)))
-    .slice(0, state.spectating ? 3 : 2);
-  // El espectador no tiene cuadro propio: ve a los (hasta) 3 de la oficina.
-  const slots = state.spectating
-    ? otros.map((p) => ({ id: p.id, name: p.name }))
-    : [{ name: 'Vos', me: true }, ...otros.map((p) => ({ id: p.id, name: p.name }))];
-  while (slots.length < 3) slots.push(null);
+  // Orden: primero el que está HABLANDO, que es lo que uno quiere ver, y tiene
+  // que quedar SIEMPRE a la izquierda. Después, los que tienen la cámara
+  // prendida; al final, el resto por nombre. El nivel de voz ya lo mide
+  // rtcNivel (analyser sobre el audio de cada uno).
+  const nivelDe = (id) => (id ? (rtcNivel.get(id) || 0) : 0);
+  const hablando = (id) => nivelDe(id) > 0.06;
+  const todos = state.spectating
+    ? [...state.players.values()].filter((p) => p.id && p.name)
+    : [{ id: state.myId, name: 'Vos', me: true }, ...[...state.players.values()].filter((p) => p.id && p.id !== state.myId)];
+  todos.sort((a, b) => (hablando(b.id) ? 1 : 0) - (hablando(a.id) ? 1 : 0)
+    || nivelDe(b.id) - nivelDe(a.id)
+    || (b.me ? 1 : 0) - (a.me ? 1 : 0)        // si nadie habla, tu cuadro primero, como siempre
+    || (rtcCamPeers.get(b.id) ? 1 : 0) - (rtcCamPeers.get(a.id) ? 1 : 0)
+    || String(a.name).localeCompare(String(b.name)));
+  // Nunca menos de 3 (aunque estés solo: la tira es pegajosa) ni más que la
+  // gente que hay: los cuadros de sobra se esconden.
+  const cuantos = esMovil() ? Math.min(MAX, Math.max(3, todos.length)) : 3;
+  const slots = todos.slice(0, MAX).map((p) => (p.me ? { name: p.name, me: true } : { id: p.id, name: p.name }));
+  while (slots.length < MAX) slots.push(null);
   slots.forEach((s, i) => {
     const el = strip.children[i];
+    el.hidden = i >= cuantos;
     const v = el.querySelector('video');
     const nom = el.querySelector('.cam-name');
     const off = el.querySelector('.cam-off');
@@ -700,6 +715,10 @@ function renderCamStrip() {
       };
     }
   });
+  // Si cambió quién está primero (habla otro), la fila vuelve al principio: el
+  // que habla tiene que quedar a la vista, a la izquierda de todos.
+  const primero = slots[0] ? (slots[0].me ? 'me' : slots[0].id) : '';
+  if (primero !== camStripPrimero) { camStripPrimero = primero; strip.scrollLeft = 0; }
   layoutDesktopAudio(); // recalcular alturas ahora que los cuadros existen
   if (cambio) layoutMobile(); // y en el celu, la franja de la tira y el chat
 }
@@ -1076,6 +1095,7 @@ let rtcHablandoPrev = '';
 setInterval(() => {
   if (!rtcVivo.size) return;
   let key = '';
+  const niveles = [];
   for (const [peer, v] of rtcVivo) {
     let lvl = 0;
     if (v.analyser) {
@@ -1085,9 +1105,16 @@ setInterval(() => {
       lvl = Math.min(1, Math.sqrt(suma / v.buf.length) * 6);
     }
     rtcNivel.set(peer, lvl);
-    if (lvl > 0.06) key += peer;
+    if (lvl > 0.06) niveles.push([peer, lvl]);
   }
-  if (key !== rtcHablandoPrev) { rtcHablandoPrev = key; renderPlayerList(); }
+  // Del más fuerte al más suave: el primero es el que se pone a la izquierda.
+  niveles.sort((a, b) => b[1] - a[1]);
+  for (const [peer] of niveles) key += peer;
+  if (key !== rtcHablandoPrev) {
+    rtcHablandoPrev = key;
+    renderPlayerList();
+    renderCamStrip();   // en el celu, el que habla pasa a la izquierda de la fila
+  }
 }, 140);
 
 function renderCallUI() {
@@ -1773,7 +1800,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v108 · 30/09/2026';
+const VERSION = 'v109 · 30/09/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3361,13 +3388,14 @@ function layoutMobile() {
   // oficina y el chat. El chat baja lo justo para hacerle lugar; en un celu
   // chico la tira se achica, y si tampoco entra se esconde (mejor eso que
   // dejar el chat sin aire).
-  const FILM_IDEAL = 72, FILM_MIN = 44, CHAT_MIN = 150, HUECO_TIRA = 16;
+  // Cuadros más grandes que antes. No se los achica para que entren todos: la
+  // fila scrollea con el dedo (overflow-x: auto en el CSS del celu), así que a
+  // medida que se suma gente se va deslizando para ver el resto.
+  const FILM_IDEAL = 88, FILM_MIN = 44, CHAT_MIN = 140;
   let chatTop = sceneBottom + 6;
   if (stripEl) {
     const hueco = h - sceneBottom - 12;
-    // los tres cuadros tienen que entrar a lo ancho, sin pisar el joystick
-    const filmAncho = Math.floor((anchoLibre - HUECO_TIRA) / 3);
-    const film = Math.round(Math.min(FILM_IDEAL, filmAncho, hueco - CHAT_MIN));
+    const film = Math.round(Math.min(FILM_IDEAL, hueco - CHAT_MIN));
     if (stripEl.hidden) {
       stripEl.style.display = '';
     } else if (film >= FILM_MIN) {

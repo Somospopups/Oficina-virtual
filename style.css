@@ -556,8 +556,15 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
      #camStrip está más abajo en el archivo y la pisaba (la tira se quedaba
      con los 110px de la columna del riel y de los tres cuadros se veía uno
      solo). En CSS, a igual especificidad, manda la última. */
-  #camStrip { flex-direction: row; left: 8px; right: auto; top: auto; width: auto; overflow-x: auto; }
-  #camStrip .cam-slot { height: auto; }
+  #camStrip {
+    flex-direction: row; left: 8px; right: auto; top: auto; width: auto;
+    overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;   /* que deslice suave en el celu */
+    scroll-snap-type: x proximity;       /* cada cuadro se pega al pasar */
+  }
+  #camStrip .cam-slot { height: auto; scroll-snap-align: start; }
+  #camStrip::-webkit-scrollbar { width: 0; height: 5px; }  /* barra finita, de la fila */
+  #camStrip::-webkit-scrollbar-thumb { background: #3b4560; border-radius: 3px; }
   #camStrip .cc { width: 22px; height: 22px; font-size: 10px; border-radius: 6px; }
 }
 

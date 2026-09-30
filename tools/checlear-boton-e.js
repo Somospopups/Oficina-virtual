@@ -86,10 +86,22 @@ ok(/btnEEl\.style\.display = 'block';/.test(fnLayout.slice(ramaNoMovil.length)),
 // 6) la tira: fila en la franja, y el chat baja lo justo
 ok(/stripEl\.style\.flexDirection = 'row'/.test(js), 'la tira se pone en fila');
 ok(/stripEl\.style\.width = anchoLibre \+ 'px'/.test(js), 'la tira llega hasta el borde del aro y no lo pisa');
-ok(/const filmAncho = Math\.floor\(\(anchoLibre - HUECO_TIRA\) \/ 3\)/.test(js),
-   'los tres cuadros se miden para entrar a lo ancho (si no, se ve uno solo)');
+ok(/const FILM_IDEAL = 88/.test(js), 'los cuadros de video se agrandan (88px)');
+ok(!/HUECO_TIRA|filmAncho/.test(js),
+   'los cuadros ya no se encogen para que entren 3: la fila se desliza');
 ok(/chatTop = sceneBottom \+ 6 \+ film \+ 6/.test(js), 'el chat baja lo justo para hacerle lugar a la tira');
 ok(/else\s*\{\s*stripEl\.style\.display = 'none'/.test(js), 'si no entra, la tira se esconde');
+
+// 6b) fila deslizable y el que habla siempre primero
+ok(/const MAX = esMovil\(\) \? 8 : 3/.test(js), 'en el celu la fila hace lugar para hasta 8 cámaras');
+ok(/strip\.scrollLeft = 0/.test(js), 'cuando cambia el primero la fila vuelve al principio');
+ok(/\(b\.me \? 1 : 0\) - \(a\.me \? 1 : 0\)/.test(js), 'si nadie habla, tu cuadro queda primero');
+ok(/niveles\.sort\(\(a, b\) => b\[1\] - a\[1\]\)/.test(js) &&
+   /key \+= peer;\s*\n\s*if \(key !== rtcHablandoPrev\)/.test(js) &&
+   /if \(key !== rtcHablandoPrev\)[\s\S]{0,400}renderCamStrip\(\)/.test(js),
+   'el detector de voz reordena la fila cuando cambia el hablante');
+ok(/overflow-x:\s*auto/.test(css), 'la fila se desliza con el dedo');
+ok(/scroll-snap-type:\s*x proximity/.test(css), 'la fila se acomoda al deslizar');
 
 // 7) el layout del celu no se puede desarmar desde el layout de escritorio
 const fnEscritorio = js.slice(js.indexOf('function esMovil'), js.indexOf('function layoutMobile'));
