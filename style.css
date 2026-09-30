@@ -216,8 +216,13 @@ body.spectator-mode #btnE { display: none !important; }
      layoutMobile en game.js midiendo el alto real de la columna). Se centra
      sobre esa misma columna para que los dos grupos se lean como una sola pila:
      estados arriba, acción abajo. Antes flotaba al pie de la pantalla, encima
-     del chat, al otro extremo. */
+     del chat, al otro extremo.
+
+     OJO con el display: la regla base es display:none (el botón solo existe en
+     táctil). Hay que volver a ponerlo acá, porque si se cae de nuevo el botón
+     no aparece NADA en el celu. */
   #btnE {
+    display: block;
     left: calc(8px + (50vw - 14px) / 2 - 38px);
     width: 76px; height: 76px; line-height: 72px;
   }

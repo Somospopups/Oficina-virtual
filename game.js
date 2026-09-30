@@ -3276,7 +3276,7 @@ function layoutMobile() {
   const btnEEl = document.getElementById('btnE');
   if (!mob) {
     if (stickEl) stickEl.style.bottom = '';
-    if (btnEEl) { btnEEl.style.bottom = ''; btnEEl.style.top = ''; }
+    if (btnEEl) { btnEEl.style.bottom = ''; btnEEl.style.top = ''; btnEEl.style.display = ''; }
     if (chatEl) { chatEl.style.top = ''; chatEl.style.bottom = ''; }
     return;
   }
@@ -3319,7 +3319,9 @@ function layoutMobile() {
         btnEEl.style.lineHeight = (n - 4) + 'px';
         btnEEl.style.fontSize = Math.round(n * 0.32) + 'px';
       } else {
-        btnEEl.style.display = '';
+        // display:block explicito, no ''. La regla base es display:none, asi
+        // que limpiar el estilo lo dejaba invisible en el celu.
+        btnEEl.style.display = 'block';
         btnEEl.style.width = ''; btnEEl.style.height = '';
         btnEEl.style.lineHeight = ''; btnEEl.style.fontSize = '';
       }
