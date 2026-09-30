@@ -3273,9 +3273,10 @@ function layoutMobile() {
   const mob = window.matchMedia('(max-width: 900px)').matches;
   const stickEl = document.getElementById('stick');
   const chatEl = document.getElementById('chatPanel');
+  const btnEEl = document.getElementById('btnE');
   if (!mob) {
     if (stickEl) stickEl.style.bottom = '';
-    { const b = document.getElementById('btnE'); if (b) b.style.bottom = ''; }
+    if (btnEEl) { btnEEl.style.bottom = ''; btnEEl.style.top = ''; }
     if (chatEl) { chatEl.style.top = ''; chatEl.style.bottom = ''; }
     return;
   }
@@ -3287,11 +3288,45 @@ function layoutMobile() {
   const band = h - sceneBottom;
   const stickBottom = Math.max(10, (band - stickH) / 2);
   if (stickEl) stickEl.style.bottom = stickBottom + 'px';
-  const btnEEl2 = document.getElementById('btnE');
-  if (btnEEl2) btnEEl2.style.bottom = (stickBottom + 8) + 'px';
   if (chatEl) {
     chatEl.style.top = (sceneBottom + 6) + 'px';
     chatEl.style.bottom = ''; // el CSS móvil lo deja a 8px del borde, al lado del stick
+  }
+  // El botón de acción se ancla DEBAJO de la lista de estados, no al fondo al
+  // lado del stick. Antes flotaba abajo, encima del panel de chat, y quedaba
+  // al otro extremo de la pantalla respecto de donde uno elige el estado.
+  // Se mide el alto real de la lista (los botones cambian de alto con el texto y
+  // pueden envolver) en vez de clavarle un valor fijo.
+  if (btnEEl) {
+    const barra = document.getElementById('statusBar');
+    if (barra && barra.offsetHeight) {
+      const r = barra.getBoundingClientRect();
+      btnEEl.style.bottom = 'auto';
+      btnEEl.style.top = (r.bottom + 14) + 'px';
+      // En una pantalla baja la lista puede llegar cerca del chat. En vez de
+      // taparlo, el botón se achica; si tampoco entra, se esconde y queda el
+      // menu de acciones de la tecla E.
+      const tope = chatEl ? chatEl.getBoundingClientRect().top - 8 : h;
+      const disponible = tope - (r.bottom + 14);
+      const L = 76;
+      if (disponible < 40) {
+        btnEEl.style.display = 'none';
+      } else if (disponible < L) {
+        const n = Math.max(40, Math.floor(disponible));
+        btnEEl.style.display = 'block';
+        btnEEl.style.width = n + 'px';
+        btnEEl.style.height = n + 'px';
+        btnEEl.style.lineHeight = (n - 4) + 'px';
+        btnEEl.style.fontSize = Math.round(n * 0.32) + 'px';
+      } else {
+        btnEEl.style.display = '';
+        btnEEl.style.width = ''; btnEEl.style.height = '';
+        btnEEl.style.lineHeight = ''; btnEEl.style.fontSize = '';
+      }
+    } else {
+      btnEEl.style.top = '';
+      btnEEl.style.bottom = (stickBottom + 8) + 'px';
+    }
   }
 }
 window.addEventListener('resize', resize);
@@ -4067,6 +4102,10 @@ function init() {
   loadCharAssets();
   resize();
   buildStatusBar();
+  // layoutMobile() mide la lista de estados para colgarle el botón de acción
+  // debajo, así que tiene que correr DESPUÉS de armarla: antes de este cambio
+  // el botón se anclaba al pie de la pantalla y no dependía del orden.
+  layoutMobile();
   renderPlayerList();
   const mb = document.getElementById('musicBtn'); if (mb) mb.onclick = mpToggle;
   const bp1 = document.getElementById('mpPlay'); if (bp1) bp1.onclick = mpPlay;

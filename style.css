@@ -212,7 +212,15 @@ body.spectator-mode #btnE { display: none !important; }
      arriba a la derecha con top:98px en vez de centrado. */
   #videoPanel:not(.float) { left: 8px; right: 8px; top: 46px; width: auto; }
   #stick { display: block; left: auto; right: 12px; }
-  #btnE { display: block; }
+  /* El botón de acción se ancla debajo de la lista de estados (lo hace
+     layoutMobile en game.js midiendo el alto real de la columna). Se centra
+     sobre esa misma columna para que los dos grupos se lean como una sola pila:
+     estados arriba, acción abajo. Antes flotaba al pie de la pantalla, encima
+     del chat, al otro extremo. */
+  #btnE {
+    left: calc(8px + (50vw - 14px) / 2 - 38px);
+    width: 76px; height: 76px; line-height: 72px;
+  }
   #micBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
 }
 
