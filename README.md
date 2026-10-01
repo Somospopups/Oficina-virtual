@@ -3,6 +3,11 @@
 Entorno 2D multiplayer estilo videojuego (pixel art) donde el equipo trabaja e
 interactúa en una oficina compartida, en tiempo real desde el navegador.
 
+> ⛔ **Reglas de la casa para tocar este código** (humanos y agentes): están en
+> [`AGENTE.md`](AGENTE.md). La más importante es la de oro: **nada de lo nuevo
+> puede invadir la pantalla de la oficina — todo vive dentro de los márgenes
+> laterales.**
+
 ## 🌐 Opción 1 (recomendada, SIN servidor): GitHub Pages
 
 El sitio vive en la **raíz del repo** y el multiplayer funciona **P2P (WebRTC
@@ -43,7 +48,7 @@ ningún `?v=` a mano: se calculan solos y el guard te avisa si se olvidó.
 | `/w nombre msg` | Susurro / mensaje privado |
 | `F` | Saludar 👋 al compañero más cercano |
 | `1–3` | Cambiar estado: 💻 codeando · 🤝 reunión · 🏃 ¡Ya vengo! |
-| 🔔 (barra de arriba) | Notificaciones estilo Messenger: avisan en Windows/Mac aunque estés en otra ventana |
+| 🔔 | Notificaciones estilo Messenger (vienen prendidas): clic apagada→prende · clic prendida→opciones |
 | `Z X C V B N M` | Emotes: 👋 😂 🎉 👍 🤔 🔥 ☕ |
 | `H` | Ayuda |
 
@@ -65,9 +70,10 @@ El mapa está calcado de la foto del espacio del equipo, en versión pixel art c
   cámaras, pantalla compartida, video/radio y llamada. Cada aviso lleva el sprite
   del compañero como ícono, un sonidito retro sintetizado distinto por evento y el
   título de la pestaña titilando como la barra de tareas de XP. Vienen PRENDIDAS
-  por defecto: cada uno las apaga con la 🔔 si no las quiere, y con el ⚙ elige
-  qué tipos avisan (anti-spam por persona, no se apilan: se reemplazan). Si el
-  navegador bloquea los carteles, quedan el sonido + título.
+  por defecto y todo se maneja desde UNA campana 🔔: apagada la prendés de un
+  click; prendida abre las opciones (qué tipos avisan, o apagarlas del todo).
+  Anti-spam por persona, no se apilan: se reemplazan. Si el navegador bloquea
+  los carteles, quedan el sonido + título.
 
 ## 🔧 Técnica
 

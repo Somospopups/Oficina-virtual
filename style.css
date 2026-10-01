@@ -214,8 +214,6 @@ body.spectator-mode #btnE { display: none !important; }
   #hint { display: none !important; }
   #clock { font-size: 8px; padding: 7px 9px; }
   #musicBtn { font-size: 12px; padding: 6px 8px; }
-  #notifBtn { font-size: 12px; padding: 6px 8px; }
-  #notifGear { font-size: 10px; padding: 6px 6px; }
   #musicPanel { left: 8px; top: 92px; width: min(240px, calc(100vw - 16px)); }
   /* La llamada se posiciona al final del archivo: la regla base de #callBar esta
      despues de este bloque y la pisaba. */
@@ -253,13 +251,12 @@ body.spectator-mode #btnE { display: none !important; }
 #musicBtn { font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
 #musicBtn:hover { background: #1f2736; }
 
-/* Notificaciones estilo Messenger: campana + tuerca + panel de opciones */
-#notifBtn, #notifGear { background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
-#notifBtn { font-size: 15px; }
-#notifGear { font-size: 12px; padding: 8px 7px; }
-#notifBtn:hover, #notifGear:hover { background: #1f2736; }
+/* Notificaciones estilo Messenger: UNA sola campana en la barra (las opciones
+   se abren desde ella, no hay botón aparte). El tamaño lo fija el bloque
+   uniforme de abajo junto a los botones de la llamada y la radio. */
+#notifBtn { background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+#notifBtn:hover { background: #1f2736; }
 #notifBtn.off { opacity: .55; filter: grayscale(.7); }
-#notifGear.hidden { display: none; }
 #notifPanel {
   position: absolute; left: 12px; top: 60px; z-index: 41;
   width: min(320px, calc(100vw - 24px));
@@ -483,14 +480,14 @@ body.desktop-rails #musicBtn {
   position: fixed; z-index: 45; right: 12px; left: auto; align-self: auto;
   padding: 6px 9px; font-size: 13px;
 }
-/* La campana 🔔 y la tuerca ⚙ salen de la columna del reloj y pasan a la fila
-   de botones del rail derecho, junto a la radio (top/right los pone
-   layoutDesktopAudio en game.js, igual que hace con la radio). Así el chat del
-   riel izquierdo vuelve a arrancar pegado al reloj, sin nada que lo tape. */
-body.desktop-rails #notifBtn, body.desktop-rails #notifGear {
-  position: fixed; z-index: 45; left: auto; align-self: auto;
-  padding: 6px 9px; font-size: 13px;
-}
+/* La campana 🔔 sale de la columna del reloj y pasa a la fila de botones del
+   rail derecho, junto a la radio (top/right los pone layoutDesktopAudio en
+   game.js, igual que hace con la radio). Así el chat del riel izquierdo queda
+   pegado al reloj, sin nada que lo tape.
+   ⛔ REGLA DE LA OFICINA: ningún botón, panel ni aviso nuevo puede pisar el
+   canvas central: todo lo que se agregue vive dentro de los rieles laterales.
+   Esa regla completa está en AGENTE.md y hay que respetarla siempre. */
+body.desktop-rails #notifBtn { position: fixed; z-index: 45; left: auto; align-self: auto; }
 body.desktop-rails #playerList {
   width: calc(var(--desktop-rail-width) - 24px);
   padding: 9px; background: rgba(12, 16, 25, 0.96);
@@ -621,7 +618,10 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
    Va al final del archivo a propósito: pisa los paddings sueltos que cada botón
    traía (y los de las media queries), así la columna queda pareja. */
 #callBar { align-items: flex-end; }
-#micCallBtn, #camBtn, #shareBtn, #musicBtn {
+/* ⛔ TODOS los botones del rail derecho miden EXACTAMENTE lo mismo (38×38).
+   Si agregás un botón nuevo a esa fila, sumalo a este selector: la fila tiene
+   que verse pareja. Nada de tamaños propios por botón. */
+#micCallBtn, #camBtn, #shareBtn, #musicBtn, #notifBtn {
   box-sizing: border-box; width: 38px; height: 38px; padding: 0 !important;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 14px !important; line-height: 1;
@@ -666,7 +666,7 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
 @media (max-width: 350px) {
   :root { --alto-barra: 30px; }
   #callBar { gap: 4px; }
-  #micCallBtn, #camBtn, #shareBtn, #musicBtn, #notifBtn, #notifGear { font-size: 13px !important; }
+  #micCallBtn, #camBtn, #shareBtn, #musicBtn, #notifBtn { font-size: 13px !important; }
 }
 
 /* En desktop-rails la barra de llamada va arriba a la derecha, en fila,

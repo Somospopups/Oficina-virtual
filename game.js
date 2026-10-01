@@ -1820,7 +1820,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v117 · 01/10/2026';
+const VERSION = 'v118 · 01/10/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1878,10 +1878,8 @@ function layoutDesktopAudio() {
   const chatP = document.getElementById('chatPanel');
   if (!document.body.classList.contains('desktop-rails')) {
     button.style.top = ''; button.style.right = ''; button.style.left = '';
-    for (const id of ['notifBtn', 'notifGear']) {
-      const el = document.getElementById(id);
-      if (el) { el.style.top = ''; el.style.right = ''; el.style.left = ''; }
-    }
+    const nbtnR = document.getElementById('notifBtn');
+    if (nbtnR) { nbtnR.style.top = ''; nbtnR.style.right = ''; nbtnR.style.left = ''; }
     panel.style.top = ''; panel.style.right = ''; panel.style.left = '';
     if (call) { call.style.top = ''; call.style.right = ''; call.style.bottom = ''; }
     if (vol) { vol.style.top = ''; vol.style.right = ''; }
@@ -1907,16 +1905,15 @@ function layoutDesktopAudio() {
   button.style.top = top + 'px'; button.style.right = '12px'; button.style.left = 'auto';
   const buttonH = button.getBoundingClientRect().height || 36;
   // La fila del rail derecho se arma de derecha a izquierda: 🎵 radio, 🔔
-  // notificaciones, ⚙ opciones (solo cuando está visible), y al final la barra
-  // de llamada. Cada botón apoya su borde derecho a 6px del anterior.
+  // notificaciones, y al final la barra de llamada. Cada botón apoya su borde
+  // derecho a 6px del anterior y todos miden exactamente lo mismo (el CSS lo
+  // fija en 34×34: la regla de la oficina es que el rail se vea parejo).
   let filaRight = 12 + Math.ceil(button.getBoundingClientRect().width || 38) + 6;
-  for (const id of ['notifBtn', 'notifGear']) {
-    const el = document.getElementById(id);
-    if (!el) continue;
-    if (el.classList.contains('hidden')) { el.style.top = ''; el.style.right = ''; continue; }
-    const w = Math.ceil(el.getBoundingClientRect().width || 34);
-    el.style.top = top + 'px';
-    el.style.right = filaRight + 'px';
+  const nbtnF = document.getElementById('notifBtn');
+  if (nbtnF) {
+    const w = Math.ceil(nbtnF.getBoundingClientRect().width || 34);
+    nbtnF.style.top = top + 'px';
+    nbtnF.style.right = filaRight + 'px';
     filaRight += w + 6;
   }
   // La barra de llamada va en la misma fila, a la izquierda de todo lo anterior
@@ -3037,30 +3034,40 @@ function notify(kind, quien, cuerpo, charKey, snd) {
   } catch { /* Safari viejo solo acepta el constructor con callback */ }
 }
 
-// Prende/apaga desde la campana. El primer encendido pide permiso al navegador
-// (necesita un gesto del usuario, y este click lo es).
+// Todo se maneja desde la campana: apagada → un click la prende (el permiso
+// del navegador se pide en ese gesto); prendida → un click abre/cierra el
+// panel de opciones (desde el panel también se apagan). Así el rail derecho no
+// se llena de botones: hay UNA sola campana.
 function notifToggle() {
   if (notifCfg.on) {
-    notifCfg.on = false; notifGuardar(); notifRenderBtn();
-    const p = document.getElementById('notifPanel'); if (p) p.classList.add('hidden');
-    toast('\u{1F515} Notificaciones apagadas');
+    notifArmarPanel();
+    const p = document.getElementById('notifPanel');
+    if (p) p.classList.toggle('hidden');
     return;
   }
+  notifPrender();
+}
+function notifPrender() {
   notifCfg.on = true; notifGuardar(); notifRenderBtn();
   if (!notifHayApi()) {
-    toast('\u{1F514} Prendidas: sonido + título titilante (este navegador no hace carteles)');
+    toast('🔔 Prendidas: sonido + título titilante (este navegador no hace carteles)');
     return;
   }
   if (Notification.permission === 'default') {
     Notification.requestPermission().then(() => {
       notifRenderBtn();
-      if (Notification.permission === 'granted') { toast('\u{1F514} ¡Notificaciones prendidas! Te avisan en Windows/Mac aunque estés en otra ventana'); notifPrueba(); }
-      else toast('\u{1F514} Prendidas sin carteles (los bloqueó el navegador): quedan el sonido y el título titilante');
+      if (Notification.permission === 'granted') { toast('🔔 ¡Notificaciones prendidas! Te avisan en Windows/Mac aunque estés en otra ventana'); notifPrueba(); }
+      else toast('🔔 Prendidas sin carteles (los bloqueó el navegador): quedan el sonido y el título titilante');
     });
     return;
   }
-  if (Notification.permission === 'granted') { toast('\u{1F514} ¡Notificaciones prendidas!'); notifPrueba(); }
-  else toast('\u{1F514} Prendidas sin carteles (bloqueados por el navegador): sonido + título titilante');
+  if (Notification.permission === 'granted') { toast('🔔 ¡Notificaciones prendidas!'); notifPrueba(); }
+  else toast('🔔 Prendidas sin carteles (bloqueados por el navegador): sonido + título titilante');
+}
+function notifApagar() {
+  notifCfg.on = false; notifGuardar(); notifRenderBtn();
+  const p = document.getElementById('notifPanel'); if (p) p.classList.add('hidden');
+  toast('🔕 Notificaciones apagadas');
 }
 
 // Cartelito de bienvenida para confirmar que el navegador realmente los muestra.
@@ -3078,19 +3085,15 @@ function notifPrueba() {
 function notifRenderBtn() {
   const b = document.getElementById('notifBtn'); if (!b) return;
   const perm = notifPermiso();
-  b.textContent = notifCfg.on ? '\u{1F514}' : '\u{1F515}';
+  b.textContent = notifCfg.on ? '🔔' : '🔕';
   b.classList.toggle('off', !notifCfg.on);
   b.title = !notifCfg.on
-    ? 'Notificaciones apagadas. Clic para prenderlas (avisos estilo Messenger aunque estés en otra ventana)'
+    ? 'Notificaciones apagadas: un click las prende (avisos estilo Messenger aunque estés en otra ventana)'
     : perm === 'granted'
-      ? 'Notificaciones prendidas: carteles del sistema + sonido. Clic para apagar · ⚙ elige cuáles avisan'
+      ? 'Notificaciones prendidas: carteles + sonido. Click: opciones (desde ahí también se apagan)'
       : perm === 'denied'
-        ? 'Carteles bloqueados por el navegador (candado de la barra → Notificaciones → Permitir). Igual suena y titila el título. Clic para apagar'
-        : 'Notificaciones prendidas. Clic para apagar · ⚙ elige cuáles avisan';
-  const g = document.getElementById('notifGear');
-  if (g) g.classList.toggle('hidden', !notifCfg.on);
-  // La fila de botones del rail derecho se rearma según si la ⚙ está visible
-  if (typeof layoutDesktopAudio === 'function') layoutDesktopAudio();
+        ? 'Carteles bloqueados por el navegador (candado → Notificaciones → Permitir). Igual suena y titila el título. Click: opciones'
+        : 'Notificaciones prendidas. Click: opciones';
 }
 
 // Panel con un casillero por tipo de aviso. Se arma una sola vez.
@@ -3099,6 +3102,8 @@ function notifArmarPanel() {
   if (!p || p.dataset.armado) return;
   p.dataset.armado = '1';
   let html = '<div class="np-title">\u{1F514} NOTIFICACIONES · estilo Messenger</div>';
+  html += `<label><input type="checkbox" id="npOn"${notifCfg.on ? ' checked' : ''}> \u{1F514} Notificaciones prendidas</label>`;
+  html += '<div class="np-sep"></div>';
   for (const [k, v] of Object.entries(NOTIF_KINDS)) {
     html += `<label><input type="checkbox" data-kind="${k}"${notifCfg.kinds[k] ? ' checked' : ''}> ${v.emoji} ${v.label}</label>`;
   }
@@ -3109,6 +3114,7 @@ function notifArmarPanel() {
   p.innerHTML = html;
   p.addEventListener('change', (e) => {
     const t = e.target;
+    if (t.id === 'npOn') { if (t.checked) notifPrender(); else notifApagar(); return; }
     if (t.dataset && t.dataset.kind) notifCfg.kinds[t.dataset.kind] = t.checked ? 1 : 0;
     else if (t.id === 'npBg') notifCfg.bgOnly = t.checked;
     else if (t.id === 'npSnd') notifCfg.sound = t.checked;
@@ -4541,12 +4547,6 @@ function init() {
   renderPlayerList();
   const mb = document.getElementById('musicBtn'); if (mb) mb.onclick = mpToggle;
   const nbtn = document.getElementById('notifBtn'); if (nbtn) nbtn.onclick = notifToggle;
-  const ngear = document.getElementById('notifGear');
-  if (ngear) ngear.onclick = () => {
-    notifArmarPanel();
-    const npnl = document.getElementById('notifPanel');
-    if (npnl) npnl.classList.toggle('hidden');
-  };
   notifRenderBtn();
   const bp1 = document.getElementById('mpPlay'); if (bp1) bp1.onclick = mpPlay;
   const bp2 = document.getElementById('mpPause'); if (bp2) bp2.onclick = mpPause;
