@@ -249,8 +249,8 @@ ok(/const fuera = ROSTER\.filter/.test(js) && /pl-row ausente/.test(js) && /\.pl
 ok(/visita: true/.test(js) && /!dentro\.has\(r\.char\) && !r\.visita/.test(js),
    'las visitas quedan afuera de la lista gris',
    'si se agrega una visita al ROSTER, marcarla visita:true en game.js Y en server.js');
-// ---- Animacion de tomar cafe (sentado) ----
-// Los dibujos traen la silla adentro: de pie no hay que ofrecerla.
+// ---- Animaciones sentado (cafe, birra, lo que venga) ----
+// Los dibujos traen la silla adentro: de pie no hay que ofrecerlas.
 // El tope de escala no puede depender de assetsReady (bandera global, se
 // prende recien cuando bajaron los dibujos de los cinco): el que ya tiene el
 // suyo se dibujaria gigante mientras cargan los demas.
@@ -258,49 +258,66 @@ ok(/const s = ca\.down \? Math\.min\(sRaw, baseH \/ 44\) : sRaw;/.test(js)
    && !/const conAsset = assetsReady/.test(js),
    'el tope de escala sale del sprite propio, no de assetsReady');
 // Y nada pesado puede pelearle las conexiones a la oficina mientras carga.
-ok(/if \(!assetsReady\) \{ setTimeout\(\(\) => cafeAnimCargar/.test(js)
+ok(/if \(!assetsReady \|\| animBajando\) \{ setTimeout\(\(\) => animCargar/.test(js)
    && /fetchPriority/.test(js),
-   'los dibujos del cafe esperan a que cargue la oficina y bajan de a uno');
+   'los dibujos de las animaciones esperan a que cargue la oficina y bajan de a uno');
 ok(/function dibujarCarga/.test(js) && /Cargando la oficina/.test(js),
    'hay cartel de carga mientras faltan dibujos');
 
-ok(/p\.seated && cafeAnimHay\(p\.char\)/.test(js),
-   'el cafecito se ofrece solo estando sentado');
+ok(/if \(p\.seated\) for \(const n of animDe\(p\.char\)\)/.test(js),
+   'las animaciones se ofrecen solo estando sentado');
+
+// La tabla de animaciones de game.js manda: de ahi salen los chequeos.
+const anims = [];
+{
+  const tabla = (js.match(/const ANIMS = \{([\s\S]*?)\n\};/) || [])[1] || '';
+  for (const m of tabla.matchAll(/(\w+):\s*\{[^}]*quien:\s*\{([^}]*)\}/g)) {
+    const quien = [...m[2].matchAll(/(\w+)\s*:\s*(\d+)/g)].map((q) => [q[1], Number(q[2])]);
+    anims.push({ nombre: m[1], quien });
+  }
+  ok(anims.length > 0 && anims.every((a) => a.quien.length > 0), 'se pudo leer la tabla ANIMS');
+}
 // Cada personaje de la tabla tiene que tener sus 4 PNG, o la accion aparece
 // en el menu y despues no pasa nada.
 {
-  const tabla = (js.match(/const CAFE_ANIM = \{([^}]*)\}/) || [])[1] || '';
   const faltan = [];
-  for (const m of tabla.matchAll(/(\w+)\s*:\s*(\d+)/g)) {
-    for (let i = 1; i <= Number(m[2]); i++) {
-      if (!fs.existsSync(path.join(raiz, 'sprites', `${m[1]}_cafe${i}.png`))) faltan.push(`${m[1]}_cafe${i}.png`);
+  for (const a of anims) for (const [char, n] of a.quien) {
+    for (let i = 1; i <= n; i++) {
+      const f = `${char}_${a.nombre}${i}.png`;
+      if (!fs.existsSync(path.join(raiz, 'sprites', f))) faltan.push(f);
     }
   }
-  ok(tabla.trim().length > 0 && faltan.length === 0,
-     'estan todos los dibujos de los que figuran en CAFE_ANIM',
+  ok(faltan.length === 0, 'estan todos los dibujos de los que figuran en ANIMS',
      faltan.length ? 'faltan: ' + faltan.join(', ') : '');
 }
 // El alto en pantalla es fijo y el ancho sale de la proporcion del PNG: si un
 // cuadro no mide lo mismo que el _sit.png, el personaje salta al animarse.
 {
   const malos = [];
-  const tabla = (js.match(/const CAFE_ANIM = \{([^}]*)\}/) || [])[1] || '';
-  for (const m of tabla.matchAll(/(\w+)\s*:\s*(\d+)/g)) {
-    const medir = (f) => {
-      const b = fs.readFileSync(path.join(raiz, 'sprites', f));
-      return b.readUInt32BE(16) + 'x' + b.readUInt32BE(20);   // ancho x alto del IHDR
-    };
+  const medir = (f) => {
+    const b = fs.readFileSync(path.join(raiz, 'sprites', f));
+    return b.readUInt32BE(16) + 'x' + b.readUInt32BE(20);   // ancho x alto del IHDR
+  };
+  for (const a of anims) for (const [char, n] of a.quien) {
     let base;
-    try { base = medir(`${m[1]}_sit.png`); } catch { continue; }
-    for (let i = 1; i <= Number(m[2]); i++) {
-      try { if (medir(`${m[1]}_cafe${i}.png`) !== base) malos.push(`${m[1]}_cafe${i}.png`); } catch {}
+    try { base = medir(`${char}_sit.png`); } catch { continue; }
+    for (let i = 1; i <= n; i++) {
+      try { if (medir(`${char}_${a.nombre}${i}.png`) !== base) malos.push(`${char}_${a.nombre}${i}.png`); } catch {}
     }
   }
-  ok(malos.length === 0, 'los cuadros del cafe miden lo mismo que el sprite sentado',
+  ok(malos.length === 0, 'los cuadros de las animaciones miden lo mismo que el sprite sentado',
      malos.length ? 'no coinciden: ' + malos.join(', ') : '');
 }
-ok(/\['cafe'\]\.includes\(msg\.anim\)/.test(srv),
-   'el servidor solo reenvia animaciones de la lista blanca');
+// La lista blanca del servidor tiene que tener las mismas animaciones que la
+// tabla: una de mas es un agujero, una de menos es una accion que no viaja.
+{
+  const blanca = (srv.match(/\[([^\]]*)\]\.includes\(msg\.anim\)/) || [])[1] || '';
+  const enSrv = [...blanca.matchAll(/'(\w+)'/g)].map((m) => m[1]).sort();
+  const enJs = anims.map((a) => a.nombre).sort();
+  ok(enSrv.length > 0 && enSrv.join() === enJs.join(),
+     'el servidor reenvia exactamente las animaciones de la tabla',
+     `server: [${enSrv}] vs game: [${enJs}]`);
+}
 
 ok(/histCerrarConEsc/.test(js) && /histCerrarSiFuera/.test(js)
    && /addEventListener\('keydown', histCerrarConEsc\)/.test(js)

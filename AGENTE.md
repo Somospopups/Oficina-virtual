@@ -176,41 +176,69 @@ el brillo va **sobre el dibujito**, nunca sobre el `<button>`: un `filter` en el
 botón le aclara también el fondo y el borde y lo saca de la línea de los demás.
 Por eso el emoji viaja envuelto: `<button><i class="ico">📎</i></button>`.
 
-## ☕ Animaciones sentado (el cafecito)
+## ☕🍺 Animaciones sentado (tomar algo en la silla)
 
-`CAFE_ANIM = { ger: 4 }` dice quién tiene la animación y de cuántos dibujos.
-Para sumar a otra persona: dejar `sprites/<char>_cafe1..4.png` y agregarla a
-esa tabla. Nada más. El guion (`CAFE_GUION`) y el resto es compartido.
+La tabla `ANIMS` de `game.js` es la única fuente:
+
+```js
+const ANIMS = {
+  cafe:  { titulo: '☕ Tomar un café',   quien: { ger: 4 } },
+  birra: { titulo: '🍺 Tomar una birra', quien: { ger: 4 } },
+};
+```
+
+**Para sumar una animación** (o una persona a una que ya existe): dejar los
+`sprites/<char>_<nombre>1..4.png` y agregar la entrada. Nada más. El guion
+(`ANIM_GUION`), el fundido, la carga, el menú, el chequeador y la prueba e2e
+salen todos de esa tabla. Lo único que hay que tocar aparte es la **lista
+blanca de `server.js`**, que tiene que decir exactamente los mismos nombres
+(`checlear-boton-e.js` lo verifica).
 
 Los dibujos **traen la silla adentro**, como los `_sit.png`, así que:
 
 - La acción aparece en el menú **sólo si estás sentado**. De pie no hay qué
   mostrar y por eso ni se ofrece.
 - Tienen que estar **alineados contra el `_sit.png` de esa persona**, o al
-  arrancar la animación el personaje pega un salto. El script que los prepara
-  es `preparar-ger.py` (fuera del repo): saca el fondo verde, usa **una sola
-  escala** para todos y los ubica **por máxima coincidencia**, no por la caja
-  de la figura (la taza estirada hacia adelante corre el centro y la silla se
-  movería sola). Prepara la pose quieta y los cuatro del café **de una sola
-  vez**: salen del mismo molde y por eso calzan.
-- **La pose quieta y la animación tienen que ser de la misma tanda de arte.**
-  En la v130 no lo eran y hubo que acercarles el color a mano; con el dibujo
-  nuevo de la v132 la diferencia de brillo quedó en 2 sobre 255 y ese parche
-  se pudo sacar. Si en algún momento se redibuja un `_sit.png`, hay que
-  rehacer sus cuadros de café con él.
+  arrancar la animación el personaje pega un salto. Los prepara
+  `preparar-animacion.py` (fuera del repo):
+
+  ```
+  python3 e2e/preparar-animacion.py <hoja 2x2.jpg> <char> <nombre>
+  ```
+
+  Saca el fondo verde, usa **una sola escala** para los cuatro y los ubica
+  **por máxima coincidencia de máscara**, no por la caja de la figura (la taza
+  estirada hacia adelante corre el centro y la silla se movería sola).
+- **Iguala el color contra el `_sit.png`** con un ajuste lineal por canal
+  (media y desvío) sobre los píxeles opacos en común. Cada tanda de arte sale
+  con otro brillo: los del café venían a 2 sobre 255 y los de la birra a 9, y
+  9 ya se ve como un fogonazo al empezar. Si la tanda ya coincidía, la
+  ganancia da ~1 y no cambia nada. **Ojo: no medir eso sobre la silla sola**,
+  que es casi negra y cualquier diferencia chica dispara la ganancia y quema
+  el resto de la figura. (Para *diagnosticar* sí sirve mirar el respaldo, que
+  es idéntico en toda pose; para *corregir*, la superposición entera.)
+- Si se redibuja un `_sit.png`, hay que **rehacer todos sus cuadros** con él.
 - Al dibujar, el alto en pantalla es fijo (`48 * sitScale`) y el ancho sale de
   la proporción del PNG: lo que alinea es **la caja del lienzo**. Por eso los
   cuatro salen del mismo tamaño que el `_sit.png`, aunque sobre transparencia.
-- El cruce de 180 ms (`CAFE_FUNDIDO`) con la pose sentada es lo que tapa el
+- El cruce de 180 ms (`ANIM_FUNDIDO`) con la pose sentada es lo que tapa el
   salto de entrada y salida. Mientras dura la animación, el sentado no lleva
   el rebote de respiración: sumaría un temblor arriba del cruce.
 
-Pesan ~500 KB cada uno, así que **no** se bajan con el resto de los dibujos:
-`cafeAnimCargar()` los pide al sentarse. Si todavía no llegaron, la animación
-no arranca y el personaje se queda quieto, sin romper nada.
+Cada tanda pesa ~2 MB, así que **no** se baja con el resto de los dibujos:
+`animCargar()` espera a `assetsReady`, baja **de a un PNG** y **de a una tanda
+por vez** (`animBajando`). Las propias se piden al sentarse. Las de los demás
+no: serían N personas por M animaciones. Cuando llega el aviso de que otro
+está tomando algo se piden en el momento y **la animación arranca cuando
+llegan**, aunque sea unos segundos tarde; es mejor verla corrida que no verla.
 
-Viaja por la red como `{ type: 'anim', anim: 'cafe' }`, con lista blanca de
-nombres en `server.js` para que nadie invente animaciones desde la consola.
+Viaja por la red como `{ type: 'anim', anim: '<nombre>' }`, con lista blanca
+en `server.js` para que nadie invente animaciones desde la consola.
+
+El menú de acciones es radial: el radio de la elipse **crece con la cantidad
+de ítems** (`rx`), que con siete pastillas en el radio fijo de antes se
+pisaban entre ellas. La prueba `e2e/animaciones.js` compara los rectángulos y
+falla si se superponen.
 
 ## ⏳ Mientras cargan los dibujos (13 MB)
 
@@ -226,8 +254,8 @@ una pantalla rota:
    gigante arriba de una oficina todavía en negro. Pasó en la v130.
 2. **Nada pesado se baja mientras carga lo importante.** El navegador abre 6
    conexiones por dominio: los 2 MB del café le robaban la mitad del caño al
-   fondo y a los sprites. `cafeAnimCargar()` espera `assetsReady` y después
-   baja de a uno con `fetchPriority='low'`.
+   fondo y a los sprites. `animCargar()` espera `assetsReady` y después baja
+   de a uno con `fetchPriority='low'`.
 
 Y mientras tanto, `dibujarCarga()` pone un cartel arriba del canvas que dice
 cuántos personajes llegaron y si falta el fondo. Es información real, no una

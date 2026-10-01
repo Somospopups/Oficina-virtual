@@ -166,7 +166,7 @@ wss.on('connection', (ws) => {
       // Animaciones de personaje (hoy: el cafecito en la silla). Se reenvía
       // tal cual, con lista blanca de nombres para que nadie invente una.
       case 'anim': {
-        if (['cafe'].includes(msg.anim)) broadcast({ type: 'anim', id, anim: msg.anim });
+        if (['cafe', 'birra'].includes(msg.anim)) broadcast({ type: 'anim', id, anim: msg.anim });
         break;
       }
       case 'wave': {

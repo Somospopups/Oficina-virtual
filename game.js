@@ -1826,7 +1826,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v132 · 01/10/2026';
+const VERSION = 'v133 · 01/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -2350,7 +2350,7 @@ function handleMsg(msg) {
     case 'emote': { const p = state.players.get(msg.id); if (p) { p.emote = msg.emote; p.emoteUntil = performance.now() + 3000; } break; }
     case 'cat-pet': catAplicarMimo(msg.id); break;
     case 'cafe': cafeAplicar(msg.id); break;
-    case 'anim': if (msg.anim === 'cafe') cafeAnimAplicar(msg.id); break;
+    case 'anim': animAplicar(msg.id, msg.anim); break;
     case 'nudge': {
       if (dedupe(msg)) break;
       localZumb(msg.from || 'Alguien', false, msg.id);
@@ -3635,7 +3635,7 @@ function sentarseE() {
   if (occ) { toast(`🪑 Ese puesto es de ${occ.name}`); return true; }
   me.seated = true; me.dir = seat.face; me.x = seat.x; me.y = seat.y;
   me.moving = false; me.tx = me.x; me.ty = me.y;
-  cafeAnimCargar(me.char);   // sentado ya se puede pedir el cafecito: que esté bajado
+  for (const n of animDe(me.char)) animCargar(me.char, n);   // sentado ya se pueden pedir: que estén bajadas
   sendMoveNow();
   return true;
 }
@@ -3860,7 +3860,7 @@ async function join() {
     bubble: null, bubbleUntil: 0, emote: null, emoteUntil: 0, wave: false, waveUntil: 0,
   };
   if (state.myId) state.players.set(state.myId, me);
-  if (me.seated) cafeAnimCargar(me.char);   // entró ya sentado: ídem sentarseE
+  if (me.seated) for (const n of animDe(me.char)) animCargar(me.char, n);   // entró ya sentado: ídem sentarseE
   joinOverlay.classList.add('hidden');
   try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch {}
   send({ type: 'profile', id: state.myId, name: entry.name, char: entry.char, dni });
@@ -4449,86 +4449,109 @@ function cafeAplicar(id) {
   CAFE.brewUntil = performance.now() + 2600;
   beep(620, 0.05, 0.03); setTimeout(() => beep(760, 0.06, 0.03), 110);  // ¡café listo!
 }
-// ---------- Animación: tomarse un café en la silla ----------
-// Cuatro dibujos por persona: agarra la taza, dos sorbos, y la baja con cara
-// de gusto. Sólo existe sentado, porque el PNG trae la silla adentro (igual
-// que `<char>_sit.png`, y alineados contra ese mismo dibujo para que no pegue
-// un salto al empezar).
+// ---------- Animaciones sentado (tomar algo en la silla) ----------
+// Cuatro dibujos por animación y por persona: agarra lo que sea, dos sorbos,
+// y lo baja con cara de gusto. Sólo existen sentado, porque el PNG trae la
+// silla adentro (igual que `<char>_sit.png`, y alineados contra ese mismo
+// dibujo para que no pegue un salto al empezar).
 //
-// Quién la tiene: por ahora sólo Ger, que es con quien se está probando. Para
-// sumar a otro alcanza con dejar sus `sprites/<char>_cafe1..4.png` (mismo
-// encuadre que su `_sit.png`) y agregarlo a esta tabla.
-const CAFE_ANIM = { ger: 4 };
-// Guion: [qué dibujo, cuánto dura]. Sorbo, sorbo largo, y sonrisa al final.
-const CAFE_GUION = [[1, 520], [2, 440], [3, 700], [2, 340], [4, 940]];
-const CAFE_ANIM_MS = CAFE_GUION.reduce((t, [, ms]) => t + ms, 0);
-const CAFE_FUNDIDO = 180;    // ms de cruce con el sentado normal, en cada punta
-const cafeAnimImgs = {};     // char -> [Image]
-const cafeAnimFlip = {};     // `${char}_${face}_${i}` -> canvas espejado
+// Para sumar una animación: dejar los `sprites/<char>_<nombre>1..4.png`
+// (preparados con preparar-animacion.py, que los alinea contra el sentado) y
+// agregar la entrada acá. Nada más.
+const ANIMS = {
+  cafe:  { titulo: '☕ Tomar un café',   quien: { ger: 4 } },
+  birra: { titulo: '🍺 Tomar una birra', quien: { ger: 4 } },
+};
+// Guion compartido: [qué dibujo, cuánto dura].
+const ANIM_GUION = [[1, 520], [2, 440], [3, 700], [2, 340], [4, 940]];
+const ANIM_MS = ANIM_GUION.reduce((t, [, ms]) => t + ms, 0);
+const ANIM_FUNDIDO = 180;    // ms de cruce con el sentado normal, en cada punta
+const ANIM_ESPERA = 20000;   // hasta cuánto se espera a que bajen los dibujos
+const animImgs = {};         // `${char}_${nombre}` -> [Image]
+const animFlip = {};         // `${char}_${nombre}_${face}_${i}` -> canvas espejado
+let animBajando = false;     // una tanda por vez: nunca dos bajando a la par
 
-function cafeAnimHay(char) { return !!CAFE_ANIM[char]; }
-// Pesan ~500 KB cada uno, así que no se bajan con el resto de los dibujos:
-// se piden al sentarse, que es lo único desde donde se pueden usar.
-function cafeAnimCargar(char) {
-  if (!cafeAnimHay(char) || cafeAnimImgs[char]) return;
-  // Son 2 MB. El navegador abre 6 conexiones por dominio: si estos cuatro se
-  // piden mientras todavía bajan la oficina y los dibujos de todos, le roban
-  // la mitad del caño a lo importante y el que entra ve la oficina en negro
-  // un rato largo. Esperan su turno y después bajan DE A UNO.
-  if (!assetsReady) { setTimeout(() => cafeAnimCargar(char), 500); return; }
+function animHay(char, nombre) { return !!(ANIMS[nombre] && ANIMS[nombre].quien[char]); }
+function animDe(char) { return Object.keys(ANIMS).filter((n) => animHay(char, n)); }
+
+// Cada tanda son ~2 MB. El navegador abre 6 conexiones por dominio: si se
+// piden mientras todavía bajan la oficina y los dibujos de todos, le roban la
+// mitad del caño a lo importante y el que entra ve la oficina en negro. Por
+// eso esperan a assetsReady, bajan DE A UNO y de a una tanda por vez.
+function animCargar(char, nombre) {
+  const k = `${char}_${nombre}`;
+  if (!animHay(char, nombre) || animImgs[k]) return;
+  if (!assetsReady || animBajando) { setTimeout(() => animCargar(char, nombre), 500); return; }
+  animBajando = true;
   const fs = [];
-  cafeAnimImgs[char] = fs;
+  animImgs[k] = fs;
   const siguiente = (i) => {
-    if (i > CAFE_ANIM[char]) return;
+    if (i > ANIMS[nombre].quien[char]) { animBajando = false; return; }
     const im = new Image();
     if ('fetchPriority' in im) im.fetchPriority = 'low';
     im.onload = im.onerror = () => siguiente(i + 1);
-    im.src = urlAsset(`sprites/${char}_cafe${i}.png`);
+    im.src = urlAsset(`sprites/${char}_${nombre}${i}.png`);
     fs.push(im);
   };
   siguiente(1);
 }
-function cafeAnimLista(char) {
-  const fs = cafeAnimImgs[char];
+function animLista(char, nombre) {
+  const fs = animImgs[`${char}_${nombre}`];
   // El largo también: bajan de a uno, y `[].every` sobre una lista a medio
   // llenar da true y la animación arrancaría con dos dibujos.
-  return !!fs && fs.length === CAFE_ANIM[char] && fs.every((im) => im.complete && im.naturalWidth);
+  return !!fs && animHay(char, nombre) && fs.length === ANIMS[nombre].quien[char]
+    && fs.every((im) => im.complete && im.naturalWidth);
 }
-function cafeAnimCuadro(char, face, i) {
-  const im = cafeAnimImgs[char][i];
+function animCuadro(char, nombre, face, i) {
+  const im = animImgs[`${char}_${nombre}`][i];
   if (face === (SIT_BASE_FACE[char] || 'right')) return im;
-  const k = `${char}_${face}_${i}`;
-  if (!cafeAnimFlip[k]) cafeAnimFlip[k] = flipCanvas(im);
-  return cafeAnimFlip[k];
+  const k = `${char}_${nombre}_${face}_${i}`;
+  if (!animFlip[k]) animFlip[k] = flipCanvas(im);
+  return animFlip[k];
 }
 // Qué dibujar en este instante: el cuadro del guion y cuánto pesa contra el
-// sentado normal (0 = sentado, 1 = café). Null si no hay nada que mostrar.
-function cafeAnimEstado(p, now, face) {
-  if (!p.cafeAnimIni || !p.seated) return null;
-  const t = now - p.cafeAnimIni;
-  if (t < 0 || t > CAFE_ANIM_MS) { if (t > CAFE_ANIM_MS) p.cafeAnimIni = 0; return null; }
-  if (!cafeAnimLista(p.char)) return null;   // todavía bajando: se queda quieto
+// sentado normal (0 = sentado, 1 = animación). Null si no hay nada.
+function animEstado(p, now, face) {
+  if (!p.animIni || !p.animNombre || !p.seated) return null;
+  const t = now - p.animIni;
+  if (t < 0 || t > ANIM_MS) { if (t > ANIM_MS) p.animIni = 0; return null; }
+  if (!animLista(p.char, p.animNombre)) return null;   // todavía bajando
   let acum = 0, idx = 0;
-  for (const [n, ms] of CAFE_GUION) { idx = n - 1; if (t < acum + ms) break; acum += ms; }
-  const mezcla = Math.min(1, t / CAFE_FUNDIDO, (CAFE_ANIM_MS - t) / CAFE_FUNDIDO);
-  return { spr: cafeAnimCuadro(p.char, face, idx), mezcla };
+  for (const [n, ms] of ANIM_GUION) { idx = n - 1; if (t < acum + ms) break; acum += ms; }
+  const mezcla = Math.min(1, t / ANIM_FUNDIDO, (ANIM_MS - t) / ANIM_FUNDIDO);
+  return { spr: animCuadro(p.char, p.animNombre, face, idx), mezcla };
 }
-function cafeAnimAplicar(id) {
+// Nadie tiene bajados los dibujos de los demás (serían N personas por M
+// animaciones), así que al llegar el aviso de que alguien está tomando algo
+// se piden en el momento y la animación ARRANCA CUANDO LLEGAN, aunque sea
+// unos segundos tarde. Es mejor verla corrida que no verla nunca.
+function animAplicar(id, nombre) {
   const p = state.players.get(id);
-  if (!p || !cafeAnimHay(p.char)) return;
-  cafeAnimCargar(p.char);
-  p.cafeAnimIni = performance.now();
+  if (!p || !animHay(p.char, nombre)) return;
+  if (animLista(p.char, nombre)) { p.animNombre = nombre; p.animIni = performance.now(); return; }
+  animCargar(p.char, nombre);
+  const desde = performance.now();
+  const esperar = () => {
+    if (!state.players.get(id)) return;                       // se fue
+    if (animLista(p.char, nombre)) { p.animNombre = nombre; p.animIni = performance.now(); return; }
+    if (performance.now() - desde < ANIM_ESPERA) setTimeout(esperar, 200);
+  };
+  setTimeout(esperar, 200);
 }
 // Lo pide el menú de acciones del propio personaje. Va por el bus para que el
-// resto vea el cafecito, igual que el de la cafetera.
-function cafeAnimPedir() {
+// resto lo vea, igual que el café de la cafetera.
+function animPedir(nombre) {
   const me = state.players.get(state.myId);
   if (!me) return;
-  if (!me.seated) { toast('🪑 El cafecito es sentado: buscá una silla'); return; }
-  if (!cafeAnimHay(me.char)) { toast('☕ Todavía no hay dibujos de este personaje tomando café'); return; }
-  if (me.cafeAnimIni && performance.now() - me.cafeAnimIni < CAFE_ANIM_MS) return;  // ya está tomando
-  send({ type: 'anim', id: state.myId, anim: 'cafe' });
-  cafeAnimAplicar(state.myId);
+  if (!me.seated) { toast('🪑 Esto es sentado: buscá una silla'); return; }
+  if (!animHay(me.char, nombre)) { toast('🎬 Todavía no hay dibujos de este personaje'); return; }
+  if (me.animIni && performance.now() - me.animIni < ANIM_MS) return;  // ya está tomando
+  if (!animLista(me.char, nombre)) {
+    // Si tarda, avisar: un botón que no hace nada parece roto.
+    setTimeout(() => { if (!animLista(me.char, nombre)) toast('⏳ Bajando los dibujos…'); }, 400);
+  }
+  send({ type: 'anim', id: state.myId, anim: nombre });
+  animAplicar(state.myId, nombre);
 }
 
 const miloToma = new Image();
@@ -4858,9 +4881,9 @@ function render() {
       ctx.imageSmoothingEnabled = true;              // sprites sentados de alta resolución
       ctx.imageSmoothingQuality = 'high';
       const bob = charAssets[p.char || 'ger'] && charAssets[p.char || 'ger'].sit ? (sframe ? h / SIT_H * 2 : 0) : 0;
-      const taza = cafeAnimEstado(p, now, face);
+      const taza = animEstado(p, now, face);
       if (taza) {
-        // Los dibujos del café están alineados contra el sentado, así que van
+        // Los dibujos de la animación están alineados contra el sentado, así que van
         // en la misma caja y se puede cruzar uno con otro. El cruce de 180 ms
         // es lo que evita el parpadeo al entrar y al salir de la animación.
         // El sentado no lleva el rebote de respiración mientras tanto: sumaría
@@ -5200,15 +5223,43 @@ function init() {
     accMenu.appendChild(t);
     poner(t, cx, cy - 84);
     const n = items.length;
+    // El radio crece con la cantidad: a partir de siete acciones, en la
+    // elipse de siempre las pastillas de arriba se pisaban entre ellas.
+    const rx = Math.max(128, Math.round(55 / Math.sin(Math.PI / (n + 1))));
     items.forEach((it, i) => {
       const d = document.createElement('div');
       d.className = 'am-item'; d.textContent = it.t;
       d.addEventListener('click', (ev) => { ev.stopPropagation(); accCerrar(); it.f(); });
       accMenu.appendChild(d);
       const ang = -Math.PI / 2 + (i + 1) * (2 * Math.PI / (n + 1));
-      poner(d, cx + Math.cos(ang) * 128, cy + Math.sin(ang) * 76);
+      poner(d, cx + Math.cos(ang) * rx, cy + Math.sin(ang) * 76);
       d.style.animationDelay = (40 + i * 50) + 'ms';
     });
+    // En una pantalla angosta la elipse no entra: el recorte contra los bordes
+    // amontona las pastillas y dos terminan pisadas (en el celular pasaba con
+    // seis). Las que se tocan se separan a lo alto. Se mide con offsetWidth,
+    // que es el tamaño real: getBoundingClientRect() da el de la animación de
+    // entrada, que arranca achicada.
+    const els = [...accMenu.querySelectorAll('.am-item')];
+    const pos = els.map((el) => [parseFloat(el.style.left), parseFloat(el.style.top)]);
+    const caja = (el, p) => ({
+      i: p[0] - el.offsetWidth / 2, d: p[0] + el.offsetWidth / 2,
+      a: p[1] - el.offsetHeight / 2, b: p[1] + el.offsetHeight / 2,
+    });
+    for (let pase = 0; pase < 8; pase++) {
+      const cs = els.map((el, k) => caja(el, pos[k]));
+      let movio = false;
+      for (let k = 0; k < els.length; k++) for (let j = k + 1; j < els.length; j++) {
+        const sy = Math.min(cs[k].b, cs[j].b) - Math.max(cs[k].a, cs[j].a);
+        if (Math.min(cs[k].d, cs[j].d) - Math.max(cs[k].i, cs[j].i) <= 0 || sy <= 0) continue;
+        const paso = (sy + 6) / 2 * (cs[k].a <= cs[j].a ? -1 : 1);
+        pos[k][1] += paso; pos[j][1] -= paso;
+        poner(els[k], pos[k][0], pos[k][1]); poner(els[j], pos[j][0], pos[j][1]);
+        cs[k] = caja(els[k], pos[k]); cs[j] = caja(els[j], pos[j]);
+        movio = true;
+      }
+      if (!movio) break;
+    }
   }
   canvas.addEventListener('click', (e) => {
     if (!state.joined) return;
@@ -5231,9 +5282,9 @@ function init() {
       if (Math.abs(wx - p.x) < h * 0.28 && wy > p.y - h * 1.05 && wy < p.y - h * 0.35) {
         if (p.id === state.myId) {
           const items = STATUS_KEYS.map((k) => ({ t: `${STATUS_INFO[k].emoji} ${STATUS_INFO[k].label}`, f: () => setStatus(k) }));
-          // El cafecito aparece sólo cuando estás sentado: los dibujos traen
-          // la silla adentro, de pie no habría qué mostrar.
-          if (p.seated && cafeAnimHay(p.char)) items.push({ t: '☕ Tomar un café', f: cafeAnimPedir });
+          // Las animaciones aparecen sólo cuando estás sentado: los dibujos
+          // traen la silla adentro, de pie no habría qué mostrar.
+          if (p.seated) for (const n of animDe(p.char)) items.push({ t: ANIMS[n].titulo, f: () => animPedir(n) });
           items.push({ t: '💨 Zumbido', f: doZumbido });
           accAbrir(items, p.name, e.clientX, e.clientY);
         } else {
