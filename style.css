@@ -422,6 +422,11 @@ body.spectator-mode #btnE { display: none !important; }
 #chatRow #chatInput {
   flex: 1 1 auto; min-width: 0; width: auto;
   border: 2px solid #3b4560 !important; padding: 8px 10px !important; font-size: 10px !important;
+  /* Es un <textarea> que crece solo con el mensaje (~5 líneas, después scrollea
+     por dentro): así se puede leer completo y corregir antes de mandar. El
+     crecimiento lo hace chatAutoGrow() en game.js. */
+  resize: none; overflow-y: hidden; line-height: 1.5; max-height: 96px;
+  display: block; box-sizing: border-box; margin: 0;
 }
 #micBtn { touch-action: none; user-select: none; -webkit-user-select: none; }
 #micBtn.rec { background: #7a1f1f !important; border-color: #ff5a5a !important; color: #fff; animation: recPulse 1s infinite; }

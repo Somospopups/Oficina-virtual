@@ -44,7 +44,7 @@ ningún `?v=` a mano: se calculan solos y el guard te avisa si se olvidó.
 | Tecla | Acción |
 |---|---|
 | `WASD` / flechas | Moverse (con colisiones contra muebles) |
-| `Enter` | Abrir chat (Enter envía, Esc cancela) |
+| `Enter` | Abrir chat · Enter envía · Shift+Enter salto de línea · Esc cancela |
 | `/w nombre msg` | Susurro / mensaje privado |
 | `F` | Saludar 👋 al compañero más cercano |
 | `1–3` | Cambiar estado: 💻 codeando · 🤝 reunión · 🏃 ¡Ya vengo! |

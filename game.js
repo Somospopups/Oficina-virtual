@@ -1820,7 +1820,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v119 · 01/10/2026';
+const VERSION = 'v120 · 01/10/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3199,6 +3199,19 @@ function updateSendMic() {
   sb.hidden = !hasContent;
   mb.hidden = hasContent;
 }
+// El chatInput es un <textarea>: crece solo hasta ~5 líneas (96px) y después
+// scrollea por dentro, así se puede leer completo y corregir antes de mandar.
+// TODO cambio programático del texto pasa por acá (borrar al enviar/cancelar,
+// insertar emojis, pre-cargar "/w nombre ..."), además del evento input.
+function chatAutoGrow() {
+  const i = document.getElementById('chatInput');
+  if (!i || i.tagName !== 'TEXTAREA') return;
+  if (getComputedStyle(i).display === 'none') return; // grabando: se ve otra cosa
+  i.style.height = 'auto';
+  const max = 96;
+  i.style.height = Math.min(i.scrollHeight, max) + 'px';
+  i.style.overflowY = i.scrollHeight > max + 2 ? 'auto' : 'hidden';
+}
 function hideEmojiPicker() { const p = document.getElementById('emojiPicker'); if (p) p.hidden = true; }
 function fmtRecTime(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 // Muestra/oculta la barra de grabación (reemplaza el input, como en WhatsApp).
@@ -3365,8 +3378,9 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (document.activeElement === chatInput) {
-    if (e.key === 'Enter') { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; chatInput.blur(); hideEmojiPicker(); updateSendMic(); e.preventDefault(); }
-    if (e.key === 'Escape') { chatInput.value = ''; chatInput.blur(); hideEmojiPicker(); updateSendMic(); e.preventDefault(); }
+    if (e.key === 'Enter' && !e.shiftKey) { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; chatAutoGrow(); chatInput.blur(); hideEmojiPicker(); updateSendMic(); e.preventDefault(); }
+    // Shift+Enter: sin preventDefault, el <textarea> agrega el salto de línea solo
+    if (e.key === 'Escape') { chatInput.value = ''; chatAutoGrow(); chatInput.blur(); hideEmojiPicker(); updateSendMic(); e.preventDefault(); }
     return; // al escribir en el chat no se mueven el personaje ni la página
   }
   if (!state.joined) return;
@@ -4732,7 +4746,7 @@ function init() {
         } else {
           accAbrir([
             { t: '👋 Saludar', f: () => { send({ type: 'emote', id: state.myId, emote: '👋' }); const me = state.players.get(state.myId); if (me) { me.emote = '👋'; me.emoteUntil = performance.now() + 3000; } } },
-            { t: '💬 Susurrar', f: () => { chatInput.value = `/w ${p.name} `; chatInput.focus(); } },
+            { t: '💬 Susurrar', f: () => { chatInput.value = `/w ${p.name} `; chatAutoGrow(); chatInput.focus(); } },
             { t: '💨 Zumbido', f: doZumbido },
           ], p.name, e.clientX, e.clientY);
         }
@@ -4801,7 +4815,7 @@ function init() {
   }
 
   const sendBtn = document.getElementById('sendBtn');
-  if (sendBtn) sendBtn.onclick = () => { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; hideEmojiPicker(); updateSendMic(); };
+  if (sendBtn) sendBtn.onclick = () => { sendChat(chatInput.value, takeAtt()); chatInput.value = ''; chatAutoGrow(); hideEmojiPicker(); updateSendMic(); };
   const attBtn = document.getElementById('attBtn');
   const fileInput = document.getElementById('fileInput');
   if (attBtn && fileInput) { attBtn.onclick = () => fileInput.click(); fileInput.onchange = onFilePicked; }
@@ -4814,6 +4828,7 @@ function init() {
     emojiPicker.addEventListener('click', (e) => {
       const b = e.target.closest('button'); if (!b) return;
       chatInput.value = (chatInput.value + b.textContent).slice(0, 200);
+      chatAutoGrow();
       chatInput.focus(); updateSendMic();
     });
   }
@@ -4840,7 +4855,7 @@ function init() {
   }
   const recTrash = document.getElementById('recTrash');
   if (recTrash) recTrash.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); cancelRec(); toast('🎤 Grabación cancelada'); });
-  chatInput.addEventListener('input', updateSendMic);
+  chatInput.addEventListener('input', () => { updateSendMic(); chatAutoGrow(); });
   updateSendMic();
 
   // Tamaño de letra del chat: botones -/+ con la preferencia guardada en el

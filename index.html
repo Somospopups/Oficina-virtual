@@ -61,7 +61,7 @@
       <div id="chatPill">
         <button id="attBtn" title="Adjuntar imagen">📎</button>
         <button id="emojiBtn" title="Emojis">🙂</button>
-        <input id="chatInput" maxlength="200" placeholder="Escribí acá…" autocomplete="off">
+        <textarea id="chatInput" maxlength="200" rows="1" placeholder="Escribí acá…" autocomplete="off"></textarea>
         <div id="recBar" hidden><span id="recDot">⏺</span><span id="recTime">0:00</span><span id="recHint">‹ cancelar · ↑ fijar</span><button id="recTrash" hidden title="Cancelar grabación">🗑</button></div>
         <button id="sendBtn" hidden title="Enviar">➤</button>
         <button id="micBtn" title="Mantené apretado para grabar · deslizá ← para cancelar · ↑ para fijar">🎤</button>
@@ -92,7 +92,7 @@
     <table>
       <tr><td class="key">WASD / ←↑→↓</td><td>Moverte (si estás sentado, te levantás)</td></tr>
       <tr><td class="key">Quedarte quieto sobre una silla</td><td>Sentarte en ese puesto 🪑</td></tr>
-      <tr><td class="key">Enter</td><td>Abrir el chat (Enter envía, Esc cancela)</td></tr>
+      <tr><td class="key">Enter</td><td>Abrir el chat · Enter envía · Shift+Enter salto de línea · Esc cancela (la caja crece sola con el mensaje)</td></tr>
       <tr><td class="key">/w nombre msg</td><td>Mensaje privado (susurro)</td></tr>
       <tr><td class="key">1 – 3</td><td>Estados: 💻 Codeando · 🤝 En reunión · 🏃 ¡Ya vengo! (tocá el activo para volver a 🟢)</td></tr>
       <tr><td class="key">4</td><td>💨 Zumbido! — sacude toda la oficina con un pedo, estilo Messenger</td></tr>
