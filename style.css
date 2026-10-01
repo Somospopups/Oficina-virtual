@@ -483,6 +483,14 @@ body.desktop-rails #musicBtn {
   position: fixed; z-index: 45; right: 12px; left: auto; align-self: auto;
   padding: 6px 9px; font-size: 13px;
 }
+/* La campana 🔔 y la tuerca ⚙ salen de la columna del reloj y pasan a la fila
+   de botones del rail derecho, junto a la radio (top/right los pone
+   layoutDesktopAudio en game.js, igual que hace con la radio). Así el chat del
+   riel izquierdo vuelve a arrancar pegado al reloj, sin nada que lo tape. */
+body.desktop-rails #notifBtn, body.desktop-rails #notifGear {
+  position: fixed; z-index: 45; left: auto; align-self: auto;
+  padding: 6px 9px; font-size: 13px;
+}
 body.desktop-rails #playerList {
   width: calc(var(--desktop-rail-width) - 24px);
   padding: 9px; background: rgba(12, 16, 25, 0.96);
@@ -496,6 +504,11 @@ body.desktop-rails #netPanel {
 }
 body.desktop-rails #musicPanel {
   top: 98px; left: auto; right: 12px; width: calc(var(--desktop-rail-width) - 24px);
+  max-height: calc(100vh - 190px); overflow-y: auto; box-sizing: border-box;
+}
+/* El panel de notificaciones se abre bajo la fila de botones del rail derecho */
+body.desktop-rails #notifPanel {
+  left: auto; right: 12px; top: 98px; width: calc(var(--desktop-rail-width) - 24px);
   max-height: calc(100vh - 190px); overflow-y: auto; box-sizing: border-box;
 }
 body.desktop-rails #musicPanel .mp-row { width: 100%; gap: 4px; }
@@ -653,7 +666,7 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
 @media (max-width: 350px) {
   :root { --alto-barra: 30px; }
   #callBar { gap: 4px; }
-  #micCallBtn, #camBtn, #shareBtn, #musicBtn { font-size: 13px !important; }
+  #micCallBtn, #camBtn, #shareBtn, #musicBtn, #notifBtn, #notifGear { font-size: 13px !important; }
 }
 
 /* En desktop-rails la barra de llamada va arriba a la derecha, en fila,

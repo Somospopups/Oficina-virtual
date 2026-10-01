@@ -64,9 +64,10 @@ El mapa está calcado de la foto del espacio del equipo, en versión pixel art c
   Windows/Mac (Notification API) por chat, privados, entradas/salidas, zumbidos,
   cámaras, pantalla compartida, video/radio y llamada. Cada aviso lleva el sprite
   del compañero como ícono, un sonidito retro sintetizado distinto por evento y el
-  título de la pestaña titilando como la barra de tareas de XP. Se prenden con la
-  🔔 y cada tipo se ajusta con el ⚙ (anti-spam por persona, no se apilan: se
-  reemplazan). Si el navegador bloquea los carteles, quedan el sonido + título.
+  título de la pestaña titilando como la barra de tareas de XP. Vienen PRENDIDAS
+  por defecto: cada uno las apaga con la 🔔 si no las quiere, y con el ⚙ elige
+  qué tipos avisan (anti-spam por persona, no se apilan: se reemplazan). Si el
+  navegador bloquea los carteles, quedan el sonido + título.
 
 ## 🔧 Técnica
 

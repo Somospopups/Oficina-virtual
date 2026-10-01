@@ -1820,7 +1820,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v116 · 01/10/2026';
+const VERSION = 'v117 · 01/10/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -1878,6 +1878,10 @@ function layoutDesktopAudio() {
   const chatP = document.getElementById('chatPanel');
   if (!document.body.classList.contains('desktop-rails')) {
     button.style.top = ''; button.style.right = ''; button.style.left = '';
+    for (const id of ['notifBtn', 'notifGear']) {
+      const el = document.getElementById(id);
+      if (el) { el.style.top = ''; el.style.right = ''; el.style.left = ''; }
+    }
     panel.style.top = ''; panel.style.right = ''; panel.style.left = '';
     if (call) { call.style.top = ''; call.style.right = ''; call.style.bottom = ''; }
     if (vol) { vol.style.top = ''; vol.style.right = ''; }
@@ -1902,11 +1906,23 @@ function layoutDesktopAudio() {
   const top = Math.ceil((list ? list.getBoundingClientRect().bottom : 100) + 10);
   button.style.top = top + 'px'; button.style.right = '12px'; button.style.left = 'auto';
   const buttonH = button.getBoundingClientRect().height || 36;
-  // La barra de llamada va en la misma fila, a la izquierda de la radio 🎵
+  // La fila del rail derecho se arma de derecha a izquierda: 🎵 radio, 🔔
+  // notificaciones, ⚙ opciones (solo cuando está visible), y al final la barra
+  // de llamada. Cada botón apoya su borde derecho a 6px del anterior.
+  let filaRight = 12 + Math.ceil(button.getBoundingClientRect().width || 38) + 6;
+  for (const id of ['notifBtn', 'notifGear']) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (el.classList.contains('hidden')) { el.style.top = ''; el.style.right = ''; continue; }
+    const w = Math.ceil(el.getBoundingClientRect().width || 34);
+    el.style.top = top + 'px';
+    el.style.right = filaRight + 'px';
+    filaRight += w + 6;
+  }
+  // La barra de llamada va en la misma fila, a la izquierda de todo lo anterior
   if (call) {
-    const buttonW = Math.ceil(button.getBoundingClientRect().width || 38);
     call.style.top = top + 'px'; call.style.bottom = 'auto';
-    call.style.right = (12 + buttonW + 6) + 'px';
+    call.style.right = filaRight + 'px';
   }
   // El chat del riel izquierdo arranca pegado al reloj (sin espacio muerto) y
   // llega hasta abajo.
@@ -2919,7 +2935,7 @@ const NOTIF_KINDS = {
   mic:       { emoji: '\u{1F3A4}', label: 'Llamada (micro abierto)',  cd: 120000 },
 };
 const NOTIF_CFG_KEY = 'ovNotifs';
-let notifCfg = { on: false, bgOnly: true, sound: true,
+let notifCfg = { on: true, bgOnly: true, sound: true,
   kinds: { chat: 1, whisper: 1, joinleave: 1, nudge: 1, cam: 1, share: 1, video: 1, mic: 1 } };
 try {
   const guardada = JSON.parse(localStorage.getItem(NOTIF_CFG_KEY) || 'null');
@@ -3073,6 +3089,8 @@ function notifRenderBtn() {
         : 'Notificaciones prendidas. Clic para apagar · ⚙ elige cuáles avisan';
   const g = document.getElementById('notifGear');
   if (g) g.classList.toggle('hidden', !notifCfg.on);
+  // La fila de botones del rail derecho se rearma según si la ⚙ está visible
+  if (typeof layoutDesktopAudio === 'function') layoutDesktopAudio();
 }
 
 // Panel con un casillero por tipo de aviso. Se arma una sola vez.
@@ -3466,6 +3484,12 @@ async function join() {
   sendMoveNow();
   if (seat) { setStatus('codeando', true); addChat(null, 'Te sentaste en tu puesto 💻 — WASD para levantarte', 'system'); }
   addChat(null, `¡Bienvenido/a a la oficina, ${entry.name}! Presioná H para la ayuda.`, 'system');
+  try {
+    if (!localStorage.getItem('ovNotifBienvenida')) {
+      localStorage.setItem('ovNotifBienvenida', '1');
+      addChat(null, '🔔 Las notificaciones estilo Messenger ya vienen PRENDIDAS: si no las querés, tocá la campana de arriba', 'system');
+    }
+  } catch { /* incógnito: no se insiste */ }
   beep(523, 0.09); setTimeout(() => beep(784, 0.12), 100);
   renderPlayerList();
 }
