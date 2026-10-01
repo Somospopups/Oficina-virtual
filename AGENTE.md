@@ -4,6 +4,15 @@ Este archivo es la fuente de verdad de cómo se diseña la Oficina Virtual.
 Leelo completo antes de meter mano. Si algo de lo que hagás contradice una
 regla de acá, está mal: cambiá tu código, no la regla.
 
+## 📦 Entrega para el propietario: ZIP + `PUBLICAR.bat`
+
+Antes de preparar o publicar cualquier cambio, leer también
+[`PUBLICAR_CAMBIOS.md`](PUBLICAR_CAMBIOS.md). El propietario no programa ni usa
+terminal: el agente hace el cambio completo, ejecuta los chequeos y entrega un
+ZIP con `PUBLICAR.bat` y un bundle Git. Por decisión del propietario, se prepara
+el BAT directamente y solo se muestra un preview cuando él lo pide expresamente.
+Nunca se piden ni se guardan tokens o contraseñas en el chat o en los archivos.
+
 ## ⛔ REGLA DE ORO: nada invade la pantalla de la oficina
 
 **El canvas central es de la oficina, y solo de la oficina.** Ningún botón,
