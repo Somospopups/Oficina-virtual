@@ -3,6 +3,11 @@
 Entorno 2D multiplayer estilo videojuego (pixel art) donde el equipo trabaja e
 interactúa en una oficina compartida, en tiempo real desde el navegador.
 
+> 🤖 **IA o agente de programación:** antes de analizar o modificar este
+> repositorio, leé [`AGENTS.md`](AGENTS.md), [`AGENTE.md`](AGENTE.md) y
+> [`PUBLICAR_CAMBIOS.md`](PUBLICAR_CAMBIOS.md). Ahí están las reglas obligatorias
+> del proyecto, los chequeos y el método de entrega con `PUBLICAR.bat`.
+
 > ⛔ **Reglas de la casa para tocar este código** (humanos y agentes): están en
 > [`AGENTE.md`](AGENTE.md). La más importante es la de oro: **nada de lo nuevo
 > puede invadir la pantalla de la oficina — todo vive dentro de los márgenes
