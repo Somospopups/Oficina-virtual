@@ -256,6 +256,9 @@ body.spectator-mode #btnE { display: none !important; }
    uniforme de abajo junto a los botones de la llamada y la radio. */
 #notifBtn { background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
 #notifBtn:hover { background: #1f2736; }
+#histBtn { background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+#histBtn:hover { background: #1f2736; }
+#histBtn.abierto { border-color: #ffd76a; }
 #notifBtn.off { opacity: .55; filter: grayscale(.7); }
 #notifPanel {
   position: absolute; left: 12px; top: 60px; z-index: 41;
@@ -530,6 +533,7 @@ body.desktop-rails #musicBtn {
    canvas central: todo lo que se agregue vive dentro de los rieles laterales.
    Esa regla completa está en AGENTE.md y hay que respetarla siempre. */
 body.desktop-rails #notifBtn { position: fixed; z-index: 45; left: auto; align-self: auto; }
+body.desktop-rails #histBtn { position: fixed; z-index: 45; left: auto; align-self: auto; }
 body.desktop-rails #playerList {
   width: calc(var(--desktop-rail-width) - 24px);
   padding: 9px; background: rgba(12, 16, 25, 0.96);
@@ -664,7 +668,7 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
 /* ⛔ TODOS los botones del rail derecho miden EXACTAMENTE lo mismo (38×38).
    Si agregás un botón nuevo a esa fila, sumalo a este selector: la fila tiene
    que verse pareja. Nada de tamaños propios por botón. */
-#micCallBtn, #camBtn, #shareBtn, #musicBtn, #notifBtn {
+#micCallBtn, #camBtn, #shareBtn, #musicBtn, #notifBtn, #histBtn {
   box-sizing: border-box; width: 38px; height: 38px; padding: 0 !important;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 14px !important; line-height: 1;
@@ -709,7 +713,7 @@ body.spectator-mode #chatLog { flex: 1 1 auto; }
 @media (max-width: 350px) {
   :root { --alto-barra: 30px; }
   #callBar { gap: 4px; }
-  #micCallBtn, #camBtn, #shareBtn, #musicBtn, #notifBtn { font-size: 13px !important; }
+  #micCallBtn, #camBtn, #shareBtn, #musicBtn, #notifBtn, #histBtn { font-size: 13px !important; }
 }
 
 /* En desktop-rails la barra de llamada va arriba a la derecha, en fila,
@@ -796,3 +800,36 @@ body.desktop-rails #callVolBox #callVol { flex: 1 1 auto; width: 100%; min-width
   color: #cdd5e4; font-size: 10px; font-family: inherit;
 }
 #chatFsCtl button:hover { background: #26304a; }
+
+/* Historial de la oficina. Vive en el riel derecho, debajo de la fila de
+   botones (lo ubica layoutDesktopAudio, como a todo lo demás): la oficina no
+   se toca. Fuera de panorámica cae arriba a la izquierda, igual que el panel
+   de notificaciones. Se cierra tocando afuera o con Esc. */
+#histPanel {
+  position: fixed; left: 12px; top: 60px; z-index: 46;
+  width: min(330px, calc(100vw - 24px)); max-height: 62vh; overflow-y: auto;
+  background: rgba(16, 20, 29, 0.97); border: 3px solid #0c0f16; box-shadow: 0 0 0 2px #3b4560;
+  padding: 9px 10px; font-size: 8px; color: #cdd6ea; line-height: 1.65;
+}
+#histPanel.hidden { display: none; }
+/* En panorámica toma el ancho del riel, igual que el chat y la lista de
+   compañeros (sale de viewOX, el margen que deja la oficina): así el panel no
+   se mete ni un píxel adentro del dibujo. */
+body.desktop-rails #histPanel { left: auto; width: calc(var(--desktop-rail-width) - 24px); }
+#histPanel .hx-title { color: #ffd76a; font-size: 9px; letter-spacing: 1px; margin-bottom: 8px; }
+#histPanel .hx-row { border-top: 2px solid #232b3d; padding: 5px 0 6px; cursor: pointer; }
+#histPanel .hx-row:hover { background: rgba(255, 255, 255, 0.04); }
+#histPanel .hx-nom { color: #eef3ff; font-size: 9px; display: flex; align-items: center; gap: 6px; }
+#histPanel .hx-nom .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+#histPanel .hx-flecha { margin-left: auto; color: #7d87a0; }
+#histPanel .hx-det { color: #b6c0d6; margin-top: 2px; }
+#histPanel .hx-det b { color: #eef3ff; }
+#histPanel .hx-tot { color: #8f9ab4; margin-top: 1px; font-size: 7px; }
+#histPanel .hx-tot b { color: #cdd6ea; }
+#histPanel .hx-on { color: #8ff0a4; }
+#histPanel .hx-aprox { color: #7d87a0; }
+#histPanel .hx-sin { color: #7d87a0; margin-top: 2px; }
+#histPanel .hx-lista { margin: 5px 0 1px; border-left: 2px solid #2c3550; padding-left: 7px; }
+#histPanel .hx-ses { color: #9aa5bf; line-height: 1.75; white-space: nowrap; }
+#histPanel .hx-ses .hx-g { color: #ffd76a; }
+#histPanel .hx-nota { color: #7d87a0; font-size: 7px; line-height: 1.7; margin-top: 8px; border-top: 2px solid #232b3d; padding-top: 6px; }

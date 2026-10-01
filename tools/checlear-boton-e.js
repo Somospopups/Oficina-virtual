@@ -209,6 +209,41 @@ const abajo = parseFloat(partes.length >= 3 ? partes[2] : partes[0]);
 ok(abajo > 0, `el clip y el emoji tienen aire antes de la linea (padding-bottom: ${partes.length >= 3 ? partes[2] : partes[0]})`,
    abajo > 0 ? '' : 'en 0 quedan apoyados encima de la linea');
 
+// ---------- Historial de la oficina ----------
+// El bus usa kind 20001, que es EFIMERO: los relays no lo guardan. El historial
+// tiene que viajar por un kind que si se archive, o no habria nada que mostrar.
+{
+  const kind = +(js.match(/const HIST_KIND = (\d+)/) || [])[1];
+  ok(kind && !(kind >= 20000 && kind <= 29999),
+     `el historial usa un kind que los relays guardan (${kind})`,
+     'entre 20000 y 29999 son efimeros: el dato se perderia');
+}
+// Cada persona del ROSTER necesita su clave para que se le puedan atribuir las
+// sesiones. Si entra alguien nuevo y no se agrega aca, su historial no existe.
+{
+  const chars = [...js.matchAll(/\{ dni: '\d+',\s*name: '[^']+',\s*char: '(\w+)'/g)].map((m) => m[1]);
+  const bloque = (js.match(/const HIST_PUB = \{[^}]*\}/) || [''])[0];
+  const faltan = chars.filter((c) => !new RegExp(`\\b${c}:\\s*'[0-9a-f]{64}'`).test(bloque));
+  ok(chars.length > 0 && faltan.length === 0,
+     'todos los del ROSTER tienen su clave en HIST_PUB',
+     faltan.length ? `les falta a: ${faltan.join(', ')}` : '');
+}
+ok(/id="histBtn"/.test(html) && /id="histPanel"/.test(html),
+   'el boton y el panel del historial estan en el index');
+ok(/#micCallBtn,[^{]*#histBtn\s*\{[^}]*width: 38px; height: 38px/.test(css),
+   'el boton del historial usa el tamano unico del riel (38x38)',
+   'si no, queda desparejo con los demas');
+ok(/histCerrarConEsc/.test(js) && /histCerrarSiFuera/.test(js)
+   && /addEventListener\('keydown', histCerrarConEsc\)/.test(js)
+   && /addEventListener\('pointerdown', histCerrarSiFuera\)/.test(js),
+   'el panel del historial se cierra con Esc y tocando afuera');
+ok(/body\.desktop-rails #histPanel \{[^}]*var\(--desktop-rail-width\)/.test(css),
+   'en panoramica el panel toma el ancho del riel y no invade la oficina');
+// Los totales y la linea de "ultima vez" tienen que salir del MISMO fin de
+// sesion: si no, una desconexion le regala horas a la persona.
+ok(/t \+= Math\.max\(0, s\.efe/.test(js) && /efe: s\.fin != null/.test(js),
+   'los totales usan el mismo fin de sesion que se muestra en pantalla');
+
 // ---------- Que el index.html no pueda llegar viejo ----------
 // Si el sello del html y la VERSION de game.js se separan, el guardian de
 // game.js recargaria en loop (o no recargaria nunca). Tiene que coincidir.

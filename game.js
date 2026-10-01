@@ -1824,7 +1824,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v125 · 01/10/2026';
+const VERSION = 'v126 · 01/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -1910,6 +1910,10 @@ function layoutDesktopAudio() {
     button.style.top = ''; button.style.right = ''; button.style.left = '';
     const nbtnR = document.getElementById('notifBtn');
     if (nbtnR) { nbtnR.style.top = ''; nbtnR.style.right = ''; nbtnR.style.left = ''; }
+    const hbtnR = document.getElementById('histBtn');
+    if (hbtnR) { hbtnR.style.top = ''; hbtnR.style.right = ''; hbtnR.style.left = ''; }
+    const hpanR = document.getElementById('histPanel');
+    if (hpanR) { hpanR.style.top = ''; hpanR.style.right = ''; hpanR.style.left = ''; }
     panel.style.top = ''; panel.style.right = ''; panel.style.left = '';
     if (call) { call.style.top = ''; call.style.right = ''; call.style.bottom = ''; }
     if (vol) { vol.style.top = ''; vol.style.right = ''; }
@@ -1946,6 +1950,13 @@ function layoutDesktopAudio() {
     nbtnF.style.right = filaRight + 'px';
     filaRight += w + 6;
   }
+  const hbtnF = document.getElementById('histBtn');
+  if (hbtnF) {
+    const w = Math.ceil(hbtnF.getBoundingClientRect().width || 38);
+    hbtnF.style.top = top + 'px';
+    hbtnF.style.right = filaRight + 'px';
+    filaRight += w + 6;
+  }
   // La barra de llamada va en la misma fila, a la izquierda de todo lo anterior
   if (call) {
     call.style.top = top + 'px'; call.style.bottom = 'auto';
@@ -1970,6 +1981,11 @@ function layoutDesktopAudio() {
   }
   panel.style.top = cursorY + 'px'; panel.style.right = '12px'; panel.style.left = 'auto';
   if (!panel.classList.contains('hidden')) cursorY += (panel.getBoundingClientRect().height || 0) + 8;
+  const hpanF = document.getElementById('histPanel');
+  if (hpanF) {
+    hpanF.style.top = cursorY + 'px'; hpanF.style.right = '12px'; hpanF.style.left = 'auto';
+    if (!hpanF.classList.contains('hidden')) cursorY += (hpanF.getBoundingClientRect().height || 0) + 8;
+  }
   // La tira de cámaras arranca donde termina lo anterior. Las alturas van por
   // estilo inline: exactamente un tercio del alto libre para cada tarjeta, y
   // si no entran (ventana muy baja) la tira scrollea.
@@ -2106,11 +2122,17 @@ function openRelay(host) {
     busSockets.push(alive);
     ws.send(JSON.stringify(['REQ', busSub, { kinds: [20001], '#o': [BUS_ROOM], since: Math.floor(Date.now() / 1000) - 60 }]));
     if (state.joined) sendMoveNow();
+    if (histClave) histPublicar();
+    if (histPanelAbierto()) histPedir();
   };
   ws.onmessage = (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     if (m[0] !== 'EVENT' || !m[2]) return;
     const e = m[2];
+    // El historial viaja por la misma conexión pero es otra cosa: se desvía
+    // antes de todo lo demás (si no, handleMsg intentaría leerlo como si fuera
+    // un movimiento o un mensaje de chat).
+    if (m[1] === histSub || e.kind === HIST_KIND) { histRecibir(e); return; }
     if (e.pubkey === myPub || seenEvents.has(e.id)) return;
     seenEvents.add(e.id); if (seenEvents.size > 800) seenEvents.clear();
     alive.rx++; busRecv++;
@@ -2160,7 +2182,10 @@ window.addEventListener('error', (e) => {
   globalErrShown = true;
   toast('⚠️ Error JS: ' + String(e.message || '').slice(0, 70));
 });
-window.addEventListener('pagehide', () => { if (state.joined) send({ type: 'bye', id: state.myId, name: state.myName }); });
+window.addEventListener('pagehide', () => {
+  if (state.joined) send({ type: 'bye', id: state.myId, name: state.myName });
+  histTerminarSesion();
+});
 // latido independiente de la animación: con la pestaña en segundo plano el navegador
 // congela los cuadros, pero este intervalo sigue avisando "sigo acá" cada 4 s
 setInterval(() => { if (state.joined) sendMoveNow(); }, 4000);
@@ -3180,6 +3205,258 @@ function notifCerrarConEsc(e) {
   if (e.key === 'Escape' && notifPanelAbierto()) notifCerrarPanel();
 }
 
+// ---------- Historial de la oficina: quién entró y cuánto se quedó ----------
+// Hace falta un lugar donde el dato SOBREVIVA, y el bus P2P no sirve: usa el
+// kind 20001, que es efímero (los relays no lo archivan) y encima la
+// suscripción sólo pide los últimos 60 segundos. Así que el historial va por
+// un carril aparte:
+//   · cada uno lleva su propia bitácora en localStorage, que es la fuente de
+//     verdad de SUS sesiones (nadie escribe las del otro: no hay forma de
+//     contar dos veces lo mismo ni de que dos versiones se peleen);
+//   · y la publica como kind 30078, que los relays SI guardan — uno por
+//     persona, y cada publicación reemplaza a la anterior.
+// Al abrir el panel se piden las cinco bitácoras y se juntan. No hace falta
+// servidor, que es la condición: el sitio vive en GitHub Pages.
+const HIST_KEY = 'ovHistorial';
+const HIST_KIND = 30078;            // "addressable": se guarda y se reemplaza
+const HIST_TAG = 'oficina-somospopups-historial-v1';
+const HIST_MAX = 200;               // sesiones guardadas por persona
+const HIST_DIAS = 90;               // y hasta cuántos días para atrás
+const HIST_LATIDO = 30000;          // cada cuánto se marca "sigo acá"
+const HIST_PEGAR = 300000;          // hasta 5 min de corte: sigue siendo la misma visita
+const HIST_MINIMO = 60000;          // menos de 1 min no cuenta como visita
+// Clave pública de cada uno, derivada de su DNI de forma determinística. Se
+// calculan una sola vez y quedan escritas acá para no hacer cinco
+// multiplicaciones de curva en cada carga de la página. Si entra alguien nuevo
+// al ROSTER hay que agregarlo también acá: tools/checlear-boton-e.js avisa.
+const HIST_PUB = {
+  ger:  '6a94f3851c1f0eeaec51df5b30bcc0883082ff6b764680973626e36a632e8f1b',
+  facu: '2328b4f52f763c95e0bbf486be0cb3c192d27af79aac2b1729345a9e63d7e6d8',
+  ovni: '678f273f605aeb806fd3e0a8ed31c7fd289781a4cb971f43b024dc7a7610b8c2',
+  milo: '2e12758c7bda259edb0ccd7f390d21af218cfb652648b5ccc78458a2ada903b7',
+  ove:  '0c94de18c9477fff197637812f9bb5edc21cd41aee4abe8336025170c6a84d6e',
+};
+const histSub = 'h' + Math.random().toString(36).slice(2, 8);
+let histLocal = null;                  // { v, s: [{ i, f, u }] }  ms
+const histRemoto = new Map();          // char -> { ses, ts }
+let histClave = null, histTimer = 0, histUltimaPub = 0, histActiva = false;
+const histAbiertos = new Set();        // filas desplegadas en el panel
+
+function histCargar() {
+  if (histLocal) return histLocal;
+  try { histLocal = JSON.parse(localStorage.getItem(HIST_KEY) || 'null'); } catch { histLocal = null; }
+  if (!histLocal || !Array.isArray(histLocal.s)) histLocal = { v: 1, s: [] };
+  return histLocal;
+}
+function histGuardar() {
+  const h = histCargar();
+  const corte = Date.now() - HIST_DIAS * 86400000;
+  h.s = h.s.filter((x) => x && x.i > corte).slice(-HIST_MAX);
+  try { localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch { /* incógnito */ }
+}
+// La identidad para el historial NO es la del bus: esa se sortea en cada carga
+// (makeBusKeys) y entonces no habría a quién atribuirle una sesión. Esta sale
+// del DNI, así que es siempre la misma persona aunque cambie de dispositivo.
+async function histClaveDe(dni) {
+  const h = await bSha(new TextEncoder().encode('ov-hist-v1:' + dni));
+  let d = bMod(b2i(h), B_N); if (d === 0n) d = 1n;
+  const P = bMul(d);
+  return { pub: bHex(bI2b32(P.x)), d, even: P.y % 2n === 0n };
+}
+async function histIniciar(dni) {
+  try { histClave = await histClaveDe(dni); } catch { return; }
+  histEmpezarSesion();
+}
+// Si el navegador se cerró de golpe (o se fue la luz), la sesión anterior
+// quedó abierta. No se descarta ni se deja viva para siempre: se cierra con el
+// último latido, que es lo último que de verdad se supo de esa persona.
+function histEmpezarSesion() {
+  if (histActiva) return;
+  const h = histCargar();
+  for (const s of h.s) if (s.f == null) s.f = s.u || s.i;
+  const ahora = Date.now();
+  // Recargar la página, perder el wifi un minuto o cerrar y volver a abrir no
+  // son "otra visita": si la anterior terminó recién, se retoma esa misma
+  // sesión en lugar de partir la jornada en pedacitos (si no, la "última vez"
+  // de alguien que refrescó termina siendo un pestañeo de 10 segundos).
+  const prev = h.s[h.s.length - 1];
+  if (prev && prev.f != null && ahora - prev.f < HIST_PEGAR) { prev.f = null; prev.u = ahora; }
+  else h.s.push({ i: ahora, f: null, u: ahora });
+  histActiva = true;
+  histGuardar();
+  histPublicar();
+  clearInterval(histTimer);
+  histTimer = setInterval(histLatir, HIST_LATIDO);
+}
+function histLatir() {
+  const h = histCargar();
+  const ult = h.s[h.s.length - 1];
+  if (!ult || ult.f != null) return;
+  ult.u = Date.now();
+  histGuardar();
+  if (Date.now() - histUltimaPub > 120000) histPublicar();
+  histRender();
+}
+function histTerminarSesion() {
+  const h = histCargar();
+  const ult = h.s[h.s.length - 1];
+  if (ult && ult.f == null) {
+    ult.f = Date.now();
+    // Pasar menos de un minuto no es haber estado en la oficina: casi siempre
+    // es una recarga o un clic sin querer. Se descarta para no ensuciar.
+    if (ult.f - ult.i < HIST_MINIMO) h.s.pop();
+    histGuardar(); histPublicar();
+  }
+  histActiva = false;
+  clearInterval(histTimer); histTimer = 0;
+}
+// Formato compacto para que el evento quede chico: [arranque en segundos,
+// cuánto duró en segundos]; -1 quiere decir "todavía adentro".
+async function histPublicar() {
+  if (!histClave || !busSockets.length) return;
+  histUltimaPub = Date.now();
+  const h = histCargar();
+  const s = h.s.map((x) => [Math.floor(x.i / 1000), x.f == null ? -1 : Math.max(0, Math.round((x.f - x.i) / 1000))]);
+  const content = JSON.stringify({ v: 1, c: state.myChar, s });
+  const created = Math.floor(Date.now() / 1000);
+  const tags = [['d', HIST_TAG]];
+  try {
+    const id = await busEventId(histClave.pub, created, HIST_KIND, tags, content);
+    const sig = await busSign(id, histClave);
+    const evt = JSON.stringify(['EVENT', { id, pubkey: histClave.pub, created_at: created, kind: HIST_KIND, tags, content, sig }]);
+    for (const so of busSockets) { try { if (so.ws.readyState === 1) so.ws.send(evt); } catch { /* relay caído */ } }
+  } catch { /* el historial nunca puede romper la oficina */ }
+}
+function histPedir() {
+  const req = JSON.stringify(['REQ', histSub, { kinds: [HIST_KIND], authors: Object.values(HIST_PUB), '#d': [HIST_TAG] }]);
+  for (const so of busSockets) { try { if (so.ws.readyState === 1) so.ws.send(req); } catch { /* relay caído */ } }
+}
+function histRecibir(e) {
+  if (!e || e.kind !== HIST_KIND) return;
+  const char = Object.keys(HIST_PUB).find((c) => HIST_PUB[c] === e.pubkey);
+  if (!char) return;
+  let c; try { c = JSON.parse(e.content); } catch { return; }
+  if (!c || !Array.isArray(c.s)) return;
+  const prev = histRemoto.get(char);
+  if (prev && prev.ts >= e.created_at) return;   // me llegó una copia más vieja
+  histRemoto.set(char, {
+    ses: c.s.map(([i, d]) => ({ ini: i * 1000, fin: d < 0 ? null : (i + d) * 1000 })),
+    ts: e.created_at * 1000,
+  });
+  histRender();
+}
+// Lo propio sale de localStorage, que siempre está más fresco que el relay.
+function histDatos(char) {
+  if (char === state.myChar && histCargar().s.length) {
+    return { ses: histCargar().s.map((x) => ({ ini: x.i, fin: x.f })), ts: Date.now() };
+  }
+  return histRemoto.get(char) || null;
+}
+function histDur(ms) {
+  const m = Math.max(0, Math.round(ms / 60000));
+  if (m < 60) return m + ' min';
+  return Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0');
+}
+function histHora(ms) {
+  const d = new Date(ms);
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+// El día sólo se nombra cuando NO es hoy: repetir "hoy" en cada renglón comía
+// el ancho del riel y empujaba todo a tres líneas.
+function histDia(ms) {
+  const d = new Date(ms), hoy = new Date(), ayer = new Date(Date.now() - 86400000);
+  if (d.toDateString() === hoy.toDateString()) return '';
+  if (d.toDateString() === ayer.toDateString()) return 'ayer ';
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} `;
+}
+function histMedianoche() { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }
+function histLunes() { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() - ((d.getDay() + 6) % 7) * 86400000; }
+// Suma sólo la parte de cada sesión que cae DESPUES del corte: una jornada que
+// arrancó ayer a las 23 y terminó hoy a la 1 aporta una hora a cada día, no dos
+// a uno solo.
+function histTotal(ses, desde) {
+  let t = 0;
+  for (const s of ses) t += Math.max(0, s.efe - Math.max(s.ini, desde));
+  return t;
+}
+function histEstaAdentro(char) {
+  return [...state.players.values()].some((p) => p.char === char
+    && (p.id === state.myId || (p.seen && performance.now() - p.seen < 9000)));
+}
+function histPanelAbierto() {
+  const p = document.getElementById('histPanel');
+  return !!(p && !p.classList.contains('hidden'));
+}
+function histRender() {
+  const el = document.getElementById('histPanel');
+  if (!el || el.classList.contains('hidden')) return;
+  const filas = ROSTER.map((r) => {
+    const dot = (CHAR_DEF[r.char] || CHAR_DEF.ger).dot;
+    const d = histDatos(r.char);
+    const cab = `<span class="dot" style="background:${dot}"></span>${esc(r.name)}`;
+    if (!d || !d.ses.length) {
+      return `<div class="hx-row"><div class="hx-nom">${cab}</div><div class="hx-sin">todavía sin registro</div></div>`;
+    }
+    const adentro = histEstaAdentro(r.char);
+    // Una sesión sin hora de fin puede ser "está adentro ahora mismo" o
+    // "se le cayó el navegador y nunca cerró". En el segundo caso lo último
+    // confiable es su última publicación (d.ts), no el reloj de ahora.
+    const ses = d.ses.slice().sort((a, b) => a.ini - b.ini)
+      .map((s) => ({ ini: s.ini, fin: s.fin, efe: s.fin != null ? s.fin : (adentro ? Date.now() : Math.max(s.ini, d.ts)) }));
+    const ult = ses[ses.length - 1];
+    let linea;
+    if (ult.fin == null && adentro) {
+      linea = `<span class="hx-on">🟢 adentro</span> · desde ${histDia(ult.ini)}${histHora(ult.ini)} · <b>${histDur(Date.now() - ult.ini)}</b>`;
+    } else if (ult.fin == null) {
+      // Quedó abierta pero la persona no está: se cerró mal (se le cayó el
+      // navegador). Lo último confiable es cuando publicó por última vez.
+      linea = `${histDia(ult.ini)}${histHora(ult.ini)} · <b>~${histDur(ult.efe - ult.ini)}</b> <span class="hx-aprox">(se cortó)</span>`;
+    } else {
+      linea = `${histDia(ult.ini)}${histHora(ult.ini)}→${histHora(ult.fin)} · <b>${histDur(ult.fin - ult.ini)}</b>`;
+    }
+    const hoy = histTotal(ses, histMedianoche()), sem = histTotal(ses, histLunes());
+    const totTxt = `hoy <b>${histDur(hoy)}</b> · semana <b>${histDur(sem)}</b>`;
+    const abierto = histAbiertos.has(r.char);
+    const ultimas = ses.slice(-8).reverse().map((s) =>
+      `<div class="hx-ses">${histDia(s.ini)}${histHora(s.ini)}→${s.fin == null && adentro ? 'sigue' : histHora(s.efe)} <span class="hx-g">${histDur(s.efe - s.ini)}</span></div>`
+    ).join('');
+    return `<div class="hx-row${adentro ? ' on' : ''}" data-char="${r.char}">` +
+      `<div class="hx-nom">${cab}<span class="hx-flecha">${abierto ? '▾' : '▸'}</span></div>` +
+      `<div class="hx-det">${linea}</div>` +
+      `<div class="hx-tot">${totTxt}</div>` +
+      (abierto ? `<div class="hx-lista">${ultimas}</div>` : '') +
+      `</div>`;
+  }).join('');
+  el.innerHTML = '<div class="hx-title">🕘 HISTORIAL</div>' + filas +
+    '<div class="hx-nota">Tocá un nombre para ver sus últimas entradas. Cada uno ' +
+    'guarda sus sesiones y las comparte; no figura quien nunca abrió la oficina.</div>';
+}
+function histToggle() {
+  const p = document.getElementById('histPanel');
+  if (!p) return;
+  if (histPanelAbierto()) { p.classList.add('hidden'); return; }
+  p.classList.remove('hidden');
+  histPedir();
+  histRender();
+  layoutDesktopAudio();
+}
+function histCerrarPanel() {
+  const p = document.getElementById('histPanel');
+  if (p && !p.classList.contains('hidden')) { p.classList.add('hidden'); layoutDesktopAudio(); }
+}
+// Igual que el panel de notificaciones: el botón queda afuera de esta regla
+// porque él abre y cierra con su propio click (si no, un toque haría las dos
+// cosas en el mismo gesto).
+function histCerrarSiFuera(e) {
+  if (!histPanelAbierto()) return;
+  const p = document.getElementById('histPanel');
+  const b = document.getElementById('histBtn');
+  const t = e.target;
+  if (!t || (p && p.contains(t)) || (b && b.contains(t))) return;
+  histCerrarPanel();
+}
+function histCerrarConEsc(e) { if (e.key === 'Escape' && histPanelAbierto()) histCerrarPanel(); }
+
 // ---------- Adjuntos: imágenes y audios de voz ----------
 let pendingAtt = null, mediaRec = null, recChunks = [];
 function takeAtt() { const a = pendingAtt; pendingAtt = null; updateAttChip(); return a; }
@@ -3580,6 +3857,7 @@ async function join() {
   state.spectating = false; document.body.classList.remove('spectator-mode');
   spectatorWhisperBacklog.length = 0;
   state.myChar = entry.char; state.myName = entry.name; state.joined = true; state.joinTs = state.joinTs || Date.now();
+  histIniciar(dni);   // arranca a contar esta sesión (y cierra la anterior si quedó colgada)
   if (USE_P2P) state.myId = entry.char;
   const seat = seatFor(entry);
   const pie = seat ? null : puntoDePie();   // oficina llena: se entra parado
@@ -4661,6 +4939,17 @@ function init() {
   const nbtn = document.getElementById('notifBtn'); if (nbtn) nbtn.onclick = notifToggle;
   document.addEventListener('pointerdown', notifCerrarSiFuera);
   document.addEventListener('keydown', notifCerrarConEsc);
+  const hbtn = document.getElementById('histBtn'); if (hbtn) hbtn.onclick = histToggle;
+  document.addEventListener('pointerdown', histCerrarSiFuera);
+  document.addEventListener('keydown', histCerrarConEsc);
+  const hpan = document.getElementById('histPanel');
+  if (hpan) hpan.addEventListener('click', (ev) => {
+    const fila = ev.target && ev.target.closest && ev.target.closest('.hx-row');
+    if (!fila || !fila.dataset.char) return;
+    const c = fila.dataset.char;
+    if (histAbiertos.has(c)) histAbiertos.delete(c); else histAbiertos.add(c);
+    histRender(); layoutDesktopAudio();
+  });
   notifRenderBtn();
   const bp1 = document.getElementById('mpPlay'); if (bp1) bp1.onclick = mpPlay;
   const bp2 = document.getElementById('mpPause'); if (bp2) bp2.onclick = mpPause;

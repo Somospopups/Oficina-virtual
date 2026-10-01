@@ -89,6 +89,41 @@ escribir — el padding lateral de `#chatAux` acompaña al de `#chatRow`.
 
 `node tools/checlear-boton-e.js` verifica todo esto.
 
+## 🕘 El historial NO puede viajar por el bus
+
+El bus P2P usa el **kind 20001**, que es **efímero**: los relays no lo archivan
+y encima la suscripción sólo pide los últimos 60 segundos. Sirve para el
+tiempo real y para nada más. Si alguna vez hay que guardar algo que sobreviva,
+no se cuelga del bus.
+
+El historial de asistencia resuelve eso así, y conviene repetir el patrón:
+
+- **Cada uno es dueño de sus propias sesiones.** Las guarda en `localStorage`
+  (`ovHistorial`) y nadie escribe las del otro: no hay forma de contar dos
+  veces lo mismo ni de que dos versiones se peleen.
+- **Se comparten como kind 30078**, que los relays sí guardan: uno por persona,
+  y cada publicación reemplaza a la anterior. Sin servidor, que es la
+  condición porque el sitio vive en GitHub Pages.
+- **La identidad sale del DNI**, no del bus: `makeBusKeys()` sortea una clave
+  nueva en cada carga y así no habría a quién atribuirle una sesión. Las claves
+  públicas están escritas en `HIST_PUB` para no hacer cinco multiplicaciones de
+  curva en cada arranque. **Si entra alguien nuevo al ROSTER hay que agregarlo
+  ahí también** (el checker avisa si falta).
+
+Tres reglas que ya costaron un bug cada una:
+
+1. **Recargar la página no es una visita nueva.** Si la sesión anterior terminó
+   hace menos de 5 minutos se retoma esa misma (`HIST_PEGAR`), y una visita de
+   menos de un minuto se descarta (`HIST_MINIMO`). Si no, la "última vez" de
+   alguien que refrescó termina siendo un pestañeo de 10 segundos.
+2. **Una sesión sin cierre no sigue corriendo para siempre.** Cuando a alguien
+   se le cae el navegador, la sesión queda abierta: se corta en su último
+   latido. El fin "efectivo" (`efe`) se calcula una sola vez y lo usan por
+   igual la línea de pantalla y los totales — si se separan, una desconexión le
+   regala horas a la persona.
+3. **El panel vive en el riel**, con `calc(var(--desktop-rail-width) - 24px)`
+   como el chat y la lista. Un ancho fijo se mete adentro de la oficina.
+
 ## 🧊 El `index.html` es el único que puede llegar viejo
 
 `style.css` y `game.js` se piden con `?t=` y cada dibujo con el hash de su
