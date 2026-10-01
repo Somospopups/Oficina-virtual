@@ -42,6 +42,35 @@ respuesta es no.
   derecha a izquierda: cada botón apoya su borde derecho a 6px del anterior.
   Los botones nuevos se stackean ahí, no se posicionan a mano.
 
+## 🪑 Escritorios: nadie se sienta arriba de otro
+
+La oficina tiene **4 puestos** y el equipo es más grande. El reparto al entrar
+lo hace `seatFor()` y el orden es siempre este:
+
+1. El puesto propio (`seat` del `ROSTER`), si está libre.
+2. Cualquier otro que esté libre.
+3. **Ninguno: se entra DE PIE** en la entrada del pasillo (`puntoDePie()`), y se
+   le avisa por chat que espere a que se libere uno y toque `E`.
+
+Un puesto cuenta como ocupado **solo** si hay alguien **sentado** ahí y **sigue
+conectado** (`seatOwner()` + `presente()`, ventana de `PRESENCIA_MS`). Dos
+corolarios que ya costaron bugs:
+
+- El que pasa **caminando** por delante de un escritorio no lo reserva.
+- El que se desconecta de golpe **no deja la silla trabada**: a los 10s sin
+  señal su puesto vuelve a estar disponible.
+
+Si tocás esto, corré `node tools/chequear-sillas.js` — saca las funciones de
+`game.js` y las prueba con compañeros de mentira, así el chequeo no se despega
+del juego.
+
+## 🪪 El ROSTER está en DOS lados
+
+`game.js` y `server.js` tienen cada uno su `ROSTER` y **tienen que coincidir**.
+En GitHub Pages (P2P) el DNI se valida contra `game.js`; en Render o en el
+servidor local, contra `server.js`. Si sumás a alguien en uno solo, entra en un
+modo y le rebota el DNI en el otro.
+
 ## 🔢 Versionado y publicación
 
 - Cada cambio sube el número de `VERSION` en `game.js` (v118, v119…) con la
@@ -55,6 +84,7 @@ respuesta es no.
 ## ✅ Antes de commitear
 
 1. `node --check game.js` (y `server.js` si lo tocaste).
+1. `node tools/checlear-boton-e.js` y `node tools/chequear-sillas.js`.
 2. Revisar en pantalla panorámica (modo `desktop-rails`, canvas > 900) que
    nada pise la oficina ni descuadre los rieles.
 3. Revisar en móvil que la oficina siga libre (los controles van en sus

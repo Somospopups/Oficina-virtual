@@ -25,6 +25,10 @@ const SEATS = [
 
 const SPEED = 320;
 const SEND_MS = 140;
+// Cuánto vale la última señal de vida de un compañero. El que está sentado
+// avisa una vez por segundo, así que 10s es de sobra: pasado ese rato lo damos
+// por ido y su silla vuelve a estar disponible.
+const PRESENCIA_MS = 10000;
 
 const STATUS_INFO = {
   codeando:   { emoji: '💻', label: 'Codeando' },
@@ -1820,7 +1824,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v122 · 01/10/2026';
+const VERSION = 'v123 · 01/10/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2526,7 +2530,12 @@ function buildStatusBar() {
   statusBar.appendChild(z);
 }
 function setStatus(k, silent) {
-  if (k === myStatus) k = 'disponible'; // tocar el estado activo te devuelve a disponible
+  // Tocar el estado que ya está activo te devuelve a 🟢 disponible. OJO: eso
+  // vale solo cuando lo pide la persona (botón, tecla 1-3 o menú del celu). Las
+  // llamadas del sistema van con silent y NO deben alternar: al entrar sentado
+  // se pedía 'codeando' dos veces (una en join y otra en el primer update) y la
+  // segunda lo apagaba, así que todos figuraban "Disponible" sentados.
+  if (k === myStatus && !silent) k = 'disponible';
   myStatus = k; send({ type: 'status', id: state.myId, status: k });
   const me = state.players.get(state.myId); if (me) me.status = k;
   document.querySelectorAll('.status-btn').forEach((b) => b.classList.toggle('active', b.dataset.status === k));
@@ -3337,11 +3346,37 @@ function sentarseE() {
   sendMoveNow();
   return true;
 }
+// Un puesto está ocupado solo si hay alguien SENTADO ahí y además sigue vivo.
+// Antes bastaba con estar cerca: el que pasaba caminando frente a un escritorio
+// lo "reservaba" sin querer. Y un compañero fantasma (se le cortó la luz, cerró
+// la pestaña de golpe) podía dejar la silla trabada hasta 75s.
+function presente(p) { return !p.seen || performance.now() - p.seen < PRESENCIA_MS; }
 function seatOwner(s, exceptId) {
   for (const p of state.players.values()) {
-    if (p.id !== exceptId && p.seated && Math.hypot(p.x - s.x, p.y - s.y) < 50) return p;
+    if (p.id !== exceptId && p.seated && presente(p) && Math.hypot(p.x - s.x, p.y - s.y) < 50) return p;
   }
   return null;
+}
+// Dónde pararse al entrar cuando no quedan puestos: en la entrada del pasillo,
+// corriéndose al costado si ya hay alguien justo ahí (que no se amontonen).
+function puntoDePie() {
+  const bx = VW / 2, by = 820;
+  const libre = (x, y) => {
+    if (!walkable(x, y)) return false;
+    for (const p of state.players.values()) {
+      if (p.id === state.myId || !presente(p)) continue;
+      if (Math.hypot(p.x - x, p.y - y) < 70) return false;
+    }
+    return true;
+  };
+  if (libre(bx, by)) return { x: bx, y: by };
+  for (let i = 1; i <= 6; i++) {
+    for (const lado of [-1, 1]) {
+      const x = bx + lado * i * 75;
+      if (libre(x, by)) return { x, y: by };
+    }
+  }
+  return { x: bx, y: by };
 }
 function resolveSeatConflict() {
   const me = state.players.get(state.myId);
@@ -3351,22 +3386,27 @@ function resolveSeatConflict() {
   for (const p of state.players.values()) {
     if (p.id === state.myId || !p.seated) continue;
     if (Math.hypot(p.x - myS.x, p.y - myS.y) < 50 && (p.joinTs || 0) && (state.joinTs || 0) && p.joinTs < state.joinTs) {
-      me.seated = false;
-      me.x = myS.x + (myS.x < VW / 2 ? 90 : -90);
-      me.y = myS.y + 40;
-      toast(`😅 ${p.name} llegó antes a ese puesto`);
+      // El puesto ya era suyo (entró antes). Si queda algún escritorio libre me
+      // corro ahí; si están todos ocupados me quedo DE PIE al lado, nunca
+      // encimado.
+      const otro = seatFor(null);
+      if (otro) {
+        me.x = otro.x; me.y = otro.y; me.dir = otro.face; me.seated = true;
+        toast(`😅 ${p.name} llegó antes: te corriste al puesto de al lado`);
+      } else {
+        me.seated = false;
+        let nx = myS.x + (myS.x < VW / 2 ? 90 : -90);
+        let ny = clamp(myS.y + 40, FLOOR.yTop + 12, FLOOR.yBot - 8);
+        if (!walkable(nx, ny)) { nx = myS.x; ny = clamp(myS.y + 70, FLOOR.yTop + 12, FLOOR.yBot - 8); }
+        if (!walkable(nx, ny)) { const d = puntoDePie(); nx = d.x; ny = d.y; }
+        me.x = nx; me.y = ny;
+        toast(`😅 ${p.name} llegó antes y no quedan puestos: quedás de pie`);
+      }
+      me.tx = me.x; me.ty = me.y; me.moving = false;
       sendMoveNow();
       return;
     }
   }
-}
-function freeSeat() {
-  for (const s of SEATS) {
-    let taken = false;
-    for (const p of state.players.values()) if (Math.hypot(p.x - s.x, p.y - s.y) < 80) { taken = true; break; }
-    if (!taken) return s;
-  }
-  return null;
 }
 function nearAnySeat(x, y) { return SEATS.some((s) => Math.hypot(s.x - x, s.y - y) < 55); }
 window.addEventListener('keydown', (e) => {
@@ -3455,11 +3495,14 @@ function dniError(msg) {
   e.textContent = msg || '';
   e.classList.toggle('show', !!msg);
 }
+// Primero el puesto propio; si lo agarraron, cualquiera que esté libre; y si
+// están los cuatro ocupados devuelve null => se entra DE PIE (nunca sentado
+// arriba de otro). Usa el mismo criterio que seatOwner: cuenta solo a los que
+// están realmente sentados y siguen conectados.
 function seatFor(entry) {
-  const pref = SEATS[entry.seat];
-  const taken = (s) => { for (const p of state.players.values()) if (p.id !== state.myId && Math.hypot(p.x - s.x, p.y - s.y) < 80) return true; return false; };
-  if (pref && !taken(pref)) return pref;
-  for (const s of SEATS) if (!taken(s)) return s;
+  const pref = SEATS[entry && entry.seat != null ? entry.seat : -1];
+  if (pref && !seatOwner(pref, state.myId)) return pref;
+  for (const s of SEATS) if (!seatOwner(s, state.myId)) return s;
   return null;
 }
 async function join() {
@@ -3513,7 +3556,8 @@ async function join() {
   state.myChar = entry.char; state.myName = entry.name; state.joined = true; state.joinTs = state.joinTs || Date.now();
   if (USE_P2P) state.myId = entry.char;
   const seat = seatFor(entry);
-  const sx = seat ? seat.x : VW / 2, sy = seat ? seat.y : 820;
+  const pie = seat ? null : puntoDePie();   // oficina llena: se entra parado
+  const sx = seat ? seat.x : pie.x, sy = seat ? seat.y : pie.y;
   const me = {
     id: state.myId || 'me', name: entry.name, char: entry.char, color: 0,
     x: sx, y: sy, tx: sx, ty: sy,
@@ -3527,6 +3571,10 @@ async function join() {
   send({ type: 'profile', id: state.myId, name: entry.name, char: entry.char, dni });
   sendMoveNow();
   if (seat) { setStatus('codeando', true); addChat(null, 'Te sentaste en tu puesto 💻 — WASD para levantarte', 'system'); }
+  else {
+    addChat(null, '🪑 Los cuatro escritorios están ocupados: entrás de pie. Cuando alguno se libere, acercate y tocá E para sentarte', 'system');
+    toast('🪑 No quedan puestos: entrás de pie');
+  }
   addChat(null, `¡Bienvenido/a a la oficina, ${entry.name}! Presioná H para la ayuda.`, 'system');
   try {
     if (!localStorage.getItem('ovNotifBienvenida')) {
