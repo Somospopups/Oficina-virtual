@@ -121,8 +121,17 @@ Tres reglas que ya costaron un bug cada una:
    latido. El fin "efectivo" (`efe`) se calcula una sola vez y lo usan por
    igual la línea de pantalla y los totales — si se separan, una desconexión le
    regala horas a la persona.
-3. **El panel vive en el riel**, con `calc(var(--desktop-rail-width) - 24px)`
-   como el chat y la lista. Un ancho fijo se mete adentro de la oficina.
+3. **El historial está oculto y no tiene panel propio.** Aparece al tocar el
+   nombre de alguien en 👥 En la oficina, y se cierra con Esc o tocando afuera.
+   Dos detalles que no son opcionales: el toque se escucha con **`pointerdown`**
+   (la lista se redibuja con cada mensaje de la red, así que entre el apretar y
+   el soltar la fila puede ser reemplazada y el `click` nunca llega), y el
+   cierre por "tocaste afuera" va en **fase de captura** (si corriera después,
+   el redibujo ya dejó huérfano al elemento tocado, `contains()` da false y
+   cerraría justo lo que acabás de abrir).
+4. **Sólo se puede mirar a quien está en la oficina**, porque la lista muestra
+   a los presentes. El historial de alguien que no está se sigue guardando y
+   compartiendo; simplemente no hay dónde tocarlo.
 
 ## 🧊 El `index.html` es el único que puede llegar viejo
 

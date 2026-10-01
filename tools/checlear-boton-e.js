@@ -228,17 +228,22 @@ ok(abajo > 0, `el clip y el emoji tienen aire antes de la linea (padding-bottom:
      'todos los del ROSTER tienen su clave en HIST_PUB',
      faltan.length ? `les falta a: ${faltan.join(', ')}` : '');
 }
-ok(/id="histBtn"/.test(html) && /id="histPanel"/.test(html),
-   'el boton y el panel del historial estan en el index');
-ok(/#micCallBtn,[^{]*#histBtn\s*\{[^}]*width: 38px; height: 38px/.test(css),
-   'el boton del historial usa el tamano unico del riel (38x38)',
-   'si no, queda desparejo con los demas');
+// El historial esta OCULTO: no tiene boton ni panel propio, aparece al tocar
+// el nombre de alguien en la lista de companeros.
+ok(!/histBtn|histPanel/.test(html) && !/histBtn|histPanel/.test(css) && !/histBtn|histPanel/.test(js),
+   'el historial no tiene boton ni panel propio (va oculto en la lista)');
+ok(/histDetalle\(p\.char\)/.test(js) && /histAbiertos\.has\(p\.char\)/.test(js),
+   'el detalle solo se dibuja en la fila que esta desplegada');
+ok(/playerListBox\.addEventListener\('pointerdown'/.test(js) && /histAlternarFila/.test(js),
+   'tocar un nombre de la lista abre y cierra su historial',
+   'tiene que ser pointerdown: la lista se redibuja y un click se perderia');
+ok(/\.pl-hist\s*\{/.test(css) && /flex: 0 0 100%/.test(css),
+   'el detalle ocupa el ancho de la fila y queda adentro del riel');
 ok(/histCerrarConEsc/.test(js) && /histCerrarSiFuera/.test(js)
    && /addEventListener\('keydown', histCerrarConEsc\)/.test(js)
-   && /addEventListener\('pointerdown', histCerrarSiFuera\)/.test(js),
-   'el panel del historial se cierra con Esc y tocando afuera');
-ok(/body\.desktop-rails #histPanel \{[^}]*var\(--desktop-rail-width\)/.test(css),
-   'en panoramica el panel toma el ancho del riel y no invade la oficina');
+   && /addEventListener\('pointerdown', histCerrarSiFuera, true\)/.test(js),
+   'el historial se cierra con Esc y tocando afuera',
+   'el de afuera va en captura: si no, el redibujo de la lista cierra lo recien abierto');
 // Los totales y la linea de "ultima vez" tienen que salir del MISMO fin de
 // sesion: si no, una desconexion le regala horas a la persona.
 ok(/t \+= Math\.max\(0, s\.efe/.test(js) && /efe: s\.fin != null/.test(js),
