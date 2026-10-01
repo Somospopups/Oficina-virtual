@@ -1826,7 +1826,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v150 · 01/10/2026';
+const VERSION = 'v151 · 01/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -1893,7 +1893,7 @@ function myPublic() {
   if (!me) return null;
   return {
     id: me.id, name: me.name, char: me.char, color: me.color, x: me.x, y: me.y, dir: me.dir,
-    moving: me.moving, seated: me.seated, status: me.status, joinTs: state.joinTs || 0,
+    moving: me.moving, seated: me.seated, status: me.status, fightMode: !!me.fightMode, joinTs: state.joinTs || 0,
     bubble: me.bubble, bubbleUntil: me.bubbleUntil, emote: me.emote, emoteUntil: me.emoteUntil,
   };
 }
@@ -2351,7 +2351,8 @@ function handleMsg(msg) {
     case 'cat-pet': catAplicarMimo(msg.id); break;
     case 'cafe': cafeAplicar(msg.id); break;
     case 'anim': animAplicar(msg.id, msg.anim); break;
-    case 'fight': fightAplicar(msg.id); break;
+    case 'fight-mode': fightModoAplicar(msg.id, msg.active); break;
+    case 'fight-hit': fightGolpeAplicar(msg.id, msg.hit); break;
     case 'nudge': {
       if (dedupe(msg)) break;
       localZumb(msg.from || 'Alguien', false, msg.id);
@@ -2385,7 +2386,7 @@ function upsertRemote(p, snap) {
   cur.seen = performance.now();
   cur.joinTs = p.joinTs || cur.joinTs;
   cur.name = p.name; cur.char = p.char || cur.char; cur.color = p.color; cur.dir = p.dir;
-  cur.moving = p.moving; cur.status = p.status; cur.seated = !!p.seated;
+  cur.moving = p.moving; cur.status = p.status; cur.seated = !!p.seated; cur.fightMode = !!p.fightMode;
   cur.tx = p.x; cur.ty = p.y;
   if (snap || p.seated) { cur.x = p.x; cur.y = p.y; }
   if (p.bubble && cur.bubble !== p.bubble) { cur.bubble = p.bubble; cur.bubbleUntil = performance.now() + 5000; }
@@ -4435,7 +4436,12 @@ function cafeCerca() {
 function accionE() {
   if (!state.joined) return;
   if (cafeCerca()) { cafeTomar(); return; }
-  if (!sentarseE()) catMimar();
+  // Sentarse conserva prioridad: aun en modo pelea, al acercarse a cualquier PC
+  // la E usa la silla. Lejos de un escritorio, la misma E tira el golpe siguiente.
+  if (sentarseE()) return;
+  const me = state.players.get(state.myId);
+  if (me && me.fightMode && !me.seated) { fightGolpePedir(); return; }
+  catMimar();
 }
 function cafeTomar() {
   if (!state.joined || !cafeCerca()) return;
@@ -4717,24 +4723,46 @@ function normalizarCaminata(k, alto) {
 }
 
 const FIGHT_FRAME_MS = 180;
-const FIGHT_MS = FIGHT_FRAME_MS * 6;
-function fightAplicar(id) {
+const FIGHT_HIT_MS = 360;
+function fightModoAplicar(id, activo) {
   const p = state.players.get(id);
-  if (!p || p.char !== 'ger' || p.seated) return;
-  p.fightIni = performance.now();
+  if (!p || p.char !== 'ger') return;
+  p.fightMode = !!activo;
+  if (!p.fightMode) { p.fightIni = 0; p.fightHit = 0; }
 }
-function fightPedir() {
+function fightModoPedir() {
   const me = state.players.get(state.myId);
   if (!me || me.char !== 'ger') return;
   if (me.seated) { toast('🥊 Primero levantate de la silla'); return; }
-  send({ type: 'fight', id: state.myId });
-  fightAplicar(state.myId);
+  const activo = !me.fightMode;
+  send({ type: 'fight-mode', id: state.myId, active: activo });
+  fightModoAplicar(state.myId, activo);
+  toast(activo ? '🥊 Modo pelea activado · E para golpear' : '🕊️ Modo pelea desactivado');
+}
+function fightGolpeAplicar(id, golpe) {
+  const p = state.players.get(id);
+  if (!p || p.char !== 'ger' || !p.fightMode || p.seated) return;
+  p.fightHit = Math.max(1, Math.min(5, Number(golpe) || 1));
+  p.fightIni = performance.now();
+}
+function fightGolpePedir() {
+  const me = state.players.get(state.myId);
+  if (!me || !me.fightMode || me.seated) return;
+  // Recorre puñetazos, guardia alta, patada y golpe largo en cada toque de E.
+  const golpe = ((me.fightNext || 0) % 5) + 1;
+  me.fightNext = golpe;
+  send({ type: 'fight-hit', id: state.myId, hit: golpe });
+  fightGolpeAplicar(state.myId, golpe);
 }
 function fightSprite(p, now) {
-  if (!p || p.char !== 'ger' || !p.fightIni) return null;
-  const t = now - p.fightIni;
-  if (t < 0 || t >= FIGHT_MS) { if (t >= FIGHT_MS) p.fightIni = 0; return null; }
-  const im = fightFrames[Math.min(5, Math.floor(t / FIGHT_FRAME_MS))];
+  if (!p || p.char !== 'ger' || !p.fightMode || p.seated) return null;
+  let idx = 0; // guardia permanente mientras el modo está activado
+  if (p.fightIni) {
+    const t = now - p.fightIni;
+    if (t >= 0 && t < FIGHT_HIT_MS) idx = p.fightHit || 1;
+    else if (t >= FIGHT_HIT_MS) p.fightIni = 0;
+  }
+  const im = fightFrames[Math.max(0, Math.min(5, idx))];
   return im && im.complete && im.naturalWidth ? im : null;
 }
 
@@ -5314,7 +5342,10 @@ function init() {
           // Las animaciones aparecen sólo cuando estás sentado: los dibujos
           // traen la silla adentro, de pie no habría qué mostrar.
           if (p.seated) for (const n of animDe(p.char)) items.push({ t: ANIMS[n].titulo, f: () => animPedir(n) });
-          if (!p.seated && p.char === 'ger') items.push({ t: '🥊 Practicar pelea', f: fightPedir });
+          if (!p.seated && p.char === 'ger') items.push({
+            t: p.fightMode ? '🕊️ Desactivar pelea' : '🥊 Activar modo pelea',
+            f: fightModoPedir,
+          });
           items.push({ t: '💨 Zumbido', f: doZumbido });
           accAbrir(items, p.name, e.clientX, e.clientY);
         } else {
