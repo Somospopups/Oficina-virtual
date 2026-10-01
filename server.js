@@ -62,7 +62,8 @@ const ROSTER = [
   { dni: '33245911', name: 'Ger',  char: 'ger'  },
   { dni: '31923010', name: 'Facu', char: 'facu' },
   { dni: '34186736', name: 'Ovni', char: 'ovni' },
-  { dni: '54472249', name: 'Milo', char: 'milo' },
+  // visita: entra igual que todos; game.js es el que no la lista en gris cuando no está.
+  { dni: '54472249', name: 'Milo', char: 'milo', visita: true },
   { dni: '32769127', name: 'Ove',  char: 'ove'  },
 ];
 

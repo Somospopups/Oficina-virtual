@@ -243,6 +243,11 @@ ok(/\.pl-hist\s*\{/.test(css) && /flex: 0 0 100%/.test(css),
 // el historial de los que justo estan conectados.
 ok(/const fuera = ROSTER\.filter/.test(js) && /pl-row ausente/.test(js) && /\.pl-row\.ausente/.test(css),
    'los que no estan aparecen en gris al final y tambien se les puede tocar');
+// Las visitas (gente que no es de la oficina) entran y se las ve, pero no se
+// las lista en gris cuando no estan.
+ok(/visita: true/.test(js) && /!dentro\.has\(r\.char\) && !r\.visita/.test(js),
+   'las visitas quedan afuera de la lista gris',
+   'si se agrega una visita al ROSTER, marcarla visita:true en game.js Y en server.js');
 ok(/histCerrarConEsc/.test(js) && /histCerrarSiFuera/.test(js)
    && /addEventListener\('keydown', histCerrarConEsc\)/.test(js)
    && /addEventListener\('pointerdown', histCerrarSiFuera, true\)/.test(js),

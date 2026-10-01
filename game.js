@@ -104,7 +104,9 @@ const ROSTER = [
   { dni: '33245911', name: 'Ger',  char: 'ger',  seat: 1 },
   { dni: '31923010', name: 'Facu', char: 'facu', seat: 2 },
   { dni: '34186736', name: 'Ovni', char: 'ovni', seat: 3 },
-  { dni: '54472249', name: 'Milo', char: 'milo', seat: 0 },  // escritorio delantero izq. (el único libre)
+  // "visita": entra y figura como cualquiera mientras está, pero cuando no
+  // está no se lo lista en gris, porque no es de la oficina.
+  { dni: '54472249', name: 'Milo', char: 'milo', seat: 0, visita: true },  // escritorio delantero izq. (el único libre)
   { dni: '32769127', name: 'Ove',  char: 'ove'  },  // sin puesto fijo: se sienta en el que quede libre
 ];
 // ---------- VERSIONADO DE LOS DIBUJOS POR CONTENIDO ----------
@@ -1824,7 +1826,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v128 · 01/10/2026';
+const VERSION = 'v129 · 01/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -3565,8 +3567,10 @@ function renderPlayerList() {
   // Los que no están ahora van en gris al final. Su historial se sigue
   // guardando y compartiendo igual, así que también se les puede tocar el
   // nombre; si no, sólo se podría mirar a los que justo están conectados.
+  // Las visitas quedan afuera de esa lista: entran y se las ve como a
+  // cualquiera, pero cuando no están no tienen por qué figurar.
   const dentro = new Set(list.map((p) => p.char));
-  const fuera = ROSTER.filter((r) => !dentro.has(r.char));
+  const fuera = ROSTER.filter((r) => !dentro.has(r.char) && !r.visita);
   const filaAusente = (r) => {
     const abierto = histAbiertos.has(r.char);
     return `<div class="pl-row ausente${abierto ? ' abierta' : ''}" data-char="${r.char}" title="Tocá para ver cuándo estuvo">` +

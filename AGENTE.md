@@ -134,7 +134,12 @@ Tres reglas que ya costaron un bug cada una:
    se acaba de ir lo siguen reenviando los relays (la suscripción pide los
    últimos 60 s) y en P2P recién se lo poda tras **75 s** de silencio, así que
    tarda un rato en pasarse al gris.
-5. **En el celu no se ve nada de esto**: desde v113 el `@media (max-width:900px)`
+5. **Las visitas no se listan en gris.** Quien no es de la oficina (hoy Milo)
+   va en el `ROSTER` con `visita: true` — en `game.js` **y** en `server.js`,
+   que tienen que seguir siendo iguales. Entra y se lo ve como a cualquiera
+   mientras está; cuando no está, `renderPlayerList` lo saltea. No alcanza con
+   sacarlo del `ROSTER`: ahí le rebotaría el DNI y no podría entrar.
+6. **En el celu no se ve nada de esto**: desde v113 el `@media (max-width:900px)`
    oculta `#playerList` entero (los estados se ponen tocando al personaje y ese
    lugar lo usan las cámaras). El historial se sigue guardando y compartiendo
    desde el celu, pero no hay dónde abrirlo. Si alguna vez se quiere, el lugar
