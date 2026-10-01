@@ -1820,7 +1820,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v115 · 30/09/2026';
+const VERSION = 'v116 · 01/10/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -2187,6 +2187,7 @@ function handleMsg(msg) {
       if (msg.mic) {
         if ((rtcOn || state.spectating) && rtcIniciyo(msg.from) && !rtcMesh.has(msg.from)) rtcOfrecer(msg.from);
         else rtcPar(msg.from);
+        notify('mic', rtcNombreDe(msg.from), 'abrió su micrófono: se armó la llamada', (state.players.get(msg.from) || {}).char);
       } else if (!rtcConectaCon(msg.from)) {
         // Cerró el micro y no queda cámara ni pantalla de por medio: se corta.
         rtcSalirDePeer(msg.from);
@@ -2231,6 +2232,7 @@ function handleMsg(msg) {
         if (rtcShareVivo.has(msg.from)) rtcVerPantalla(msg.from, rtcShareVivo.get(msg.from));
         rtcResolverVideos(msg.from);
         renderCallUI();
+        notify('share', rtcNombreDe(msg.from), 'está compartiendo su pantalla', (state.players.get(msg.from) || {}).char);
       } else {
         rtcComparte.delete(msg.from);
         rtcShareSid.delete(msg.from);
@@ -2248,6 +2250,7 @@ function handleMsg(msg) {
         if (rtcConectaCon(msg.from) && rtcIniciyo(msg.from) && !rtcMesh.has(msg.from)) rtcOfrecer(msg.from);
         else rtcPar(msg.from);
         rtcResolverVideos(msg.from);
+        notify('cam', rtcNombreDe(msg.from), 'prendió su cámara', (state.players.get(msg.from) || {}).char);
       } else {
         rtcCamPeers.delete(msg.from);
         // OJO: el stream NO se borra. Si vuelve a prender con replaceTrack no
@@ -2262,11 +2265,12 @@ function handleMsg(msg) {
       // banda y el mic sigue marcado como conectado en la lista.
       rtcSalirDePeer(msg.id);
       addChat(null, `${msg.name} salió de la oficina`, 'system');
+      notify('joinleave', msg.name, 'salió de la oficina', null, 'leave');
       renderPlayerList();
       break;
     case 'bye': {
       const p = state.players.get(msg.id);
-      if (p) { state.players.delete(msg.id); addChat(null, `${p.name} salió de la oficina`, 'system'); renderPlayerList(); }
+      if (p) { state.players.delete(msg.id); addChat(null, `${p.name} salió de la oficina`, 'system'); notify('joinleave', p.name, 'salió de la oficina', p.char, 'leave'); renderPlayerList(); }
       break;
     }
     case 'system': addChat(null, msg.text, 'system'); break;
@@ -2279,13 +2283,26 @@ function handleMsg(msg) {
       }
       addChat(msg.from, msg.text, isW ? 'whisper' : 'normal', msg.to, msg.att);
       if (!mine && (!isW || msg.to === state.myName)) beep(isW ? 880 : 520, 0.07);
+      if (!mine) {
+        const remitente = state.players.get(msg.id);
+        const cuerpo = (msg.text && msg.text.trim()) ||
+          (msg.att ? (msg.att.kind === 'img' ? '\u{1F5BC}\uFE0F Te mandó una imagen' : '\u{1F3A4} Te mandó un audio de voz') : '');
+        if (isW) { if (msg.to === state.myName) notify('whisper', msg.from + ' · privado', cuerpo, remitente && remitente.char); }
+        else notify('chat', msg.from, cuerpo, remitente && remitente.char);
+      }
       break;
     }
     case 'status': { const p = state.players.get(msg.id); if (p) p.status = msg.status; renderPlayerList(); break; }
     case 'emote': { const p = state.players.get(msg.id); if (p) { p.emote = msg.emote; p.emoteUntil = performance.now() + 3000; } break; }
     case 'cat-pet': catAplicarMimo(msg.id); break;
     case 'cafe': cafeAplicar(msg.id); break;
-    case 'nudge': { if (!dedupe(msg)) localZumb(msg.from || 'Alguien', false, msg.id); break; }
+    case 'nudge': {
+      if (dedupe(msg)) break;
+      localZumb(msg.from || 'Alguien', false, msg.id);
+      // snd = null: el aviso sonoro es el pedo de localZumb, no se le suma otro
+      notify('nudge', msg.from || 'Alguien', 'te mandó un zumbido: ¡sacudió toda la oficina!', null, null);
+      break;
+    }
     // 'wave' eliminado: el saludo de cercanía quedaba feo. Los mensajes de
     // clientes viejos caen al vacío sin romper nada.
     case 'profile': { const p = state.players.get(msg.id); if (p) { p.name = msg.name; p.char = msg.char || p.char; p.color = msg.color; } renderPlayerList(); break; }
@@ -2306,7 +2323,7 @@ function upsertRemote(p, snap) {
   if (!cur) {
     cur = { ...p, tx: p.x, ty: p.y };
     state.players.set(p.id, cur);
-    if (state.joined && p.id !== state.myId) { addChat(null, `${p.name} entró a la oficina`, 'system'); beep(660, 0.08); if (USE_P2P) maybeMusicForNewcomer(); }
+    if (state.joined && p.id !== state.myId) { addChat(null, `${p.name} entró a la oficina`, 'system'); beep(660, 0.08); if (USE_P2P) maybeMusicForNewcomer(); notify('joinleave', p.name, 'entró a la oficina', p.char, 'join'); }
   }
   cur.pid = p._pid || cur.pid;
   cur.seen = performance.now();
@@ -2741,6 +2758,9 @@ function applyMusic(msg, silent) {
   })();
   if (!silent && msg.act === 'play' && msg.from) {
     toast(music.mode === 'video' ? `🎬 ${msg.from} puso video para todos` : `🎵 ${msg.from} puso música para todos`);
+    if (msg.from !== state.myName) {
+      notify('video', msg.from, music.mode === 'video' ? 'puso un video para mirar juntos' : 'puso música en la radio de la oficina');
+    }
   }
   updateMpNow();
 }
@@ -2877,6 +2897,205 @@ function toast(t) {
   if (!el) return; // no impedir que la red arranque si el HTML aún está parseándose
   el.textContent = t; el.classList.add('show'); clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// ---------- Notificaciones estilo Messenger (Windows / macOS / Android) ----------
+// Espíritu MSN 2000: la oficina te busca aunque estés en otra ventana. Cada
+// evento puede salir por tres vías a la vez:
+//   1) cartel del sistema operativo (Notification API, igual que el MSN),
+//   2) sonidito retro sintetizado (WebAudio, sin archivos),
+//   3) el título de la pestaña titilando como la barra de tareas de XP.
+// Se prende/apaga con el 🔔 de la barra de arriba; el ⚙ elige qué eventos
+// avisan. Si el navegador bloquea los carteles, quedan andando el sonido y el
+// título titilante igual.
+const NOTIF_KINDS = {
+  chat:      { emoji: '\u{1F4AC}', label: 'Mensajes del chat',        cd: 4000   },
+  whisper:   { emoji: '\u{1F92B}', label: 'Mensajes privados',        cd: 2500   },
+  joinleave: { emoji: '\u{1F6AA}', label: 'Entradas y salidas',       cd: 5000   },
+  nudge:     { emoji: '\u{1F4A8}', label: 'Zumbidos',                 cd: 1000   },
+  cam:       { emoji: '\u{1F4F7}', label: 'Cámaras prendidas',        cd: 60000  },
+  share:     { emoji: '\u{1F4BB}', label: 'Pantalla compartida',      cd: 30000  },
+  video:     { emoji: '\u{1F3AC}', label: 'Video / radio',            cd: 15000  },
+  mic:       { emoji: '\u{1F3A4}', label: 'Llamada (micro abierto)',  cd: 120000 },
+};
+const NOTIF_CFG_KEY = 'ovNotifs';
+let notifCfg = { on: false, bgOnly: true, sound: true,
+  kinds: { chat: 1, whisper: 1, joinleave: 1, nudge: 1, cam: 1, share: 1, video: 1, mic: 1 } };
+try {
+  const guardada = JSON.parse(localStorage.getItem(NOTIF_CFG_KEY) || 'null');
+  if (guardada) notifCfg = { ...notifCfg, ...guardada, kinds: { ...notifCfg.kinds, ...(guardada.kinds || {}) } };
+} catch { /* cfg rota: van los defaults */ }
+const notifUltimo = new Map();            // "kind:quien" -> ts (anti-spam: los relays P2P repiten)
+let notifSinVer = 0, notifFlashTimer = null;
+const NOTIF_TITLE_BASE = document.title;
+
+function notifGuardar() { try { localStorage.setItem(NOTIF_CFG_KEY, JSON.stringify(notifCfg)); } catch { /* incógnito */ } }
+function notifHayApi() { return typeof Notification !== 'undefined'; }
+function notifPermiso() { return notifHayApi() ? Notification.permission : 'denied'; }
+
+// Soniditos retro, todos sintetizados. Cada uno imita un alerta del Messenger.
+function notifSnd(kind) {
+  if (!notifCfg.sound) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') { audioCtx.resume().catch(() => {}); return; }
+    const t = audioCtx.currentTime;
+    const nota = (f, t0, d, v = 0.10, type = 'triangle', f1) => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t + t0);
+      if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + t0 + d);
+      g.gain.setValueAtTime(0.0001, t + t0);
+      g.gain.exponentialRampToValueAtTime(v, t + t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + t0 + d);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t + t0); o.stop(t + t0 + d + 0.02);
+    };
+    switch (kind) {
+      case 'chat':    nota(1318, 0, 0.10); nota(1975, 0.07, 0.16, 0.09); break;             // "pling" de mensaje nuevo
+      case 'whisper': nota(1760, 0, 0.09); nota(2217, 0.08, 0.09); nota(2637, 0.16, 0.14, 0.08); break;
+      case 'join':    nota(660, 0, 0.22, 0.08, 'sine', 1320); break;                        // barrido "se conectó"
+      case 'leave':   nota(1320, 0, 0.25, 0.07, 'sine', 620); break;                        // barrido "se fue"
+      case 'cam':     nota(2093, 0, 0.05, 0.12, 'square'); nota(2793, 0.06, 0.07, 0.10, 'square'); break; // obturador
+      case 'share':   nota(784, 0, 0.10); nota(988, 0.10, 0.16); break;
+      case 'video':   nota(523, 0, 0.09); nota(659, 0.09, 0.09); nota(784, 0.18, 0.18); break; // arpegio "a mirar"
+      case 'mic':     for (let i = 0; i < 3; i++) { nota(988, i * 0.12, 0.05, 0.09, 'square'); nota(784, i * 0.12 + 0.05, 0.05, 0.09, 'square'); } break; // ring viejito
+    }
+  } catch { /* sin audio */ }
+}
+
+// Título titilante: el "botón parpadeante de la barra de tareas", versión pestaña.
+// Cuenta los avisos sin ver y se calma solo cuando la ventana recupera el foco.
+function notifFlashTitulo(texto) {
+  texto = String(texto).slice(0, 60);
+  notifSinVer++;
+  document.title = `(${notifSinVer}) ${texto}`;
+  if (!notifFlashTimer) {
+    let prendido = false, ultimo = texto;
+    notifFlashTimer = setInterval(() => {
+      prendido = !prendido;
+      document.title = prendido ? `\u26A1 (${notifSinVer}) ${ultimo}` : NOTIF_TITLE_BASE;
+    }, 900);
+  }
+}
+function notifLimpiarFlash() {
+  notifSinVer = 0;
+  clearInterval(notifFlashTimer); notifFlashTimer = null;
+  document.title = NOTIF_TITLE_BASE;
+}
+window.addEventListener('focus', notifLimpiarFlash);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) notifLimpiarFlash(); });
+
+// El cartel lleva de ícono el sprite sentado del que avisa (ya vive en un
+// canvas: el toDataURL es gratis). Si todavía no cargó, el ícono de la oficina.
+function notifIcono(charKey) {
+  try {
+    const cv = charKey && charAssets[charKey] && charAssets[charKey].sit;
+    if (cv && cv.toDataURL) return cv.toDataURL();
+  } catch { /* sprite sin cargar */ }
+  return 'sprites/office-icon.png';
+}
+
+// Corazón del sistema. `kind` es una clave de NOTIF_KINDS; `snd` permite que un
+// mismo kind suene distinto (joinleave suena 'join' o 'leave'), y con snd=null
+// se silencia el extra (el zumbido ya suena a pedo por localZumb).
+function notify(kind, quien, cuerpo, charKey, snd) {
+  if (!notifCfg.on || !notifCfg.kinds[kind]) return;
+  if (notifCfg.bgOnly && !document.hidden && document.hasFocus()) return; // la estás mirando: ya te enteraste
+  const clave = kind + ':' + (quien || '');
+  const ahora = Date.now();
+  if (ahora - (notifUltimo.get(clave) || 0) < NOTIF_KINDS[kind].cd) return; // anti-spam por persona y tema
+  notifUltimo.set(clave, ahora);
+  const k = NOTIF_KINDS[kind];
+  const titulo = `${k.emoji} ${quien || 'Oficina Virtual'}`;
+  notifFlashTitulo(titulo);
+  if (snd !== null) notifSnd(snd || kind);
+  if (notifPermiso() !== 'granted') return; // sin cartel del SO: quedan el sonido y el título titilante
+  try {
+    const n = new Notification(titulo, {
+      body: String(cuerpo || '').slice(0, 160),
+      icon: notifIcono(charKey),
+      tag: 'ov-' + kind + '-' + (quien || ''), // un cartel por tema y persona: se reemplaza, no se apilan
+      renotify: true,
+    });
+    n.onclick = () => { try { window.focus(); } catch { /* ya estaba al frente */ } n.close(); };
+  } catch { /* Safari viejo solo acepta el constructor con callback */ }
+}
+
+// Prende/apaga desde la campana. El primer encendido pide permiso al navegador
+// (necesita un gesto del usuario, y este click lo es).
+function notifToggle() {
+  if (notifCfg.on) {
+    notifCfg.on = false; notifGuardar(); notifRenderBtn();
+    const p = document.getElementById('notifPanel'); if (p) p.classList.add('hidden');
+    toast('\u{1F515} Notificaciones apagadas');
+    return;
+  }
+  notifCfg.on = true; notifGuardar(); notifRenderBtn();
+  if (!notifHayApi()) {
+    toast('\u{1F514} Prendidas: sonido + título titilante (este navegador no hace carteles)');
+    return;
+  }
+  if (Notification.permission === 'default') {
+    Notification.requestPermission().then(() => {
+      notifRenderBtn();
+      if (Notification.permission === 'granted') { toast('\u{1F514} ¡Notificaciones prendidas! Te avisan en Windows/Mac aunque estés en otra ventana'); notifPrueba(); }
+      else toast('\u{1F514} Prendidas sin carteles (los bloqueó el navegador): quedan el sonido y el título titilante');
+    });
+    return;
+  }
+  if (Notification.permission === 'granted') { toast('\u{1F514} ¡Notificaciones prendidas!'); notifPrueba(); }
+  else toast('\u{1F514} Prendidas sin carteles (bloqueados por el navegador): sonido + título titilante');
+}
+
+// Cartelito de bienvenida para confirmar que el navegador realmente los muestra.
+function notifPrueba() {
+  if (notifPermiso() !== 'granted') return;
+  try {
+    const n = new Notification('\u{1F514} Oficina Virtual', {
+      body: '¡Listo! Te aviso por acá, estilo Messenger \u{1F389}',
+      icon: 'sprites/office-icon.png', tag: 'ov-prueba',
+    });
+    n.onclick = () => { try { window.focus(); } catch { } n.close(); };
+  } catch { /* no pasa nada */ }
+}
+
+function notifRenderBtn() {
+  const b = document.getElementById('notifBtn'); if (!b) return;
+  const perm = notifPermiso();
+  b.textContent = notifCfg.on ? '\u{1F514}' : '\u{1F515}';
+  b.classList.toggle('off', !notifCfg.on);
+  b.title = !notifCfg.on
+    ? 'Notificaciones apagadas. Clic para prenderlas (avisos estilo Messenger aunque estés en otra ventana)'
+    : perm === 'granted'
+      ? 'Notificaciones prendidas: carteles del sistema + sonido. Clic para apagar · ⚙ elige cuáles avisan'
+      : perm === 'denied'
+        ? 'Carteles bloqueados por el navegador (candado de la barra → Notificaciones → Permitir). Igual suena y titila el título. Clic para apagar'
+        : 'Notificaciones prendidas. Clic para apagar · ⚙ elige cuáles avisan';
+  const g = document.getElementById('notifGear');
+  if (g) g.classList.toggle('hidden', !notifCfg.on);
+}
+
+// Panel con un casillero por tipo de aviso. Se arma una sola vez.
+function notifArmarPanel() {
+  const p = document.getElementById('notifPanel');
+  if (!p || p.dataset.armado) return;
+  p.dataset.armado = '1';
+  let html = '<div class="np-title">\u{1F514} NOTIFICACIONES · estilo Messenger</div>';
+  for (const [k, v] of Object.entries(NOTIF_KINDS)) {
+    html += `<label><input type="checkbox" data-kind="${k}"${notifCfg.kinds[k] ? ' checked' : ''}> ${v.emoji} ${v.label}</label>`;
+  }
+  html += '<div class="np-sep"></div>';
+  html += `<label><input type="checkbox" id="npBg"${notifCfg.bgOnly ? ' checked' : ''}> \u{1FA9F} Solo si estoy en otra ventana</label>`;
+  html += `<label><input type="checkbox" id="npSnd"${notifCfg.sound ? ' checked' : ''}> \u{1F50A} Con sonidito retro</label>`;
+  html += '<div class="np-note">Los carteles salen por Windows/Mac igual que los del MSN. Si el navegador los bloquea, quedan el sonido y el título de la pestaña titilando.</div>';
+  p.innerHTML = html;
+  p.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.kind) notifCfg.kinds[t.dataset.kind] = t.checked ? 1 : 0;
+    else if (t.id === 'npBg') notifCfg.bgOnly = t.checked;
+    else if (t.id === 'npSnd') notifCfg.sound = t.checked;
+    notifGuardar();
+  });
 }
 
 // ---------- Adjuntos: imágenes y audios de voz ----------
@@ -3183,6 +3402,11 @@ function seatFor(entry) {
 }
 async function join() {
   if (state.spectating || spectatorCheckBusy) return;
+  // Si las notificaciones quedaron prendidas de otra sesión pero el navegador
+  // nunca confirmó el permiso, se pide ahora, dentro del gesto de este click.
+  if (notifCfg.on && notifHayApi() && Notification.permission === 'default') {
+    try { Notification.requestPermission().then(notifRenderBtn); } catch { /* navegador viejo */ }
+  }
   const dni = (dniInput.value || '').replace(/\D/g, '');
   if (/^\d{4}$/.test(dni)) {
     if (Date.now() < spectatorLockUntil) {
@@ -3753,6 +3977,7 @@ function update(dt) {
       if (p.id !== state.myId && p.seen && now - p.seen > 75000) {
         state.players.delete(p.id);
         addChat(null, `${p.name} salió de la oficina`, 'system');
+        notify('joinleave', p.name, 'salió de la oficina', p.char, 'leave');
         renderPlayerList();
       }
     }
@@ -4291,6 +4516,14 @@ function init() {
   layoutMobile();
   renderPlayerList();
   const mb = document.getElementById('musicBtn'); if (mb) mb.onclick = mpToggle;
+  const nbtn = document.getElementById('notifBtn'); if (nbtn) nbtn.onclick = notifToggle;
+  const ngear = document.getElementById('notifGear');
+  if (ngear) ngear.onclick = () => {
+    notifArmarPanel();
+    const npnl = document.getElementById('notifPanel');
+    if (npnl) npnl.classList.toggle('hidden');
+  };
+  notifRenderBtn();
   const bp1 = document.getElementById('mpPlay'); if (bp1) bp1.onclick = mpPlay;
   const bp2 = document.getElementById('mpPause'); if (bp2) bp2.onclick = mpPause;
   const bp3 = document.getElementById('mpStop'); if (bp3) bp3.onclick = mpStop;

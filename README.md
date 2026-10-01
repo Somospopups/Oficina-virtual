@@ -43,6 +43,7 @@ ningún `?v=` a mano: se calculan solos y el guard te avisa si se olvidó.
 | `/w nombre msg` | Susurro / mensaje privado |
 | `F` | Saludar 👋 al compañero más cercano |
 | `1–3` | Cambiar estado: 💻 codeando · 🤝 reunión · 🏃 ¡Ya vengo! |
+| 🔔 (barra de arriba) | Notificaciones estilo Messenger: avisan en Windows/Mac aunque estés en otra ventana |
 | `Z X C V B N M` | Emotes: 👋 😂 🎉 👍 🤔 🔥 ☕ |
 | `H` | Ayuda |
 
@@ -59,6 +60,13 @@ El mapa está calcado de la foto del espacio del equipo, en versión pixel art c
 - Lamparitas colgantes, spots embutidos y entrada con felpudo.
 - Burbujas de chat sobre la cabeza, nombres con emoji de estado, lista de
   compañeros online, sonidos sutiles y reconexión automática.
+- **🔔 Notificaciones estilo Messenger (MSN)**: carteles del sistema operativo en
+  Windows/Mac (Notification API) por chat, privados, entradas/salidas, zumbidos,
+  cámaras, pantalla compartida, video/radio y llamada. Cada aviso lleva el sprite
+  del compañero como ícono, un sonidito retro sintetizado distinto por evento y el
+  título de la pestaña titilando como la barra de tareas de XP. Se prenden con la
+  🔔 y cada tipo se ajusta con el ⚙ (anti-spam por persona, no se apilan: se
+  reemplazan). Si el navegador bloquea los carteles, quedan el sonido + título.
 
 ## 🔧 Técnica
 

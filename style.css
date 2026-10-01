@@ -214,6 +214,8 @@ body.spectator-mode #btnE { display: none !important; }
   #hint { display: none !important; }
   #clock { font-size: 8px; padding: 7px 9px; }
   #musicBtn { font-size: 12px; padding: 6px 8px; }
+  #notifBtn { font-size: 12px; padding: 6px 8px; }
+  #notifGear { font-size: 10px; padding: 6px 6px; }
   #musicPanel { left: 8px; top: 92px; width: min(240px, calc(100vw - 16px)); }
   /* La llamada se posiciona al final del archivo: la regla base de #callBar esta
      despues de este bloque y la pisaba. */
@@ -250,6 +252,26 @@ body.spectator-mode #btnE { display: none !important; }
 /* Radio de la oficina */
 #musicBtn { font-size: 15px; background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
 #musicBtn:hover { background: #1f2736; }
+
+/* Notificaciones estilo Messenger: campana + tuerca + panel de opciones */
+#notifBtn, #notifGear { background: #151a24; border: 2px solid #2c3550; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+#notifBtn { font-size: 15px; }
+#notifGear { font-size: 12px; padding: 8px 7px; }
+#notifBtn:hover, #notifGear:hover { background: #1f2736; }
+#notifBtn.off { opacity: .55; filter: grayscale(.7); }
+#notifGear.hidden { display: none; }
+#notifPanel {
+  position: absolute; left: 12px; top: 60px; z-index: 41;
+  width: min(320px, calc(100vw - 24px));
+  background: rgba(16, 20, 29, 0.96); border: 3px solid #0c0f16; box-shadow: 0 0 0 2px #3b4560;
+  padding: 10px 12px; font-size: 8px; color: #cdd6ea; line-height: 1.9;
+}
+#notifPanel.hidden { display: none; }
+#notifPanel .np-title { color: #ffd76a; font-size: 9px; letter-spacing: 1px; margin-bottom: 6px; }
+#notifPanel label { display: flex; gap: 8px; align-items: center; cursor: pointer; padding: 3px 0; }
+#notifPanel input[type="checkbox"] { accent-color: #ffd76a; width: 14px; height: 14px; cursor: pointer; flex: none; }
+#notifPanel .np-sep { border-top: 2px solid #2c3550; margin: 6px 0; }
+#notifPanel .np-note { color: #7d87a0; font-size: 7px; line-height: 1.7; margin-top: 6px; }
 
 /* Llamada de la oficina: micro + pantalla + volumen.
    Van en un grupo propio en el MARGEN DERECHO, abajo. Antes estaban dentro del

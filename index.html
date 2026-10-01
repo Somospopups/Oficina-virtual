@@ -38,6 +38,8 @@
   <div id="topbar">
     <div id="clock" title="Red P2P: tocá el reloj para ver el panel 🛰"> --:--</div>
     <button id="musicBtn" title="Radio de la oficina (tecla P)">🎵</button>
+    <button id="notifBtn" class="off" title="Notificaciones estilo Messenger">🔕</button>
+    <button id="notifGear" class="hidden" title="Opciones de notificaciones">⚙</button>
   </div>
 
   <!-- Llamada de la oficina: micro, pantalla y volumen. Va aparte de la barra
@@ -81,6 +83,9 @@
 <!-- Diagnóstico de red (tocá el reloj) -->
 <div id="netPanel" class="hidden"></div>
 
+<!-- Notificaciones estilo Messenger: qué avisa y cuándo (lo arma game.js) -->
+<div id="notifPanel" class="hidden"></div>
+
 <!-- Ayuda -->
 <div id="help" class="overlay hidden">
   <div class="join-card help-card">
@@ -99,6 +104,7 @@
       <tr><td class="key">Z X C V B N</td><td>Emotes: 👋 😂 🎉 👍 🤔 🔥</td></tr>
       <tr><td class="key">E</td><td>Acción: sentarte en un escritorio 🪑 · tomar un cafecito ☕ (velocidad extra) · acariciar a Michi 🐈</td></tr>
       <tr><td class="key">Reloj (barra de arriba)</td><td>Abrí/cerrá el panel de la red P2P 🛰 (estaba como botón, ahora vive adentro del reloj)</td></tr>
+      <tr><td class="key">🔔 (barra de arriba)</td><td>Notificaciones estilo Messenger: avisan en Windows/Mac aunque estés en otra ventana — chat, privados, entradas y salidas, zumbidos, cámaras, pantalla compartida, video y llamada. Con el ⚙ elegís cuáles avisan.</td></tr>
       <tr><td class="key">H</td><td>Mostrar/ocultar esta ayuda</td></tr>
     </table>
     <p class="tips">💡 Al entrar aparecés sentado en tu puesto. El ventanal cambia con la hora real: 🌅 amanecer, ☀️ mañana, 🌇 tarde y 🌙 noche.</p>
