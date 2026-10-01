@@ -71,6 +71,30 @@ En GitHub Pages (P2P) el DNI se valida contra `game.js`; en Render o en el
 servidor local, contra `server.js`. Si sumás a alguien en uno solo, entra en un
 modo y le rebota el DNI en el otro.
 
+## 🧊 El `index.html` es el único que puede llegar viejo
+
+`style.css` y `game.js` se piden con `?t=` y cada dibujo con el hash de su
+contenido, así que nunca se ven versiones viejas de eso. Pero **el `index.html`
+que los carga lo sirve GitHub Pages con `cache-control: max-age=600`**: el
+navegador puede tener uno guardado y mezclar **HTML viejo con CSS y JS nuevos**.
+La pantalla queda rota de formas raras (botones corridos, textos de otra
+versión) y la persona no tiene cómo darse cuenta.
+
+Por eso el HTML lleva `<meta name="ov-build" content="vNNN">` y `game.js` lo
+compara contra su `VERSION` al arrancar: si no coinciden, recarga **una sola
+vez** con `?fresco=…` (otra URL = otra entrada de caché = descarga de verdad).
+
+👉 **Al subir `VERSION` en `game.js` hay que subir también el `ov-build` del
+`index.html`.** Si se separan, `tools/checlear-boton-e.js` falla.
+
+## 😶 Emojis sobre fondo oscuro
+
+Algunos emojis son grises o plateados (`📎`, `🔗`) y sobre el fondo oscuro de un
+botón casi no se ven, al lado de uno amarillo como `🙂`. Si hay que aclararlos,
+el brillo va **sobre el dibujito**, nunca sobre el `<button>`: un `filter` en el
+botón le aclara también el fondo y el borde y lo saca de la línea de los demás.
+Por eso el emoji viaja envuelto: `<button><i class="ico">📎</i></button>`.
+
 ## 🔢 Versionado y publicación
 
 - Cada cambio sube el número de `VERSION` en `game.js` (v118, v119…) con la

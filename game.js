@@ -1824,7 +1824,33 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v123 · 01/10/2026';
+const VERSION = 'v124 · 01/10/2026';
+
+// ---------- El index.html es el único que puede llegar viejo ----------
+// Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
+// dibujo con el hash de su contenido. Pero el index.html que los carga lo sirve
+// GitHub Pages con cache-control: max-age=600, así que el navegador puede tener
+// uno guardado de hace rato y mezclar HTML VIEJO con CSS y JS NUEVOS. Ahí la
+// pantalla queda rota de formas raras (botones corridos, textos de otra
+// versión) y la persona no tiene manera de darse cuenta: le dirías "hacé
+// Ctrl+F5", pero primero tiene que sospechar que ese es el problema.
+//
+// Por eso el HTML lleva un sello <meta name="ov-build"> y acá lo comparamos. Si
+// no es de esta versión, recargamos UNA vez con la URL cambiada: otra URL es
+// otra entrada del caché, así que esa sí se descarga de verdad.
+(function htmlFresco() {
+  const meta = document.querySelector('meta[name="ov-build"]');
+  const enHtml = meta ? (meta.content || '').trim() : '';   // sin meta = html anterior a v124
+  const enJs = VERSION.split(' ')[0];
+  if (enHtml === enJs) { try { sessionStorage.removeItem('ovHtmlViejo'); } catch { /* incógnito */ } return; }
+  try {
+    if (sessionStorage.getItem('ovHtmlViejo') === enJs) return; // ya recargamos por esta versión: no insistir
+    sessionStorage.setItem('ovHtmlViejo', enJs);
+  } catch { return; }   // sin sessionStorage no arriesgamos un bucle de recargas
+  const u = new URL(location.href);
+  u.searchParams.set('fresco', Date.now().toString(36));
+  location.replace(u.toString());
+})();
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');

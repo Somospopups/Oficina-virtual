@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Sello de version de ESTE html. game.js compara su VERSION contra esto: si
+     no coinciden es que el navegador se guardo un index.html viejo y lo esta
+     mezclando con el css y el js nuevos (pantalla rota). Al tocar VERSION en
+     game.js hay que tocar esto; tools/checlear-boton-e.js lo verifica. -->
+<meta name="ov-build" content="v124">
 <title>Oficina Virtual — Equipo opencode</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -58,8 +63,8 @@
     <div id="attChip" class="hidden"></div>
     <div id="emojiPicker" hidden></div>
     <div id="chatAux">
-      <button id="attBtn" title="Adjuntar imagen">📎</button>
-      <button id="emojiBtn" title="Emojis">🙂</button>
+      <button id="attBtn" title="Adjuntar imagen"><i class="ico">📎</i></button>
+      <button id="emojiBtn" title="Emojis"><i class="ico">🙂</i></button>
     </div>
     <div id="chatRow">
       <div id="chatPill">

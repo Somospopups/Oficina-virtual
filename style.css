@@ -420,6 +420,12 @@ body.spectator-mode #btnE { display: none !important; }
   font-size: 12px; padding: 6px 8px; cursor: pointer; flex: 0 0 auto; line-height: 1;
 }
 #chatAux button:hover { background: #26304a; }
+/* El 📎 es un clip gris plateado (en Windows y en Android) y sobre el fondo
+   oscuro del botón casi no se veía: parecía un botón vacío al lado del 🙂, que
+   es amarillo y salta a la vista. Le subimos el brillo SOLO al dibujito: si el
+   filtro va en el <button>, aclara también su fondo y su borde y deja de ser
+   igual a los demás. Por eso el emoji viaja envuelto en un <i class="ico">. */
+#chatAux button .ico { font-style: normal; display: inline-block; filter: brightness(1.45) saturate(1.15); }
 
 /* ---- Fila de chat estilo WhatsApp: una sola pastilla redondeada ---- */
 [hidden] { display: none !important; }

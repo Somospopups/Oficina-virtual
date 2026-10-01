@@ -181,6 +181,27 @@ if (fs.existsSync(path.join(RAIZ, 'assets.js'))) {
      desfasados.length ? 'desfasados: ' + desfasados.join(', ') + ' — correr node tools/generar-assets.js' : Object.keys(mapa).length + ' dibujos con hash correcto');
 }
 
+// ---------- Que el index.html no pueda llegar viejo ----------
+// Si el sello del html y la VERSION de game.js se separan, el guardian de
+// game.js recargaria en loop (o no recargaria nunca). Tiene que coincidir.
+const selloHtml = (html.match(/<meta name="ov-build" content="([^"]+)"/) || [])[1];
+const verJs = (js.match(/const VERSION = '(v\d+)/) || [])[1];
+ok(!!selloHtml, 'el index.html lleva el sello <meta name="ov-build">');
+ok(!!verJs, 'game.js tiene su VERSION');
+ok(selloHtml === verJs, 'el sello del html y la VERSION de game.js coinciden',
+   selloHtml === verJs ? selloHtml : `html=${selloHtml} vs js=${verJs} — actualizá los dos`);
+ok(/name="ov-build"/.test(js) && /location\.replace/.test(js),
+   'game.js detecta el html viejo y lo recarga');
+ok(/sessionStorage/.test(js.slice(js.indexOf('htmlFresco'), js.indexOf('htmlFresco') + 1400)),
+   'la recarga se hace una sola vez (sin bucle)');
+
+// ---------- Los emojis del chat se tienen que ver ----------
+ok(/<i class="ico">📎<\/i>/.test(html), 'el 📎 va envuelto para poder aclararlo');
+ok(/#chatAux button \.ico[^}]*filter:[^}]*brightness/.test(css),
+   'el brillo se le aplica al dibujito, no al botón (si no, se aclara el fondo)');
+ok(!/#attBtn\s*\{[^}]*filter/.test(css),
+   'el filtro NO está en el botón entero (rompería la uniformidad con el 🙂)');
+
 console.log('');
 if (malas) {
   console.log(`❌ ${malas} problema(s) con los controles del celu.`);
