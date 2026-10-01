@@ -188,10 +188,16 @@ Los dibujos **traen la silla adentro**, como los `_sit.png`, así que:
   mostrar y por eso ni se ofrece.
 - Tienen que estar **alineados contra el `_sit.png` de esa persona**, o al
   arrancar la animación el personaje pega un salto. El script que los prepara
-  es `cortar-cafe.py` (fuera del repo): saca el fondo verde, usa **una sola
-  escala** para los cuatro y los ubica **por máxima coincidencia con el
-  sentado**, no por la caja de la figura (la taza estirada hacia adelante
-  corre el centro y la silla se movería sola).
+  es `preparar-ger.py` (fuera del repo): saca el fondo verde, usa **una sola
+  escala** para todos y los ubica **por máxima coincidencia**, no por la caja
+  de la figura (la taza estirada hacia adelante corre el centro y la silla se
+  movería sola). Prepara la pose quieta y los cuatro del café **de una sola
+  vez**: salen del mismo molde y por eso calzan.
+- **La pose quieta y la animación tienen que ser de la misma tanda de arte.**
+  En la v130 no lo eran y hubo que acercarles el color a mano; con el dibujo
+  nuevo de la v132 la diferencia de brillo quedó en 2 sobre 255 y ese parche
+  se pudo sacar. Si en algún momento se redibuja un `_sit.png`, hay que
+  rehacer sus cuadros de café con él.
 - Al dibujar, el alto en pantalla es fijo (`48 * sitScale`) y el ancho sale de
   la proporción del PNG: lo que alinea es **la caja del lienzo**. Por eso los
   cuatro salen del mismo tamaño que el `_sit.png`, aunque sobre transparencia.
