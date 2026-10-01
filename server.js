@@ -169,6 +169,12 @@ wss.on('connection', (ws) => {
         if (['cafe', 'birra'].includes(msg.anim)) broadcast({ type: 'anim', id, anim: msg.anim });
         break;
       }
+      case 'fight': {
+        // Únicamente dispara la secuencia visual aprobada; no acepta nombres de
+        // archivos ni datos arbitrarios desde el cliente.
+        broadcast({ type: 'fight', id });
+        break;
+      }
       case 'wave': {
         p.wave = true;
         p.waveUntil = Date.now() + 1500;

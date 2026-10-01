@@ -1826,7 +1826,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v148 · 01/10/2026';
+const VERSION = 'v150 · 01/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -2351,6 +2351,7 @@ function handleMsg(msg) {
     case 'cat-pet': catAplicarMimo(msg.id); break;
     case 'cafe': cafeAplicar(msg.id); break;
     case 'anim': animAplicar(msg.id, msg.anim); break;
+    case 'fight': fightAplicar(msg.id); break;
     case 'nudge': {
       if (dedupe(msg)) break;
       localZumb(msg.from || 'Alguien', false, msg.id);
@@ -4646,12 +4647,16 @@ function catAplicarMimo(id) {
 // vuelva a mentir. Se verifica con: node tools/chequear-caminata.js
 const walkAssets = {};
 const walkSources = {};
+// Secuencia de pelea de Ger: guardia, golpes y patada. Se carga con los demás
+// movimientos y sólo se dibuja mientras dura la acción.
+const fightFrames = [];
 {
   // El ?v= se sube cada vez que cambia el CONTENIDO de un PNG con este nombre, o
   // el navegador sigue mostrando el viejo desde su caché. Al intercambiar
   // ger_wl2.png y ger_wr2.png cambiaron de contenido: el hash de assets.js se
   // encarga solo, ya no hay que subir un ?v= a mano
   const img = (n) => { const i = new Image(); i.src = urlAsset(`sprites/${n}.png`); return i; };
+  for (let i = 1; i <= 6; i++) fightFrames.push(img(`ger_pelea${i}`));
   const g2 = img('ger_walk2'), g3 = img('ger_walk3'), g4 = img('ger_walk4');
   const gl1 = img('ger_wl1'), gl2 = img('ger_wl2'), gl3 = img('ger_wl3');
   const gr1 = img('ger_wr1'), gr2 = img('ger_wr2'), gr3 = img('ger_wr3');
@@ -4710,6 +4715,29 @@ function normalizarCaminata(k, alto) {
     });
   }
 }
+
+const FIGHT_FRAME_MS = 180;
+const FIGHT_MS = FIGHT_FRAME_MS * 6;
+function fightAplicar(id) {
+  const p = state.players.get(id);
+  if (!p || p.char !== 'ger' || p.seated) return;
+  p.fightIni = performance.now();
+}
+function fightPedir() {
+  const me = state.players.get(state.myId);
+  if (!me || me.char !== 'ger') return;
+  if (me.seated) { toast('🥊 Primero levantate de la silla'); return; }
+  send({ type: 'fight', id: state.myId });
+  fightAplicar(state.myId);
+}
+function fightSprite(p, now) {
+  if (!p || p.char !== 'ger' || !p.fightIni) return null;
+  const t = now - p.fightIni;
+  if (t < 0 || t >= FIGHT_MS) { if (t >= FIGHT_MS) p.fightIni = 0; return null; }
+  const im = fightFrames[Math.min(5, Math.floor(t / FIGHT_FRAME_MS))];
+  return im && im.complete && im.naturalWidth ? im : null;
+}
+
 // Sprites de Michi (hoja del usuario, recortada y con fondo transparente)
 const catImgs = {};
 for (const n of ['sleep', 'sit', 'stand_f', 'stand_l', 'stand_r', 'walk_l1', 'walk_l2', 'walk_l3', 'walk_r1', 'walk_r2', 'walk_r3', 'happy']) {
@@ -4920,9 +4948,10 @@ function render() {
       // Ciclo de caminata real si el personaje tiene frames: zancada derecha →
       // paso → zancada izquierda → paso. El tamaño (s) sale del sprite base
       // para que no cambie la altura al arrancar o frenar.
-      let dspr = spr;
+      let dspr = fightSprite(p, now) || spr;
+      const peleando = dspr !== spr;
       const wa = walkAssets[p.char || 'ger'];
-      if (p.moving && wa) {
+      if (!peleando && p.moving && wa) {
         const arr = wa[p.dir] || wa.down;
         if (arr && arr.length) {
           const wi = arr[Math.floor(now / 160) % arr.length];
@@ -5285,6 +5314,7 @@ function init() {
           // Las animaciones aparecen sólo cuando estás sentado: los dibujos
           // traen la silla adentro, de pie no habría qué mostrar.
           if (p.seated) for (const n of animDe(p.char)) items.push({ t: ANIMS[n].titulo, f: () => animPedir(n) });
+          if (!p.seated && p.char === 'ger') items.push({ t: '🥊 Practicar pelea', f: fightPedir });
           items.push({ t: '💨 Zumbido', f: doZumbido });
           accAbrir(items, p.name, e.clientX, e.clientY);
         } else {
