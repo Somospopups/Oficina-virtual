@@ -240,6 +240,39 @@ de ítems** (`rx`), que con siete pastillas en el radio fijo de antes se
 pisaban entre ellas. La prueba `e2e/animaciones.js` compara los rectángulos y
 falla si se superponen.
 
+## 🚶 El dibujo de pie (`sprites/<char>.png`)
+
+Es el sprite quieto de frente, y además **manda sobre todos los demás de pie**:
+
+- `normalizarFigura()` recorta cada PNG a su figura y **reescala los cuadros de
+  caminata y el de espaldas al alto de figura de este**. Si éste cambia de
+  alto, se mueve todo.
+- El tope de escala sale de acá: `s = min(depthScale(y), baseH / 44)`, con
+  `baseH` = alto de figura de este PNG. Hoy son 493 px (Ger y Ove), 508
+  (Facu y Ovni) y 564 (Milo), o sea que adelante de todo el tope realmente
+  recorta: sin él, Ger se dibujaría 880 px en vez de 493, un 78% más grande.
+
+**Por eso, al reemplazarlo hay que dejarlo con el mismo alto de figura que
+tenía**, o el personaje cambia de tamaño en la oficina y queda desparejo con
+el resto del equipo. Lo hace solo:
+
+```
+python3 e2e/preparar-parado.py <dibujo.jpg> <char>             # sólo mide
+python3 e2e/preparar-parado.py <dibujo.jpg> <char> --escribir  # lo escribe
+```
+
+Saca el fondo verde, recorta, lleva la figura al alto del que estaba y compara
+el brillo contra él (misma pose, así que la comparación es válida). En la v134
+el Ger de pie nuevo dio +2,3/255 contra el viejo y -0,3 / -1,6 contra
+`ger_walk2/4`: misma tanda que la caminata, no hizo falta tocarle el color.
+
+La caminata de Ger sale de `ger_walk2/3/4` (de frente), `ger_wl1..3` /
+`ger_wr1..3` (de perfil) y `ger_wu1..2` (de espaldas), y **sigue siendo de la
+tanda vieja**. Medido al mismo alto, la cabeza del dibujo de pie es un 10% más
+ancha que la de los cuadros de caminata; con el dibujo anterior ya era un 8%,
+así que el salto no empeoró. Si alguna vez se redibuja la caminata, conviene
+hacerla con el mismo molde que el de pie.
+
 ## ⏳ Mientras cargan los dibujos (13 MB)
 
 `sprites/` pesa 13 MB y el fondo 1,75 MB más. Después de un refresco forzado
