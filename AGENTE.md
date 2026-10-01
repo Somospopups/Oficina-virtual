@@ -176,6 +176,36 @@ el brillo va **sobre el dibujito**, nunca sobre el `<button>`: un `filter` en el
 botón le aclara también el fondo y el borde y lo saca de la línea de los demás.
 Por eso el emoji viaja envuelto: `<button><i class="ico">📎</i></button>`.
 
+## ☕ Animaciones sentado (el cafecito)
+
+`CAFE_ANIM = { ger: 4 }` dice quién tiene la animación y de cuántos dibujos.
+Para sumar a otra persona: dejar `sprites/<char>_cafe1..4.png` y agregarla a
+esa tabla. Nada más. El guion (`CAFE_GUION`) y el resto es compartido.
+
+Los dibujos **traen la silla adentro**, como los `_sit.png`, así que:
+
+- La acción aparece en el menú **sólo si estás sentado**. De pie no hay qué
+  mostrar y por eso ni se ofrece.
+- Tienen que estar **alineados contra el `_sit.png` de esa persona**, o al
+  arrancar la animación el personaje pega un salto. El script que los prepara
+  es `cortar-cafe.py` (fuera del repo): saca el fondo verde, usa **una sola
+  escala** para los cuatro y los ubica **por máxima coincidencia con el
+  sentado**, no por la caja de la figura (la taza estirada hacia adelante
+  corre el centro y la silla se movería sola).
+- Al dibujar, el alto en pantalla es fijo (`48 * sitScale`) y el ancho sale de
+  la proporción del PNG: lo que alinea es **la caja del lienzo**. Por eso los
+  cuatro salen del mismo tamaño que el `_sit.png`, aunque sobre transparencia.
+- El cruce de 180 ms (`CAFE_FUNDIDO`) con la pose sentada es lo que tapa el
+  salto de entrada y salida. Mientras dura la animación, el sentado no lleva
+  el rebote de respiración: sumaría un temblor arriba del cruce.
+
+Pesan ~500 KB cada uno, así que **no** se bajan con el resto de los dibujos:
+`cafeAnimCargar()` los pide al sentarse. Si todavía no llegaron, la animación
+no arranca y el personaje se queda quieto, sin romper nada.
+
+Viaja por la red como `{ type: 'anim', anim: 'cafe' }`, con lista blanca de
+nombres en `server.js` para que nadie invente animaciones desde la consola.
+
 ## 🔢 Versionado y publicación
 
 - Cada cambio sube el número de `VERSION` en `game.js` (v118, v119…) con la

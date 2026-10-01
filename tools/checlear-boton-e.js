@@ -30,6 +30,7 @@ const RAIZ = raiz;
 const css = fs.readFileSync(path.join(raiz, 'style.css'), 'utf8');
 const js = fs.readFileSync(path.join(raiz, 'game.js'), 'utf8');
 const html = fs.readFileSync(path.join(raiz, 'index.html'), 'utf8');
+const srv = fs.readFileSync(path.join(raiz, 'server.js'), 'utf8');
 
 let malas = 0;
 const ok = (c, et) => { console.log(`  ${c ? '✅' : '❌'} ${et}`); if (!c) malas++; };
@@ -248,6 +249,46 @@ ok(/const fuera = ROSTER\.filter/.test(js) && /pl-row ausente/.test(js) && /\.pl
 ok(/visita: true/.test(js) && /!dentro\.has\(r\.char\) && !r\.visita/.test(js),
    'las visitas quedan afuera de la lista gris',
    'si se agrega una visita al ROSTER, marcarla visita:true en game.js Y en server.js');
+// ---- Animacion de tomar cafe (sentado) ----
+// Los dibujos traen la silla adentro: de pie no hay que ofrecerla.
+ok(/p\.seated && cafeAnimHay\(p\.char\)/.test(js),
+   'el cafecito se ofrece solo estando sentado');
+// Cada personaje de la tabla tiene que tener sus 4 PNG, o la accion aparece
+// en el menu y despues no pasa nada.
+{
+  const tabla = (js.match(/const CAFE_ANIM = \{([^}]*)\}/) || [])[1] || '';
+  const faltan = [];
+  for (const m of tabla.matchAll(/(\w+)\s*:\s*(\d+)/g)) {
+    for (let i = 1; i <= Number(m[2]); i++) {
+      if (!fs.existsSync(path.join(raiz, 'sprites', `${m[1]}_cafe${i}.png`))) faltan.push(`${m[1]}_cafe${i}.png`);
+    }
+  }
+  ok(tabla.trim().length > 0 && faltan.length === 0,
+     'estan todos los dibujos de los que figuran en CAFE_ANIM',
+     faltan.length ? 'faltan: ' + faltan.join(', ') : '');
+}
+// El alto en pantalla es fijo y el ancho sale de la proporcion del PNG: si un
+// cuadro no mide lo mismo que el _sit.png, el personaje salta al animarse.
+{
+  const malos = [];
+  const tabla = (js.match(/const CAFE_ANIM = \{([^}]*)\}/) || [])[1] || '';
+  for (const m of tabla.matchAll(/(\w+)\s*:\s*(\d+)/g)) {
+    const medir = (f) => {
+      const b = fs.readFileSync(path.join(raiz, 'sprites', f));
+      return b.readUInt32BE(16) + 'x' + b.readUInt32BE(20);   // ancho x alto del IHDR
+    };
+    let base;
+    try { base = medir(`${m[1]}_sit.png`); } catch { continue; }
+    for (let i = 1; i <= Number(m[2]); i++) {
+      try { if (medir(`${m[1]}_cafe${i}.png`) !== base) malos.push(`${m[1]}_cafe${i}.png`); } catch {}
+    }
+  }
+  ok(malos.length === 0, 'los cuadros del cafe miden lo mismo que el sprite sentado',
+     malos.length ? 'no coinciden: ' + malos.join(', ') : '');
+}
+ok(/\['cafe'\]\.includes\(msg\.anim\)/.test(srv),
+   'el servidor solo reenvia animaciones de la lista blanca');
+
 ok(/histCerrarConEsc/.test(js) && /histCerrarSiFuera/.test(js)
    && /addEventListener\('keydown', histCerrarConEsc\)/.test(js)
    && /addEventListener\('pointerdown', histCerrarSiFuera, true\)/.test(js),

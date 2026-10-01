@@ -163,6 +163,12 @@ wss.on('connection', (ws) => {
         }
         break;
       }
+      // Animaciones de personaje (hoy: el cafecito en la silla). Se reenvía
+      // tal cual, con lista blanca de nombres para que nadie invente una.
+      case 'anim': {
+        if (['cafe'].includes(msg.anim)) broadcast({ type: 'anim', id, anim: msg.anim });
+        break;
+      }
       case 'wave': {
         p.wave = true;
         p.waveUntil = Date.now() + 1500;

@@ -1826,7 +1826,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v129 · 01/10/2026';
+const VERSION = 'v130 · 01/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -2350,6 +2350,7 @@ function handleMsg(msg) {
     case 'emote': { const p = state.players.get(msg.id); if (p) { p.emote = msg.emote; p.emoteUntil = performance.now() + 3000; } break; }
     case 'cat-pet': catAplicarMimo(msg.id); break;
     case 'cafe': cafeAplicar(msg.id); break;
+    case 'anim': if (msg.anim === 'cafe') cafeAnimAplicar(msg.id); break;
     case 'nudge': {
       if (dedupe(msg)) break;
       localZumb(msg.from || 'Alguien', false, msg.id);
@@ -3634,6 +3635,7 @@ function sentarseE() {
   if (occ) { toast(`🪑 Ese puesto es de ${occ.name}`); return true; }
   me.seated = true; me.dir = seat.face; me.x = seat.x; me.y = seat.y;
   me.moving = false; me.tx = me.x; me.ty = me.y;
+  cafeAnimCargar(me.char);   // sentado ya se puede pedir el cafecito: que esté bajado
   sendMoveNow();
   return true;
 }
@@ -3858,6 +3860,7 @@ async function join() {
     bubble: null, bubbleUntil: 0, emote: null, emoteUntil: 0, wave: false, waveUntil: 0,
   };
   if (state.myId) state.players.set(state.myId, me);
+  if (me.seated) cafeAnimCargar(me.char);   // entró ya sentado: ídem sentarseE
   joinOverlay.classList.add('hidden');
   try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch {}
   send({ type: 'profile', id: state.myId, name: entry.name, char: entry.char, dni });
@@ -4446,6 +4449,77 @@ function cafeAplicar(id) {
   CAFE.brewUntil = performance.now() + 2600;
   beep(620, 0.05, 0.03); setTimeout(() => beep(760, 0.06, 0.03), 110);  // ¡café listo!
 }
+// ---------- Animación: tomarse un café en la silla ----------
+// Cuatro dibujos por persona: agarra la taza, dos sorbos, y la baja con cara
+// de gusto. Sólo existe sentado, porque el PNG trae la silla adentro (igual
+// que `<char>_sit.png`, y alineados contra ese mismo dibujo para que no pegue
+// un salto al empezar).
+//
+// Quién la tiene: por ahora sólo Ger, que es con quien se está probando. Para
+// sumar a otro alcanza con dejar sus `sprites/<char>_cafe1..4.png` (mismo
+// encuadre que su `_sit.png`) y agregarlo a esta tabla.
+const CAFE_ANIM = { ger: 4 };
+// Guion: [qué dibujo, cuánto dura]. Sorbo, sorbo largo, y sonrisa al final.
+const CAFE_GUION = [[1, 520], [2, 440], [3, 700], [2, 340], [4, 940]];
+const CAFE_ANIM_MS = CAFE_GUION.reduce((t, [, ms]) => t + ms, 0);
+const CAFE_FUNDIDO = 180;    // ms de cruce con el sentado normal, en cada punta
+const cafeAnimImgs = {};     // char -> [Image]
+const cafeAnimFlip = {};     // `${char}_${face}_${i}` -> canvas espejado
+
+function cafeAnimHay(char) { return !!CAFE_ANIM[char]; }
+// Pesan ~500 KB cada uno, así que no se bajan con el resto de los dibujos:
+// se piden al sentarse, que es lo único desde donde se pueden usar.
+function cafeAnimCargar(char) {
+  if (!cafeAnimHay(char) || cafeAnimImgs[char]) return;
+  const fs = [];
+  for (let i = 1; i <= CAFE_ANIM[char]; i++) {
+    const im = new Image();
+    im.src = urlAsset(`sprites/${char}_cafe${i}.png`);
+    fs.push(im);
+  }
+  cafeAnimImgs[char] = fs;
+}
+function cafeAnimLista(char) {
+  const fs = cafeAnimImgs[char];
+  return !!fs && fs.every((im) => im.complete && im.naturalWidth);
+}
+function cafeAnimCuadro(char, face, i) {
+  const im = cafeAnimImgs[char][i];
+  if (face === (SIT_BASE_FACE[char] || 'right')) return im;
+  const k = `${char}_${face}_${i}`;
+  if (!cafeAnimFlip[k]) cafeAnimFlip[k] = flipCanvas(im);
+  return cafeAnimFlip[k];
+}
+// Qué dibujar en este instante: el cuadro del guion y cuánto pesa contra el
+// sentado normal (0 = sentado, 1 = café). Null si no hay nada que mostrar.
+function cafeAnimEstado(p, now, face) {
+  if (!p.cafeAnimIni || !p.seated) return null;
+  const t = now - p.cafeAnimIni;
+  if (t < 0 || t > CAFE_ANIM_MS) { if (t > CAFE_ANIM_MS) p.cafeAnimIni = 0; return null; }
+  if (!cafeAnimLista(p.char)) return null;   // todavía bajando: se queda quieto
+  let acum = 0, idx = 0;
+  for (const [n, ms] of CAFE_GUION) { idx = n - 1; if (t < acum + ms) break; acum += ms; }
+  const mezcla = Math.min(1, t / CAFE_FUNDIDO, (CAFE_ANIM_MS - t) / CAFE_FUNDIDO);
+  return { spr: cafeAnimCuadro(p.char, face, idx), mezcla };
+}
+function cafeAnimAplicar(id) {
+  const p = state.players.get(id);
+  if (!p || !cafeAnimHay(p.char)) return;
+  cafeAnimCargar(p.char);
+  p.cafeAnimIni = performance.now();
+}
+// Lo pide el menú de acciones del propio personaje. Va por el bus para que el
+// resto vea el cafecito, igual que el de la cafetera.
+function cafeAnimPedir() {
+  const me = state.players.get(state.myId);
+  if (!me) return;
+  if (!me.seated) { toast('🪑 El cafecito es sentado: buscá una silla'); return; }
+  if (!cafeAnimHay(me.char)) { toast('☕ Todavía no hay dibujos de este personaje tomando café'); return; }
+  if (me.cafeAnimIni && performance.now() - me.cafeAnimIni < CAFE_ANIM_MS) return;  // ya está tomando
+  send({ type: 'anim', id: state.myId, anim: 'cafe' });
+  cafeAnimAplicar(state.myId);
+}
+
 const miloToma = new Image();
 miloToma.src = urlAsset('sprites/milo_toma.png');
 const cafeImg = new Image();
@@ -4766,13 +4840,29 @@ function render() {
     if (p.seated) {
       const ss = sitScale(p.y);
       const sframe = Math.floor(now / 280) % 2;
-      const spr = getSitSprite(p.char || 'ger', p.x < VW / 2 ? 'left' : 'right', true, sframe);
+      const face = p.x < VW / 2 ? 'left' : 'right';
+      const spr = getSitSprite(p.char || 'ger', face, true, sframe);
       // Conserva la proporción natural de cada conjunto personaje + silla gamer.
       const h = 48 * ss * ((CHAR_DEF[p.char || 'ger'] || {}).kid ? 0.9 : 1), w = h * (spr.width / spr.height);
       ctx.imageSmoothingEnabled = true;              // sprites sentados de alta resolución
       ctx.imageSmoothingQuality = 'high';
       const bob = charAssets[p.char || 'ger'] && charAssets[p.char || 'ger'].sit ? (sframe ? h / SIT_H * 2 : 0) : 0;
-      ctx.drawImage(spr, p.x - w / 2, p.y - h + bob, w, h);
+      const taza = cafeAnimEstado(p, now, face);
+      if (taza) {
+        // Los dibujos del café están alineados contra el sentado, así que van
+        // en la misma caja y se puede cruzar uno con otro. El cruce de 180 ms
+        // es lo que evita el parpadeo al entrar y al salir de la animación.
+        // El sentado no lleva el rebote de respiración mientras tanto: sumaría
+        // un temblor vertical arriba del cruce.
+        const wt = h * (taza.spr.width / taza.spr.height);
+        if (taza.mezcla < 1) {
+          ctx.globalAlpha = 1 - taza.mezcla;
+          ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
+        }
+        ctx.globalAlpha = taza.mezcla;
+        ctx.drawImage(taza.spr, p.x - wt / 2, p.y - h, wt, h);
+        ctx.globalAlpha = 1;
+      } else ctx.drawImage(spr, p.x - w / 2, p.y - h + bob, w, h);
       topY = p.y - h; shR = 15 * ss; fs = Math.round(3.1 * ss);
     } else {
       const spr = getSprite(p.char || 'ger', p.dir || 'down', 0);
@@ -5097,6 +5187,9 @@ function init() {
       if (Math.abs(wx - p.x) < h * 0.28 && wy > p.y - h * 1.05 && wy < p.y - h * 0.35) {
         if (p.id === state.myId) {
           const items = STATUS_KEYS.map((k) => ({ t: `${STATUS_INFO[k].emoji} ${STATUS_INFO[k].label}`, f: () => setStatus(k) }));
+          // El cafecito aparece sólo cuando estás sentado: los dibujos traen
+          // la silla adentro, de pie no habría qué mostrar.
+          if (p.seated && cafeAnimHay(p.char)) items.push({ t: '☕ Tomar un café', f: cafeAnimPedir });
           items.push({ t: '💨 Zumbido', f: doZumbido });
           accAbrir(items, p.name, e.clientX, e.clientY);
         } else {
