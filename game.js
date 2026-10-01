@@ -1824,7 +1824,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v127 · 01/10/2026';
+const VERSION = 'v128 · 01/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -3221,6 +3221,7 @@ const HIST_PUB = {
   ove:  '0c94de18c9477fff197637812f9bb5edc21cd41aee4abe8336025170c6a84d6e',
 };
 const histSub = 'h' + Math.random().toString(36).slice(2, 8);
+let histPedidoEn = 0, histReintento = 0;
 let histLocal = null;                  // { v, s: [{ i, f, u }] }  ms
 const histRemoto = new Map();          // char -> { ses, ts }
 let histClave = null, histTimer = 0, histUltimaPub = 0, histActiva = false;
@@ -3312,8 +3313,13 @@ async function histPublicar() {
   } catch { /* el historial nunca puede romper la oficina */ }
 }
 function histPedir() {
+  histPedidoEn = Date.now();
   const req = JSON.stringify(['REQ', histSub, { kinds: [HIST_KIND], authors: Object.values(HIST_PUB), '#d': [HIST_TAG] }]);
   for (const so of busSockets) { try { if (so.ws.readyState === 1) so.ws.send(req); } catch { /* relay caído */ } }
+  // Si no contesta nadie, hay que repintar igual para que deje de decir
+  // "buscando…" y pase a "todavía sin registro".
+  clearTimeout(histReintento);
+  histReintento = setTimeout(() => { if (histAbiertos.size) renderPlayerList(); }, 6500);
 }
 function histRecibir(e) {
   if (!e || e.kind !== HIST_KIND) return;
@@ -3371,7 +3377,10 @@ function histEstaAdentro(char) {
 // compañeros y sólo aparece cuando tocás un nombre. Por defecto no se ve nada.
 function histDetalle(char) {
   const d = histDatos(char);
-  if (!d || !d.ses.length) return '<div class="pl-hist"><span class="hx-sin">todavía sin registro</span></div>';
+  if (!d || !d.ses.length) {
+    const buscando = Date.now() - histPedidoEn < 6000;
+    return `<div class="pl-hist"><span class="hx-sin">${buscando ? 'buscando…' : 'todavía sin registro'}</span></div>`;
+  }
   const adentro = histEstaAdentro(char);
   // Una sesión sin hora de fin puede ser "está adentro ahora mismo" o "se le
   // cayó el navegador y nunca cerró". En el segundo caso lo último confiable
@@ -3553,6 +3562,18 @@ function startRec() {
 function stopRec() { if (mediaRec && mediaRec.state === 'recording') mediaRec.stop(); }
 function renderPlayerList() {
   const list = [...state.players.values()];
+  // Los que no están ahora van en gris al final. Su historial se sigue
+  // guardando y compartiendo igual, así que también se les puede tocar el
+  // nombre; si no, sólo se podría mirar a los que justo están conectados.
+  const dentro = new Set(list.map((p) => p.char));
+  const fuera = ROSTER.filter((r) => !dentro.has(r.char));
+  const filaAusente = (r) => {
+    const abierto = histAbiertos.has(r.char);
+    return `<div class="pl-row ausente${abierto ? ' abierta' : ''}" data-char="${r.char}" title="Tocá para ver cuándo estuvo">` +
+      `<span class="dot" style="background:${(CHAR_DEF[r.char] || CHAR_DEF.ger).dot}"></span>${esc(r.name)}` +
+      `<span class="pl-flecha">${abierto ? '▾' : '▸'}</span>` +
+      (abierto ? histDetalle(r.char) : '') + '</div>';
+  };
   playerListBox.innerHTML = '<div class="pl-title">👥 En la oficina (' + list.length + ')</div>' +
     list.map((p) => {
       const st = STATUS_INFO[p.status] || STATUS_INFO.disponible;
@@ -3573,7 +3594,8 @@ function renderPlayerList() {
         `<span class="pl-flecha">${abierto ? '▾' : '▸'}</span>${p.seated ? ' 🪑' : ''} ` +
         `<span class="pl-status">${st.emoji} ${st.label}</span>` +
         (abierto ? histDetalle(p.char) : '') + '</div>';
-    }).join('');
+    }).join('') +
+    (fuera.length ? '<div class="pl-sep">no están ahora</div>' + fuera.map(filaAusente).join('') : '');
   renderCallUI();
   layoutDesktopAudio();
   renderCamStrip();

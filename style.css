@@ -801,6 +801,12 @@ body.desktop-rails #callVolBox #callVol { flex: 1 1 auto; width: 100%; min-width
    su fila en la lista de compañeros y sólo aparece al tocar el nombre. Como la
    fila es flex-wrap, el detalle ocupa el ancho completo y cae abajo. */
 .pl-row[data-char] { cursor: pointer; }
+/* El resto del equipo, al final y apagado: se distingue de un vistazo quién
+   está y quién no, pero el nombre se sigue pudiendo tocar. */
+.pl-sep { color: #6d7791; font-size: 7px; margin: 7px 0 1px; }
+.pl-row.ausente { color: #78839c; }
+.pl-row.ausente .dot { filter: grayscale(1) brightness(0.75); }
+.pl-row.ausente .pl-hist { color: #b6c0d6; }
 .pl-row .pl-flecha { color: #6d7791; font-size: 7px; margin-left: 3px; }
 .pl-row.abierta { background: rgba(255, 255, 255, 0.04); }
 .pl-hist {

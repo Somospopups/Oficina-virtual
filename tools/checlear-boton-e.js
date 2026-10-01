@@ -239,6 +239,10 @@ ok(/playerListBox\.addEventListener\('pointerdown'/.test(js) && /histAlternarFil
    'tiene que ser pointerdown: la lista se redibuja y un click se perderia');
 ok(/\.pl-hist\s*\{/.test(css) && /flex: 0 0 100%/.test(css),
    'el detalle ocupa el ancho de la fila y queda adentro del riel');
+// El equipo que no esta tiene que figurar igual: si no, solo se podria mirar
+// el historial de los que justo estan conectados.
+ok(/const fuera = ROSTER\.filter/.test(js) && /pl-row ausente/.test(js) && /\.pl-row\.ausente/.test(css),
+   'los que no estan aparecen en gris al final y tambien se les puede tocar');
 ok(/histCerrarConEsc/.test(js) && /histCerrarSiFuera/.test(js)
    && /addEventListener\('keydown', histCerrarConEsc\)/.test(js)
    && /addEventListener\('pointerdown', histCerrarSiFuera, true\)/.test(js),

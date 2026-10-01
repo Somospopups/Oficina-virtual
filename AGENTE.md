@@ -129,9 +129,23 @@ Tres reglas que ya costaron un bug cada una:
    cierre por "tocaste afuera" va en **fase de captura** (si corriera después,
    el redibujo ya dejó huérfano al elemento tocado, `contains()` da false y
    cerraría justo lo que acabás de abrir).
-4. **Sólo se puede mirar a quien está en la oficina**, porque la lista muestra
-   a los presentes. El historial de alguien que no está se sigue guardando y
-   compartiendo; simplemente no hay dónde tocarlo.
+4. **El equipo que no está va en gris al final de la lista**, para que también
+   se le pueda tocar el nombre. Ojo con dos tiempos que no son bugs: a quien
+   se acaba de ir lo siguen reenviando los relays (la suscripción pide los
+   últimos 60 s) y en P2P recién se lo poda tras **75 s** de silencio, así que
+   tarda un rato en pasarse al gris.
+5. **En el celu no se ve nada de esto**: desde v113 el `@media (max-width:900px)`
+   oculta `#playerList` entero (los estados se ponen tocando al personaje y ese
+   lugar lo usan las cámaras). El historial se sigue guardando y compartiendo
+   desde el celu, pero no hay dónde abrirlo. Si alguna vez se quiere, el lugar
+   natural es el menú que aparece al tocar un personaje.
+
+**Para probar el P2P hay que aislar DOS etiquetas, no una:** `HIST_TAG` y
+también `BUS_ROOM`. Si se cambia sólo la primera, las pruebas entran a la sala
+real y los relays reenvían fantasmas de corridas anteriores; el guard de
+"ya está en la oficina desde otro dispositivo" rechaza el ingreso **en
+silencio** y el test parece pasar mientras mide cualquier cosa. Conviene
+afirmar siempre `state.joined` después de entrar.
 
 ## 🧊 El `index.html` es el único que puede llegar viejo
 
