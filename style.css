@@ -428,10 +428,15 @@ body.spectator-mode #btnE { display: none !important; }
 #chatPill button {
   background: #1b2230; border: 2px solid #2c3550; border-radius: 6px; color: #cdd5e4;
   font-size: 12px; padding: 8px 9px; cursor: pointer; flex: 0 0 auto; line-height: 1;
+  /* Altura fija = la del campo de escribir (38px): el campo y los botones
+     (enviar / microfono) miden EXACTAMENTE lo mismo, como en el diseno
+     aprobado. Si cambia una, cambia la otra. */
+  height: 38px; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 #chatPill button:hover { background: #26304a; }
 #chatRow #chatInput {
-  flex: 1 1 auto; min-width: 0; width: auto; min-height: 42px;
+  flex: 1 1 auto; min-width: 0; width: auto; min-height: 38px;
   border: 2px solid #3b4560 !important; padding: 8px 10px !important; font-size: 10px !important;
   /* Es un <textarea> que crece solo con el mensaje (~5 líneas, después scrollea
      por dentro): así se puede leer completo y corregir antes de mandar. El
@@ -447,6 +452,7 @@ body.spectator-mode #btnE { display: none !important; }
 #recBar {
   flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 5px;
   background: #10141d; border: 2px solid #7a1f1f; padding: 7px 8px; font-size: 8px; color: #cdd5e4; overflow: hidden;
+  min-height: 38px; box-sizing: border-box; /* misma altura que el campo: no salta al grabar */
 }
 #recBar button { background: #1b2230; border: 2px solid #2c3550; border-radius: 6px; color: #cdd5e4; font-size: 10px; padding: 3px 5px; cursor: pointer; }
 #recDot { color: #ff5a5a; animation: recPulse 1s infinite; flex: 0 0 auto; }
@@ -480,7 +486,7 @@ body.desktop-rails #chatLog {
 }
 body.desktop-rails #chatRow { padding: 4px; }
 body.desktop-rails #chatPill { gap: 3px; }
-body.desktop-rails #chatPill button { padding: 6px 5px; font-size: 10px; }
+body.desktop-rails #chatPill button { padding: 6px 5px; font-size: 10px; height: 38px; }
 body.desktop-rails #chatRow #chatInput {
   flex: 1 1 60px; min-width: 0; font-size: 9px !important; padding: 7px 3px !important;
 }
