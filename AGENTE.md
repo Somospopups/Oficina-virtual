@@ -206,6 +206,27 @@ no arranca y el personaje se queda quieto, sin romper nada.
 Viaja por la red como `{ type: 'anim', anim: 'cafe' }`, con lista blanca de
 nombres en `server.js` para que nadie invente animaciones desde la consola.
 
+## ⏳ Mientras cargan los dibujos (13 MB)
+
+`sprites/` pesa 13 MB y el fondo 1,75 MB más. Después de un refresco forzado
+(Ctrl+Shift+R) se baja todo de nuevo, y durante esos segundos la oficina se ve
+negra y a medio armar. Dos cosas que hay que respetar para que eso no parezca
+una pantalla rota:
+
+1. **El tope de escala del personaje sale de SU propio sprite** (`ca.down`),
+   nunca de la bandera global `assetsReady`, que recién se prende cuando
+   terminaron de bajar los dibujos de los cinco. Si se mira la global, el que
+   ya tiene su sprite se dibuja sin tope y aparece hasta **78% más grande**,
+   gigante arriba de una oficina todavía en negro. Pasó en la v130.
+2. **Nada pesado se baja mientras carga lo importante.** El navegador abre 6
+   conexiones por dominio: los 2 MB del café le robaban la mitad del caño al
+   fondo y a los sprites. `cafeAnimCargar()` espera `assetsReady` y después
+   baja de a uno con `fetchPriority='low'`.
+
+Y mientras tanto, `dibujarCarga()` pone un cartel arriba del canvas que dice
+cuántos personajes llegaron y si falta el fondo. Es información real, no una
+barra inventada.
+
 ## 🔢 Versionado y publicación
 
 - Cada cambio sube el número de `VERSION` en `game.js` (v118, v119…) con la

@@ -251,6 +251,19 @@ ok(/visita: true/.test(js) && /!dentro\.has\(r\.char\) && !r\.visita/.test(js),
    'si se agrega una visita al ROSTER, marcarla visita:true en game.js Y en server.js');
 // ---- Animacion de tomar cafe (sentado) ----
 // Los dibujos traen la silla adentro: de pie no hay que ofrecerla.
+// El tope de escala no puede depender de assetsReady (bandera global, se
+// prende recien cuando bajaron los dibujos de los cinco): el que ya tiene el
+// suyo se dibujaria gigante mientras cargan los demas.
+ok(/const s = ca\.down \? Math\.min\(sRaw, baseH \/ 44\) : sRaw;/.test(js)
+   && !/const conAsset = assetsReady/.test(js),
+   'el tope de escala sale del sprite propio, no de assetsReady');
+// Y nada pesado puede pelearle las conexiones a la oficina mientras carga.
+ok(/if \(!assetsReady\) \{ setTimeout\(\(\) => cafeAnimCargar/.test(js)
+   && /fetchPriority/.test(js),
+   'los dibujos del cafe esperan a que cargue la oficina y bajan de a uno');
+ok(/function dibujarCarga/.test(js) && /Cargando la oficina/.test(js),
+   'hay cartel de carga mientras faltan dibujos');
+
 ok(/p\.seated && cafeAnimHay\(p\.char\)/.test(js),
    'el cafecito se ofrece solo estando sentado');
 // Cada personaje de la tabla tiene que tener sus 4 PNG, o la accion aparece

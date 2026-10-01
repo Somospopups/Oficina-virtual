@@ -1826,7 +1826,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v130 · 01/10/2026';
+const VERSION = 'v131 · 01/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -4471,17 +4471,28 @@ function cafeAnimHay(char) { return !!CAFE_ANIM[char]; }
 // se piden al sentarse, que es lo único desde donde se pueden usar.
 function cafeAnimCargar(char) {
   if (!cafeAnimHay(char) || cafeAnimImgs[char]) return;
+  // Son 2 MB. El navegador abre 6 conexiones por dominio: si estos cuatro se
+  // piden mientras todavía bajan la oficina y los dibujos de todos, le roban
+  // la mitad del caño a lo importante y el que entra ve la oficina en negro
+  // un rato largo. Esperan su turno y después bajan DE A UNO.
+  if (!assetsReady) { setTimeout(() => cafeAnimCargar(char), 500); return; }
   const fs = [];
-  for (let i = 1; i <= CAFE_ANIM[char]; i++) {
+  cafeAnimImgs[char] = fs;
+  const siguiente = (i) => {
+    if (i > CAFE_ANIM[char]) return;
     const im = new Image();
+    if ('fetchPriority' in im) im.fetchPriority = 'low';
+    im.onload = im.onerror = () => siguiente(i + 1);
     im.src = urlAsset(`sprites/${char}_cafe${i}.png`);
     fs.push(im);
-  }
-  cafeAnimImgs[char] = fs;
+  };
+  siguiente(1);
 }
 function cafeAnimLista(char) {
   const fs = cafeAnimImgs[char];
-  return !!fs && fs.every((im) => im.complete && im.naturalWidth);
+  // El largo también: bajan de a uno, y `[].every` sobre una lista a medio
+  // llenar da true y la animación arrancaría con dos dibujos.
+  return !!fs && fs.length === CAFE_ANIM[char] && fs.every((im) => im.complete && im.naturalWidth);
 }
 function cafeAnimCuadro(char, face, i) {
   const im = cafeAnimImgs[char][i];
@@ -4867,7 +4878,7 @@ function render() {
     } else {
       const spr = getSprite(p.char || 'ger', p.dir || 'down', 0);
       const ca = charAssets[p.char || 'ger'] || {};
-      const conAsset = assetsReady && !!(ca.down);
+      const conAsset = !!ca.down;   // ídem: lo que importa es si ESTE ya llegó
       // La altura en pantalla no cambia respecto al sprite por código (44*s).
       // El tope de escala sale SIEMPRE del alto de figura del sprite base (de
       // frente), no del sprite de la dirección actual: la espalda mide 700 px
@@ -4877,7 +4888,12 @@ function render() {
       // 44*s da el mismo alto de cabeza a pies en cualquier pose.
       const sRaw = depthScale(p.y);
       const baseH = ca.baseH || spr.height;
-      const s = conAsset ? Math.min(sRaw, baseH / 44) : sRaw;
+      // El tope sale del sprite DE ESTA persona, no de assetsReady, que recién
+      // se prende cuando terminaron de bajar los dibujos de los cinco (13 MB).
+      // Mirando la bandera global, el que ya tenía su sprite se dibujaba sin
+      // tope mientras cargaba el resto: salía GIGANTE arriba de la oficina
+      // todavía en negro, y parecía que se había roto todo.
+      const s = ca.down ? Math.min(sRaw, baseH / 44) : sRaw;
       // Ciclo de caminata real si el personaje tiene frames: zancada derecha →
       // paso → zancada izquierda → paso. El tamaño (s) sale del sprite base
       // para que no cambie la altura al arrancar o frenar.
@@ -4998,6 +5014,34 @@ function loop(t) {
   requestAnimationFrame(loop); // agendado primero: un error en un cuadro no congela el juego
   try { update(dt); } catch (err) { /* un tropiezo no frena la oficina */ }
   try { render(); } catch (err) { /* idem */ }
+  try { dibujarCarga(); } catch (err) { /* idem */ }
+}
+
+// Mientras bajan los 13 MB de dibujos, la oficina se ve negra y a medio armar.
+// Sin un cartel eso parece una pantalla rota, sobre todo después de un refresco
+// forzado (Ctrl+Shift+R), que vuelve a bajar todo. El cartel dice la verdad:
+// cuántos personajes ya llegaron y si falta el fondo.
+function dibujarCarga() {
+  if (assetsReady && bgReady) return;
+  const listos = Object.keys(charAssets).filter((k) => charAssets[k] && charAssets[k].sit).length;
+  const total = Object.keys(CHAR_DEF).length;
+  const g = ctx;
+  g.save();
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  const cw = canvas.width, ch = canvas.height;
+  const fs = Math.max(11, Math.round(cw / 70));
+  g.font = `${fs}px "Press Start 2P", monospace`;
+  g.textAlign = 'center';
+  const txt = `Cargando la oficina… ${listos}/${total}` + (bgReady ? '' : ' + fondo');
+  const w = g.measureText(txt).width + fs * 2, h = fs * 2.6;
+  const x = cw / 2, y = ch * 0.2;   // arriba: no tapa al personaje ni los botones
+  g.fillStyle = 'rgba(10,12,18,0.88)';
+  g.fillRect(x - w / 2, y - h / 2, w, h);
+  g.strokeStyle = '#ffd76a'; g.lineWidth = 2;
+  g.strokeRect(x - w / 2, y - h / 2, w, h);
+  g.fillStyle = '#ffd76a';
+  g.fillText(txt, x, y + fs * 0.38);
+  g.restore();
 }
 
 function init() {
