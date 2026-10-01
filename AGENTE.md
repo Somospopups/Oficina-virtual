@@ -266,6 +266,15 @@ el brillo contra él (misma pose, así que la comparación es válida). En la v1
 el Ger de pie nuevo dio +2,3/255 contra el viejo y -0,3 / -1,6 contra
 `ger_walk2/4`: misma tanda que la caminata, no hizo falta tocarle el color.
 
+En la v135 se le retocaron los ojos: el dibujo nuevo los traía más abiertos y
+con mucho blanco hacia el lado de la nariz (38% de iris contra el 50% del
+dibujo anterior), y quedaba con cara de sorprendido. `e2e/arreglar-ojos.py`
+pinta de iris el blanco del medio, deja blanco sólo en las puntas y baja un
+píxel el párpado. **Toca únicamente píxeles que son blancos**: párpado, ceja,
+piel y silueta quedan intactos, así que no hay parche que se note. Si se
+vuelve a reemplazar el PNG de pie, hay que volver a pasarlo (las coordenadas
+de los dos ojos están escritas en el script).
+
 La caminata de Ger sale de `ger_walk2/3/4` (de frente), `ger_wl1..3` /
 `ger_wr1..3` (de perfil) y `ger_wu1..2` (de espaldas), y **sigue siendo de la
 tanda vieja**. Medido al mismo alto, la cabeza del dibujo de pie es un 10% más
