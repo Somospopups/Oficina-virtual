@@ -54,11 +54,15 @@ function broadcast(obj, exceptWs = null) {
   });
 }
 
-// Roster del equipo: solo se entra con DNI registrado
+// Roster del equipo: solo se entra con DNI registrado.
+// ⚠️ Tiene que ser EL MISMO que el ROSTER de game.js. Si acá falta alguien, en
+// modo servidor (Render o local) le rebota el DNI aunque en GitHub Pages entre
+// bien, porque en P2P el DNI se valida contra game.js.
 const ROSTER = [
-  { dni: '33245911', name: 'Ger',  char: 'ger' },
+  { dni: '33245911', name: 'Ger',  char: 'ger'  },
   { dni: '31923010', name: 'Facu', char: 'facu' },
   { dni: '34186736', name: 'Ovni', char: 'ovni' },
+  { dni: '54472249', name: 'Milo', char: 'milo' },
   { dni: '32769127', name: 'Ove',  char: 'ove'  },
 ];
 
