@@ -1820,7 +1820,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v118 · 01/10/2026';
+const VERSION = 'v119 · 01/10/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3120,6 +3120,29 @@ function notifArmarPanel() {
     else if (t.id === 'npSnd') notifCfg.sound = t.checked;
     notifGuardar();
   });
+}
+function notifPanelAbierto() {
+  const p = document.getElementById('notifPanel');
+  return !!(p && !p.classList.contains('hidden'));
+}
+function notifCerrarPanel() {
+  const p = document.getElementById('notifPanel');
+  if (p) p.classList.add('hidden');
+}
+// Tocar en cualquier parte fuera del panel lo cierra. La campana queda afuera
+// porque ella misma abre/cierra con su click (son eventos distintos: este es
+// pointerdown y el de la campana es click; si también cerrara acá, un toque
+// sobre ella abriría y cerraría en el mismo gesto).
+function notifCerrarSiFuera(e) {
+  if (!notifPanelAbierto()) return;
+  const p = document.getElementById('notifPanel');
+  const b = document.getElementById('notifBtn');
+  const t = e.target;
+  if (!t || (p && p.contains(t)) || (b && b.contains(t))) return;
+  notifCerrarPanel();
+}
+function notifCerrarConEsc(e) {
+  if (e.key === 'Escape' && notifPanelAbierto()) notifCerrarPanel();
 }
 
 // ---------- Adjuntos: imágenes y audios de voz ----------
@@ -4547,6 +4570,8 @@ function init() {
   renderPlayerList();
   const mb = document.getElementById('musicBtn'); if (mb) mb.onclick = mpToggle;
   const nbtn = document.getElementById('notifBtn'); if (nbtn) nbtn.onclick = notifToggle;
+  document.addEventListener('pointerdown', notifCerrarSiFuera);
+  document.addEventListener('keydown', notifCerrarConEsc);
   notifRenderBtn();
   const bp1 = document.getElementById('mpPlay'); if (bp1) bp1.onclick = mpPlay;
   const bp2 = document.getElementById('mpPause'); if (bp2) bp2.onclick = mpPause;

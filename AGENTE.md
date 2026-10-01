@@ -20,7 +20,10 @@ Todo lo que se agregue vive **dentro de los márgenes laterales** (los rieles):
   oficina.
 
 Los paneles que se abren y cierran (radio, notificaciones, red) también se
-abren **anclados dentro de su riel**, no flotando sobre la oficina.
+abren **anclados dentro de su riel**, no flotando sobre la oficina. Y todo
+panel **se cierra tocando cualquier parte fuera de él** (o con Esc): nunca
+puede quedar clavado hasta que el usuario adivine qué botón lo apaga. Si un
+panel nuevo no se cierra así, es un bug.
 
 Corolario: **antes de agregar un elemento visible, preguntate en qué riel
 vive**. Si la respuesta es "encima de la oficina, pero por un ratito", la
