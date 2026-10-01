@@ -410,14 +410,28 @@ body.spectator-mode #btnE { display: none !important; }
 #netPanel .bad { color: #ff8a8a; }
 #clock { cursor: pointer; }
 
+/* ALTURA ÚNICA de todos los controles del chat: el campo de escribir, el
+   micrófono/enviar y los botones de clip y emoji miden EXACTAMENTE lo mismo.
+   Antes había dos alturas sueltas (38px para el campo y el micro, 28px para el
+   clip y el emoji) repetidas a mano en cinco reglas distintas, y se veían
+   desparejos. Ahora sale todo de acá: si hay que cambiarla, se cambia una vez.
+   No volver a escribir alturas a mano en estos controles. */
+:root { --chat-ctl: 30px; }
+
 /* ---- Fila flotante de adjuntos y emojis: SIEMPRE tiene su propio espacio
    dentro del panel (va en flujo, jamás superpuesta): el chat le cede ese alto
    y los botones nunca lo pisan. REGLA DE LA OFICINA (ver AGENTE.md). ---- */
-#chatAux { display: flex; align-items: center; gap: 6px; padding: 6px 8px 0; }
+/* El padding de abajo es el aire que separa estos botones de la línea que
+   arranca #chatRow: sin él quedaban apoyados encima, como pegoteados. El
+   padding de los costados es el mismo que el de #chatRow, así el borde
+   izquierdo del clip arranca justo sobre el borde del campo de escribir. */
+#chatAux { display: flex; align-items: center; gap: 6px; padding: 8px 6px; }
 #chatAux.hidden { display: none !important; }
 #chatAux button {
   background: #1b2230; border: 2px solid #2c3550; border-radius: 6px; color: #cdd5e4;
-  font-size: 12px; padding: 6px 8px; cursor: pointer; flex: 0 0 auto; line-height: 1;
+  font-size: 12px; padding: 0 9px; cursor: pointer; flex: 0 0 auto; line-height: 1;
+  height: var(--chat-ctl); box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 #chatAux button:hover { background: #26304a; }
 /* El 📎 es un clip gris plateado (en Windows y en Android) y sobre el fondo
@@ -433,17 +447,16 @@ body.spectator-mode #btnE { display: none !important; }
 #chatPill { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px; }
 #chatPill button {
   background: #1b2230; border: 2px solid #2c3550; border-radius: 6px; color: #cdd5e4;
-  font-size: 12px; padding: 8px 9px; cursor: pointer; flex: 0 0 auto; line-height: 1;
-  /* Altura fija = la del campo de escribir (38px): el campo y los botones
-     (enviar / microfono) miden EXACTAMENTE lo mismo, como en el diseno
-     aprobado. Si cambia una, cambia la otra. */
-  height: 38px; box-sizing: border-box;
+  font-size: 12px; padding: 0 9px; cursor: pointer; flex: 0 0 auto; line-height: 1;
+  /* Misma altura que el campo de escribir Y que el clip y el emoji: los cuatro
+     controles del chat salen de --chat-ctl. Nada de alturas a mano acá. */
+  height: var(--chat-ctl); box-sizing: border-box;
   display: inline-flex; align-items: center; justify-content: center;
 }
 #chatPill button:hover { background: #26304a; }
 #chatRow #chatInput {
-  flex: 1 1 auto; min-width: 0; width: auto; min-height: 38px;
-  border: 2px solid #3b4560 !important; padding: 8px 10px !important; font-size: 10px !important;
+  flex: 1 1 auto; min-width: 0; width: auto; min-height: var(--chat-ctl);
+  border: 2px solid #3b4560 !important; padding: 5px 10px !important; font-size: 10px !important;
   /* Es un <textarea> que crece solo con el mensaje (~5 líneas, después scrollea
      por dentro): así se puede leer completo y corregir antes de mandar. El
      crecimiento lo hace chatAutoGrow() en game.js. */
@@ -458,7 +471,7 @@ body.spectator-mode #btnE { display: none !important; }
 #recBar {
   flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 5px;
   background: #10141d; border: 2px solid #7a1f1f; padding: 7px 8px; font-size: 8px; color: #cdd5e4; overflow: hidden;
-  min-height: 38px; box-sizing: border-box; /* misma altura que el campo: no salta al grabar */
+  min-height: var(--chat-ctl); box-sizing: border-box; /* misma altura que el campo: no salta al grabar */
 }
 #recBar button { background: #1b2230; border: 2px solid #2c3550; border-radius: 6px; color: #cdd5e4; font-size: 10px; padding: 3px 5px; cursor: pointer; }
 #recDot { color: #ff5a5a; animation: recPulse 1s infinite; flex: 0 0 auto; }
@@ -491,10 +504,11 @@ body.desktop-rails #chatLog {
   padding: 11px 10px; font-size: 9px; line-height: 2;
 }
 body.desktop-rails #chatRow { padding: 4px; }
+body.desktop-rails #chatAux { padding: 7px 4px; }
 body.desktop-rails #chatPill { gap: 3px; }
-body.desktop-rails #chatPill button { padding: 6px 5px; font-size: 10px; height: 38px; }
+body.desktop-rails #chatPill button { padding: 0 5px; font-size: 10px; height: var(--chat-ctl); }
 body.desktop-rails #chatRow #chatInput {
-  flex: 1 1 60px; min-width: 0; font-size: 9px !important; padding: 7px 3px !important;
+  flex: 1 1 60px; min-width: 0; font-size: 9px !important; padding: 5px 6px !important;
 }
 body.desktop-rails #topbar {
   width: calc(var(--desktop-rail-width) - 24px);

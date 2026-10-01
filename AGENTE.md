@@ -71,6 +71,24 @@ En GitHub Pages (P2P) el DNI se valida contra `game.js`; en Render o en el
 servidor local, contra `server.js`. Si sumás a alguien en uno solo, entra en un
 modo y le rebota el DNI en el otro.
 
+## 📏 Los controles del chat miden todos lo mismo
+
+El campo de escribir, el micrófono/enviar y los botones de clip y emoji son
+**una sola fila visual**: tienen que medir **exactamente lo mismo de alto** y
+salir de la variable `--chat-ctl` (hoy 30px). Nada de escribir alturas a mano:
+antes había dos sueltas (38px el campo y el micro, 28px el clip y el emoji)
+repetidas en cinco reglas, y se veían desparejos.
+
+La única altura en píxeles que queda permitida ahí es el `max-height` del
+`<textarea>`, que es el tope de ~5 renglones cuando crece el mensaje.
+
+El clip y el emoji van en su propia fila, **con aire antes de la línea** que
+arranca `#chatRow` (`#chatAux` necesita `padding-bottom`): apoyados sobre la
+línea quedan pegoteados. Y su borde izquierdo se alinea con el del campo de
+escribir — el padding lateral de `#chatAux` acompaña al de `#chatRow`.
+
+`node tools/checlear-boton-e.js` verifica todo esto.
+
 ## 🧊 El `index.html` es el único que puede llegar viejo
 
 `style.css` y `game.js` se piden con `?t=` y cada dibujo con el hash de su

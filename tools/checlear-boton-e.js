@@ -181,6 +181,34 @@ if (fs.existsSync(path.join(RAIZ, 'assets.js'))) {
      desfasados.length ? 'desfasados: ' + desfasados.join(', ') + ' — correr node tools/generar-assets.js' : Object.keys(mapa).length + ' dibujos con hash correcto');
 }
 
+// ---------- Los controles del chat, todos de la misma altura ----------
+// El campo de escribir, el micro/enviar y los botones de clip y emoji tienen
+// que medir EXACTAMENTE lo mismo, y salir de una sola variable. Antes eran dos
+// alturas sueltas (38 y 28) escritas a mano y se veian desparejos.
+ok(/:root \{ --chat-ctl: \d+px; \}/.test(css), 'existe una sola altura para los controles del chat (--chat-ctl)');
+const usaVar = (sel) => {
+  const m = css.match(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{[^}]*\\}'));
+  return !!m && /var\(--chat-ctl\)/.test(m[0]);
+};
+ok(usaVar('#chatAux button'), 'el clip y el emoji toman su alto de --chat-ctl');
+ok(usaVar('#chatPill button'), 'el micro y el enviar toman su alto de --chat-ctl');
+ok(usaVar('#chatRow #chatInput'), 'el campo de escribir toma su alto de --chat-ctl');
+ok(usaVar('#recBar'), 'la barra de grabacion tambien (no salta al grabar)');
+ok(/body\.desktop-rails #chatPill button \{[^}]*var\(--chat-ctl\)/.test(css),
+   'en pantalla panoramica tampoco se escribe el alto a mano');
+// Ojo: 'max-height: 96px' en el campo es legitimo (el tope de ~5 renglones del
+// textarea que crece solo). Lo que no puede haber es height/min-height a mano.
+ok(!/#(chatPill|chatRow #chatInput|recBar|chatAux)[^{]*\{[^}]*(?<![a-z-])(min-)?height:\s*\d+px/.test(css),
+   'ningun control del chat fija su altura a mano (solo el tope del textarea)');
+
+// El clip y el emoji no pueden quedar apoyados sobre la linea que arranca #chatRow
+const auxRegla = (css.match(/#chatAux \{[^}]*\}/) || [''])[0];
+const padAux = (auxRegla.match(/padding:\s*([^;]+);/) || [])[1] || '';
+const partes = padAux.trim().split(/\s+/);
+const abajo = parseFloat(partes.length >= 3 ? partes[2] : partes[0]);
+ok(abajo > 0, `el clip y el emoji tienen aire antes de la linea (padding-bottom: ${partes.length >= 3 ? partes[2] : partes[0]})`,
+   abajo > 0 ? '' : 'en 0 quedan apoyados encima de la linea');
+
 // ---------- Que el index.html no pueda llegar viejo ----------
 // Si el sello del html y la VERSION de game.js se separan, el guardian de
 // game.js recargaria en loop (o no recargaria nunca). Tiene que coincidir.
