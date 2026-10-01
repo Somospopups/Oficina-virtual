@@ -1820,7 +1820,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v120 · 01/10/2026';
+const VERSION = 'v121 · 01/10/2026';
 const versionTag = document.getElementById('versionTag');
 if (versionTag) versionTag.textContent = '⚙ ' + VERSION;
 console.log('%c🏢 Oficina Virtual ' + VERSION, 'color:#7ee787;font-weight:bold');
@@ -3221,6 +3221,7 @@ function recUI(on) {
   const mb = document.getElementById('micBtn');
   if (!row || !bar) return;
   row.classList.toggle('recording', on);
+  const aux = document.getElementById('chatAux'); if (aux) aux.classList.toggle('hidden', on);
   bar.hidden = !on;
   if (on) {
     hideEmojiPicker();

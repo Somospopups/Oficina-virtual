@@ -410,6 +410,17 @@ body.spectator-mode #btnE { display: none !important; }
 #netPanel .bad { color: #ff8a8a; }
 #clock { cursor: pointer; }
 
+/* ---- Fila flotante de adjuntos y emojis: SIEMPRE tiene su propio espacio
+   dentro del panel (va en flujo, jamás superpuesta): el chat le cede ese alto
+   y los botones nunca lo pisan. REGLA DE LA OFICINA (ver AGENTE.md). ---- */
+#chatAux { display: flex; align-items: center; gap: 6px; padding: 6px 8px 0; }
+#chatAux.hidden { display: none !important; }
+#chatAux button {
+  background: #1b2230; border: 2px solid #2c3550; border-radius: 6px; color: #cdd5e4;
+  font-size: 12px; padding: 6px 8px; cursor: pointer; flex: 0 0 auto; line-height: 1;
+}
+#chatAux button:hover { background: #26304a; }
+
 /* ---- Fila de chat estilo WhatsApp: una sola pastilla redondeada ---- */
 [hidden] { display: none !important; }
 #chatRow { display: flex; align-items: center; padding: 6px; border-top: 2px solid #232b3d; }
@@ -420,7 +431,7 @@ body.spectator-mode #btnE { display: none !important; }
 }
 #chatPill button:hover { background: #26304a; }
 #chatRow #chatInput {
-  flex: 1 1 auto; min-width: 0; width: auto;
+  flex: 1 1 auto; min-width: 0; width: auto; min-height: 42px;
   border: 2px solid #3b4560 !important; padding: 8px 10px !important; font-size: 10px !important;
   /* Es un <textarea> que crece solo con el mensaje (~5 líneas, después scrollea
      por dentro): así se puede leer completo y corregir antes de mandar. El
@@ -441,7 +452,7 @@ body.spectator-mode #btnE { display: none !important; }
 #recDot { color: #ff5a5a; animation: recPulse 1s infinite; flex: 0 0 auto; }
 #recTime { color: #ffffff; flex: 0 0 auto; }
 #recHint { color: #7d87a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; }
-#chatRow.recording #chatInput, #chatRow.recording #attBtn, #chatRow.recording #emojiBtn, #chatRow.recording #sendBtn { display: none !important; }
+#chatRow.recording #chatInput, #chatRow.recording #sendBtn { display: none !important; }
 
 /* Picker de emojis, arriba de la pastilla */
 #emojiPicker { display: flex; flex-wrap: wrap; gap: 2px; padding: 6px; background: #141a26; border-top: 2px solid #232b3d; }
@@ -567,6 +578,7 @@ body.desktop-rails #musicPanel #mpVol { flex: 1 1 auto; min-width: 0; width: 100
 
 
 body.spectator-mode #chatRow,
+body.spectator-mode #chatAux,
 body.spectator-mode #attChip,
 body.spectator-mode #statusBar,
 body.spectator-mode #hint,
