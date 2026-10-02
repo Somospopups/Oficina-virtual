@@ -1844,7 +1844,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v154 · 02/10/2026';
+const VERSION = 'v155 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -4961,20 +4961,18 @@ function render() {
       const taza = animEstado(p, now, face);
       if (taza) {
         // Los dibujos de la animación están alineados contra el sentado, así que van
-        // en la misma caja. El sentado va siempre opaco y la animación se apoya
-        // encima con su alfa: el cruce de 180 ms evita el salto sin que el fondo
-        // se transparente en el medio (antes se atenuaban los dos a la vez y la
-        // opacidad combinada bajaba a 0,75).
+        // en la misma caja y se puede cruzar uno con otro. El cruce de 180 ms
+        // es lo que evita el parpadeo al entrar y al salir de la animación.
         // El sentado no lleva el rebote de respiración mientras tanto: sumaría
         // un temblor vertical arriba del cruce.
         const wt = h * (taza.spr.width / taza.spr.height);
-        ctx.globalAlpha = 1;
-        ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
-        if (taza.mezcla > 0) {
-          ctx.globalAlpha = taza.mezcla;
-          ctx.drawImage(taza.spr, p.x - wt / 2, p.y - h, wt, h);
-          ctx.globalAlpha = 1;
+        if (taza.mezcla < 1) {
+          ctx.globalAlpha = 1 - taza.mezcla;
+          ctx.drawImage(spr, p.x - w / 2, p.y - h, w, h);
         }
+        ctx.globalAlpha = taza.mezcla;
+        ctx.drawImage(taza.spr, p.x - wt / 2, p.y - h, wt, h);
+        ctx.globalAlpha = 1;
       } else ctx.drawImage(spr, p.x - w / 2, p.y - h + bob, w, h);
       topY = p.y - h; shR = 15 * ss; fs = Math.round(3.1 * ss);
     } else {
