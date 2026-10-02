@@ -179,6 +179,8 @@ ok(/function versionRefrescar\(\)/.test(js) && /ov-build/.test(js) && /\?fresco=
    'la versión busca actualización y recarga en fresco');
 ok(/sessionStorage\.setItem\('ovDni'/.test(js) && /ovAuto/.test(js),
    'tras actualizar se vuelve a entrar solo con el DNI de la pestaña');
+ok(/function aplicarVuelta\(\)/.test(js) && /walkable\(x, y\)/.test(js) && /setStatus\(v\.status, true\)/.test(js),
+   'al volver recupera posición validada y estado');
 
 // 8c) el 📷 es el interruptor de la videoconferencia: muestra y al volver a
 // presionar desaparece (nada de tira pegajosa que quede siempre visible).

@@ -206,7 +206,8 @@ El reloj muestra sólo hora · clima · versión. Tocando la versión se busca
 actualización sin salir: si el sello publicado es más nuevo, recarga con
 `?fresco=` y vuelve a entrar solo con el DNI que vive en `sessionStorage`
 (la pestaña, nunca sale del equipo). `versionRefrescar()` + bandera
-`ovAuto` en el arranque.
+`ovAuto` en el arranque + `aplicarVuelta()`, que recupera posición exacta
+(validada con `walkable`) y estado.
 
 ## 😶 Emojis sobre fondo oscuro
 

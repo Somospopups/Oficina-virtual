@@ -1918,7 +1918,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v166 · 02/10/2026';
+const VERSION = 'v167 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -2305,7 +2305,13 @@ async function versionRefrescar() {
     const m = (await r.text()).match(/<meta name="ov-build" content="([^"]+)"/);
     const pub = m && m[1];
     if (pub && pub !== mia) {
-      try { if (state.joined) sessionStorage.setItem('ovAuto', '1'); } catch { /* incógnito */ }
+      try {
+        if (state.joined) {
+          sessionStorage.setItem('ovAuto', '1');
+          const me = state.players.get(state.myId);
+          if (me) sessionStorage.setItem('ovVuelta', JSON.stringify({ x: Math.round(me.x), y: Math.round(me.y), status: me.status, seated: !!me.seated }));
+        }
+      } catch { /* incógnito */ }
       toast(`⬇ Hay ${pub}: actualizando…`);
       setTimeout(() => { location.href = location.pathname + '?fresco=' + Date.now(); }, 700);
     } else toast(`✅ Ya tenés la última (${mia})`);
@@ -5757,7 +5763,9 @@ function init() {
     if (!dniInput.value && /^\d{7,8}$/.test(guardado)) dniInput.value = guardado;
     if (sessionStorage.getItem('ovAuto') === '1' && /^\d{7,8}$/.test(dniInput.value || '')) {
       sessionStorage.removeItem('ovAuto');
-      setTimeout(() => { if (!state.joined && !state.spectating) join(); }, 2500);
+      setTimeout(async () => {
+        if (!state.joined && !state.spectating) { await join(); aplicarVuelta(); }
+      }, 2500);
     }
   } catch { /* incógnito */ }
   joinBtn.onclick = join;
@@ -5775,3 +5783,22 @@ function init() {
   requestAnimationFrame(loop);
 }
 init();
+// Tras una actualización: vuelve al punto exacto y al estado que tenía (una
+// sola vez). La posición se valida con walkable: era válida hace segundos,
+// pero si algo cambió, mejor el puesto que un lugar raro.
+function aplicarVuelta() {
+  let v = null;
+  try { v = JSON.parse(sessionStorage.getItem('ovVuelta') || 'null'); sessionStorage.removeItem('ovVuelta'); } catch { return; }
+  if (!v || !state.joined) return;
+  const me = state.players.get(state.myId);
+  if (!me) return;
+  if (v.status && STATUS_INFO[v.status]) setStatus(v.status, true);
+  if (!v.seated && Number.isFinite(v.x) && Number.isFinite(v.y)) {
+    const x = Math.round(v.x), y = Math.round(v.y);
+    if (typeof walkable === 'function' && walkable(x, y)) {
+      me.seated = false; me.moving = false;
+      me.x = me.tx = x; me.y = me.ty = y;
+      sendMoveNow(); renderPlayerList();
+    }
+  }
+}
