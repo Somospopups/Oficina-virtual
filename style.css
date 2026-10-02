@@ -617,6 +617,22 @@ body.spectator-mode #musicPanel { display: none !important; }
    del local, que mira la oficina en espectador y tiene que ver lo que pone el DJ.
    Lo que no tiene sentido es la radio, porque el espectador no puede ser DJ. */
 body.spectator-mode #chatLog { flex: 1 1 auto; }
+/* Espectador + pantalla compartida: toma TODA la pantalla (es la TV del
+   local). Al cortar la transmisión se esconde sola. Los !important pisan
+   estilos inline si la ventana se había flotado/arrastrado antes. */
+body.spectator-mode #videoPanel.share-full {
+  left: 0 !important; right: 0 !important; top: 0 !important; bottom: 0 !important;
+  width: auto !important; height: 100vh !important; max-height: 100vh !important;
+  transform: none !important; border: 0; border-radius: 0; z-index: 60; padding: 6px;
+}
+body.spectator-mode #videoPanel.share-full #videoBox { flex: 1 1 auto; aspect-ratio: auto; min-height: 0; }
+body.spectator-mode #videoPanel.share-full .vp-grip,
+body.spectator-mode #videoPanel.share-full .vp-grip-r,
+body.spectator-mode #videoPanel.share-full .vp-grip-b,
+body.spectator-mode #videoPanel.share-full #videoFloat,
+body.spectator-mode #videoPanel.share-full #videoBig,
+body.spectator-mode #videoPanel.share-full #videoClose,
+body.spectator-mode #videoPanel.share-full #videoSync { display: none; }
 
 /* ---------- Ajustes de movil, al final del archivo a proposito ----------
    El bloque @media del principio del archivo queda PISADO por las reglas base que

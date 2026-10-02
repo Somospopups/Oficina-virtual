@@ -158,6 +158,18 @@ ok(!/cuadrados de la derecha/.test(html) && !/cuadrados de la derecha/.test(js),
 ok(/id="btnE"/.test(html) && /id="stick"/.test(html) && /id="camStrip"/.test(html),
    'los tres controles siguen en el HTML');
 
+// 8b) la pantalla compartida le llega al espectador: el iniciador oferta
+// aunque el par ya exista sin negociar (antes los dos lados esperaban la
+// oferta del otro y el espectador veía negro), y en espectador se ve en
+// grande hasta que se corta la transmisión.
+ok(/function rtcAsegurarOferta\(peer\)/.test(js) && /rtcAsegurarOferta\(msg\.from\)/.test(js),
+   'el iniciador oferta aunque el par exista sin negociar');
+ok(/panel\.classList\.toggle\('share-full', state\.spectating\)/.test(js) &&
+   /panel\.classList\.remove\('share-full'\)/.test(js),
+   'la pantalla se agranda sola en el espectador y sale del modo al cortar');
+ok(/body\.spectator-mode #videoPanel\.share-full/.test(css) && /height: 100vh/.test(css),
+   'el modo grande del espectador ocupa toda la pantalla');
+
 // 9) los dibujos NUNCA pueden salir viejos del caché: cada PNG se pide con un
 // hash de su propio contenido (assets.js, generado por tools/generar-assets.js).
 // El mapa y los .css/.js se versionan con ?v= (sin document.write bloqueante).

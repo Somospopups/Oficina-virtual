@@ -339,6 +339,19 @@ Y mientras tanto, `dibujarCarga()` pone un cartel arriba del canvas que dice
 cuántos personajes llegaron y si falta el fondo. Es información real, no una
 barra inventada.
 
+## 📺 Espectador y pantalla compartida
+
+El espectador (`0tv…`) siempre es el iniciador WebRTC y nunca abre micro:
+sus pares se crean "de oído" con los avisos y quedan `nuevo` hasta que él
+oferta. `rtcAsegurarOferta()` es la única que oferta (micro, cámara y
+pantalla): si el par ya existe pero nunca se negoció, oferta igual. Sin eso
+los dos lados esperan la oferta del otro y el espectador ve negro (pasó en
+la v160). No ofertar a mano desde otro lado: se generan choques.
+
+En espectador la pantalla compartida toma TODO (`#videoPanel.share-full`,
+que pone `rtcVerPantalla` y saca `rtcOcultarPantalla`): es la TV del local.
+Al cortar se esconde sola; al salir del modo espectador también.
+
 ## 🔢 Versionado y publicación
 
 - Cada cambio sube el número de `VERSION` en `game.js` (v118, v119…) con la

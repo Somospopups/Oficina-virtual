@@ -505,6 +505,9 @@ function rtcVerPantalla(peer, stream) {
   rtcShareVivo.set(peer, stream);
   const panel = document.getElementById('videoPanel');
   if (panel) panel.classList.remove('hidden');
+  // Espectador (la TV del local): la pantalla compartida toma TODO. Al cortar
+  // se esconde sola en rtcOcultarPantalla.
+  if (panel) panel.classList.toggle('share-full', state.spectating);
   const who = document.getElementById('videoWho');
   if (who) who.textContent = `🖥 ${rtcNombreDe(peer)} está compartiendo pantalla`;
   const note = document.getElementById('videoNote');
@@ -538,6 +541,7 @@ function rtcOcultarPantalla() {
   const v = document.getElementById('rtcVideo');
   if (v) { try { v.srcObject = null; } catch { /* ya no está */ } v.remove(); }
   const panel = document.getElementById('videoPanel');
+  if (panel) panel.classList.remove('share-full');
   if (panel && !music.item) panel.classList.add('hidden');
   renderCallUI();
 }
@@ -765,6 +769,20 @@ function rtcIniciyo(peer) {
   const yo = String(state.myId || ''), el = String(peer || '');
   if (!yo || !el) return false;
   return yo < el;
+}
+// El iniciador oferta si la conexión nunca se negoció (par nuevo): sin esto,
+// un par creado de oído (nuevo) dejaba a los dos lados esperando la oferta
+// del otro y el video no llegaba nunca. Le pasó al espectador: escucha los
+// avisos, crea el par, y cuando arranca la pantalla ninguno oferta.
+function rtcAsegurarOferta(peer) {
+  if (!rtcIniciyo(peer)) return false;
+  // El espectador siempre inicia ('0tv' ordena primero): sin esto, un
+  // espectador fresco ante un aviso de micro nunca ofertaba.
+  if (!rtcConectaCon(peer) && !state.spectating) return false;
+  const p = rtcMesh.get(peer);
+  if (p && !p.nuevo) return false;
+  rtcOfrecer(peer);
+  return true;
 }
 
 function rtcPar(peer) {
@@ -1844,7 +1862,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v160 · 02/10/2026';
+const VERSION = 'v161 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -2257,8 +2275,7 @@ function handleMsg(msg) {
       }
       rtcMic.set(msg.from, !!msg.mic);
       if (msg.mic) {
-        if ((rtcOn || state.spectating) && rtcIniciyo(msg.from) && !rtcMesh.has(msg.from)) rtcOfrecer(msg.from);
-        else rtcPar(msg.from);
+        if (!rtcAsegurarOferta(msg.from)) rtcPar(msg.from);
         notify('mic', rtcNombreDe(msg.from), 'abrió su micrófono: se armó la llamada', (state.players.get(msg.from) || {}).char);
       } else if (!rtcConectaCon(msg.from)) {
         // Cerró el micro y no queda cámara ni pantalla de por medio: se corta.
@@ -2297,8 +2314,7 @@ function handleMsg(msg) {
       if (msg.on) {
         rtcComparte.set(msg.from, true);
         if (msg.sid) rtcShareSid.set(msg.from, msg.sid);
-        if (rtcConectaCon(msg.from) && rtcIniciyo(msg.from) && !rtcMesh.has(msg.from)) rtcOfrecer(msg.from);
-        else rtcPar(msg.from);
+        if (!rtcAsegurarOferta(msg.from)) rtcPar(msg.from);
         // Re-share sin renegociación: el video llega por el canal ya vivo y
         // NO hay ontrack nuevo. Se revive la ventana con el stream cacheado.
         if (rtcShareVivo.has(msg.from)) rtcVerPantalla(msg.from, rtcShareVivo.get(msg.from));
@@ -2319,8 +2335,7 @@ function handleMsg(msg) {
       if (msg.on) {
         rtcCamPeers.set(msg.from, true);
         if (msg.sid) rtcCamSid.set(msg.from, msg.sid);
-        if (rtcConectaCon(msg.from) && rtcIniciyo(msg.from) && !rtcMesh.has(msg.from)) rtcOfrecer(msg.from);
-        else rtcPar(msg.from);
+        if (!rtcAsegurarOferta(msg.from)) rtcPar(msg.from);
         rtcResolverVideos(msg.from);
         notify('cam', rtcNombreDe(msg.from), 'prendió su cámara', (state.players.get(msg.from) || {}).char);
       } else {
@@ -3939,6 +3954,7 @@ function exitSpectatorMode() {
   if (attachmentModal && !attachmentModal.classList.contains('hidden')) closeAttachmentPreview();
   chatLog.innerHTML = ''; // no dejar susurros visibles para quien use luego el login
   spectatorWhisperBacklog.length = 0; state.players.clear(); renderPlayerList();
+  rtcOcultarPantalla();   // si había pantalla compartida en grande, se va con el modo
   rtcCerrar();   // salir de espectador deja el micro cerrado, como corresponde
   joinOverlay.classList.remove('hidden');
 }
