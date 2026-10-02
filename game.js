@@ -1844,7 +1844,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v157 · 02/10/2026';
+const VERSION = 'v158 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -4604,7 +4604,7 @@ function animPedir(nombre) {
 // mueve ella. Viaja como el modo pelea: aviso discreto para el cambio
 // instantáneo + bandera en el estado para el que entra tarde. El servidor
 // sólo se lo cree a Ger.
-const POLE = { x: 610, y: 535, h: 400, cuadros: 6, cada: 500, xRel: 284 / 669 };
+const POLE = { x: 610, y: 535, h: 300, cuadros: 6, cada: 500, xRel: 284 / 669 };
 const poleImgs = [];
 let poleBajando = false;
 const pole = { on: false, t0: 0 };
