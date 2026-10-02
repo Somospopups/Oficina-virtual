@@ -20,10 +20,31 @@ const MIME = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
   '.ico': 'image/x-icon',
 };
 
 // ---------- Static file server ----------
+// Streaming (no se carga el archivo entero en memoria por request) con
+// ETag + Cache-Control por tipo:
+// - dibujos con hash de contenido (assets.js): inmutables 1 año.
+// - css/js versionados con ?v=: 1 hora + revalidación.
+// - index.html: 10 minutos (es el único que puede llegar viejo: el sello
+//   ov-build de game.js lo detecta y fuerza la recarga).
+const CACHE = {
+  '.png': 'public, max-age=31536000, immutable',
+  '.jpg': 'public, max-age=31536000, immutable',
+  '.jpeg': 'public, max-age=31536000, immutable',
+  '.gif': 'public, max-age=31536000, immutable',
+  '.webp': 'public, max-age=31536000, immutable',
+  '.svg': 'public, max-age=31536000, immutable',
+  '.ico': 'public, max-age=31536000, immutable',
+  '.css': 'public, max-age=3600, must-revalidate',
+  '.js': 'public, max-age=3600, must-revalidate',
+};
+function etagDe(st) {
+  return `"${st.size.toString(36)}-${Number(st.mtimeMs).toString(36)}"`;
+}
 const server = http.createServer((req, res) => {
   let urlPath = decodeURIComponent(req.url.split('?')[0]);
   if (urlPath === '/') urlPath = '/index.html';
@@ -40,14 +61,26 @@ const server = http.createServer((req, res) => {
   if (rel === 'node_modules' || rel === '.git') {
     res.writeHead(404); return res.end('Not Found');
   }
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
+  fs.stat(filePath, (err, st) => {
+    if (err || !st.isFile()) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       return res.end('404 Not Found');
     }
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
-    res.end(data);
+    const tag = etagDe(st);
+    if (req.headers['if-none-match'] === tag) {
+      res.writeHead(304); return res.end();
+    }
+    const headers = {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'ETag': tag,
+      'Cache-Control': CACHE[ext] || 'public, max-age=600',
+    };
+    res.writeHead(200, headers);
+    if (req.method === 'HEAD') return res.end();
+    const flujo = fs.createReadStream(filePath);
+    flujo.on('error', () => { try { res.destroy(); } catch {} });
+    flujo.pipe(res);
   });
 });
 
@@ -87,7 +120,7 @@ function publicState() {
   return [...players.values()].filter((p) => p.authed).map((p) => ({
     id: p.id, name: p.name, char: p.char, color: p.color, joinTs: p.joinTs,
     x: p.x, y: p.y, dir: p.dir, moving: p.moving, seated: !!p.seated,
-    status: p.status, fightMode: !!p.fightMode, bubble: p.bubble, bubbleUntil: p.bubbleUntil,
+    status: p.status, fightMode: !!p.fightMode, poleOn: !!p.poleOn, bubble: p.bubble, bubbleUntil: p.bubbleUntil,
     emote: p.emote, emoteUntil: p.emoteUntil, wave: p.wave, waveUntil: p.waveUntil,
   }));
 }
@@ -161,6 +194,7 @@ wss.on('connection', (ws) => {
         p.moving = !!msg.moving;
         p.seated = !!msg.seated;
         p.fightMode = !!msg.fightMode;
+        if (p.char === 'ger') p.poleOn = !!msg.poleOn;   // la bailarina es sólo de Ger
         p.lastMove = Date.now();
         break;
       }
@@ -198,6 +232,13 @@ wss.on('connection', (ws) => {
       case 'fight-mode': {
         p.fightMode = !!msg.active;
         broadcast({ type: 'fight-mode', id, active: p.fightMode });
+        break;
+      }
+      // Bailarina del caño: la prende y apaga sólo Ger; el resto la ve.
+      case 'pole': {
+        if (p.char !== 'ger') break;
+        p.poleOn = !!msg.active;
+        broadcast({ type: 'pole', id, active: p.poleOn });
         break;
       }
       case 'fight-hit': {

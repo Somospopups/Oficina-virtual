@@ -160,7 +160,9 @@ ok(/id="btnE"/.test(html) && /id="stick"/.test(html) && /id="camStrip"/.test(htm
 
 // 9) los dibujos NUNCA pueden salir viejos del caché: cada PNG se pide con un
 // hash de su propio contenido (assets.js, generado por tools/generar-assets.js).
-ok(/assets\.js\?t=/.test(html), 'el mapa de hashes de los dibujos se carga siempre fresco');
+// El mapa y los .css/.js se versionan con ?v= (sin document.write bloqueante).
+ok(/assets\.js\?(t=|v=)/.test(html), 'el mapa de hashes de los dibujos se carga versionado');
+ok(!/document\.write/.test(html), 'el HTML no usa document.write (bloqueante)');
 ok(/function urlAsset\(ruta\)/.test(js), 'las imágenes se piden con urlAsset()');
 ok(!/\?v=1\.|\?v=2['"`]/.test(js), 'no queda ningún ?v= escrito a mano (se olvidaría al cambiar un dibujo)');
 ok(/const ASSET_T = 't=' \+ Date\.now\(\)/.test(js) && /\|\| ASSET_T/.test(js),
@@ -317,6 +319,46 @@ const anims = [];
   ok(faltan.length === 0, 'estan todos los dibujos de los que figuran en ANIMS',
      faltan.length ? 'faltan: ' + faltan.join(', ') : '');
 }
+// Cada cuadro de animación tiene su gemelo liviano en WebP (~10% del PNG):
+// animCargar() lo pide primero y cae al PNG si el navegador no lo entiende.
+// Sin el .webp, la tanda baja los ~2 MB del PNG.
+{
+  const faltan = [];
+  for (const a of anims) for (const [char, n] of a.quien) {
+    for (let i = 1; i <= n; i++) {
+      const f = `${char}_${a.nombre}${i}.webp`;
+      if (!fs.existsSync(path.join(raiz, 'sprites', f))) faltan.push(f);
+    }
+  }
+  ok(faltan.length === 0, 'cada cuadro de animación tiene su WebP liviano',
+     faltan.length ? 'faltan: ' + faltan.join(', ') : '');
+}
+// La bailarina del caño (sólo Ger): 6 cuadros en PNG + WebP. Tienen que estar
+// los 12 y medir exactamente lo mismo: el caño queda clavado sólo si los 6
+// lienzos son idénticos.
+{
+  const faltan = [];
+  for (let i = 1; i <= 6; i++) for (const ext of ['png', 'webp']) {
+    if (!fs.existsSync(path.join(raiz, 'sprites', `pole${i}.${ext}`))) faltan.push(`pole${i}.${ext}`);
+  }
+  ok(faltan.length === 0, 'están los 12 dibujos de la bailarina (PNG + WebP)',
+     faltan.length ? 'faltan: ' + faltan.join(', ') : '');
+}
+{
+  const tams = new Set();
+  for (let i = 1; i <= 6; i++) {
+    try {
+      const b = fs.readFileSync(path.join(raiz, 'sprites', `pole${i}.png`));
+      tams.add(b.readUInt32BE(16) + 'x' + b.readUInt32BE(20));   // ancho x alto del IHDR
+    } catch {}
+  }
+  ok(tams.size === 1, 'los 6 cuadros de la bailarina miden lo mismo (el caño no salta)',
+     [...tams].join(', '));
+}
+ok(/case 'pole'/.test(srv) && /p\.char !== 'ger'/.test(srv),
+   'el servidor sólo le cree la bailarina a Ger');
+ok(/Bailarina/.test(js) && /polePedir/.test(js),
+   'la bailarina está en el menú (sólo Ger, parado)');
 // El alto en pantalla es fijo y el ancho sale de la proporcion del PNG: si un
 // cuadro no mide lo mismo que el _sit.png, el personaje salta al animarse.
 {

@@ -4,3 +4,5 @@ node_modules/
 
 # Las entregas (bundle del PUBLICAR.bat) se preparan en el disco, no en el repo.
 cambio-v*.bundle
+actualizacion-*/
+actualizacion-*.zip

@@ -1844,7 +1844,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v155 · 02/10/2026';
+const VERSION = 'v157 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -1911,7 +1911,7 @@ function myPublic() {
   if (!me) return null;
   return {
     id: me.id, name: me.name, char: me.char, color: me.color, x: me.x, y: me.y, dir: me.dir,
-    moving: me.moving, seated: me.seated, status: me.status, fightMode: !!me.fightMode, joinTs: state.joinTs || 0,
+    moving: me.moving, seated: me.seated, status: me.status, fightMode: !!me.fightMode, poleOn: !!me.poleOn, joinTs: state.joinTs || 0,
     bubble: me.bubble, bubbleUntil: me.bubbleUntil, emote: me.emote, emoteUntil: me.emoteUntil,
   };
 }
@@ -2332,6 +2332,7 @@ function handleMsg(msg) {
       break;
     }
     case 'left':
+      { const sali = state.players.get(msg.id); if (sali && sali.char === 'ger') poleFijar(false); }
       state.players.delete(msg.id);
       // Se cuelga la conexión con ese par: si no, el <audio> sigue vivo ocupando
       // banda y el mic sigue marcado como conectado en la lista.
@@ -2342,7 +2343,7 @@ function handleMsg(msg) {
       break;
     case 'bye': {
       const p = state.players.get(msg.id);
-      if (p) { state.players.delete(msg.id); addChat(null, `${p.name} salió de la oficina`, 'system'); notify('joinleave', p.name, 'salió de la oficina', p.char, 'leave'); renderPlayerList(); }
+      if (p) { if (p.char === 'ger') poleFijar(false); state.players.delete(msg.id); addChat(null, `${p.name} salió de la oficina`, 'system'); notify('joinleave', p.name, 'salió de la oficina', p.char, 'leave'); renderPlayerList(); }
       break;
     }
     case 'system': addChat(null, msg.text, 'system'); break;
@@ -2369,6 +2370,7 @@ function handleMsg(msg) {
     case 'cat-pet': catAplicarMimo(msg.id); break;
     case 'cafe': cafeAplicar(msg.id); break;
     case 'anim': animAplicar(msg.id, msg.anim); break;
+    case 'pole': poleAplicar(msg.id, msg.active); break;
     case 'fight-mode': fightModoAplicar(msg.id, msg.active); break;
     case 'fight-hit': fightGolpeAplicar(msg.id, msg.hit); break;
     case 'nudge': {
@@ -2405,6 +2407,9 @@ function upsertRemote(p, snap) {
   cur.joinTs = p.joinTs || cur.joinTs;
   cur.name = p.name; cur.char = p.char || cur.char; cur.color = p.color; cur.dir = p.dir;
   cur.moving = p.moving; cur.status = p.status; cur.seated = !!p.seated; cur.fightMode = !!p.fightMode;
+  // La bailarina viaja en el estado para el que entra tarde (flanco cuidado
+  // en poleFijar: el estado llega 20 veces por segundo).
+  if (p.char === 'ger' && p.poleOn !== undefined) poleFijar(!!p.poleOn);
   cur.tx = p.x; cur.ty = p.y;
   if (snap || p.seated) { cur.x = p.x; cur.y = p.y; }
   if (p.bubble && cur.bubble !== p.bubble) { cur.bubble = p.bubble; cur.bubbleUntil = performance.now() + 5000; }
@@ -4517,8 +4522,18 @@ function animCargar(char, nombre) {
     if (i > ANIMS[nombre].quien[char]) { animBajando = false; return; }
     const im = new Image();
     if ('fetchPriority' in im) im.fetchPriority = 'low';
-    im.onload = im.onerror = () => siguiente(i + 1);
-    im.src = urlAsset(`sprites/${char}_${nombre}${i}.png`);
+    // Las tandas pesan ~2 MB en PNG y ~10% en WebP: se pide primero el WebP
+    // (entra en assets.js por tools/generar-assets.js) y si el navegador no
+    // lo entiende se cae al PNG de siempre. El avance es sólo por éxito.
+    let proboPng = false;
+    im.onload = () => siguiente(i + 1);
+    im.onerror = () => {
+      if (!proboPng) {
+        proboPng = true;
+        im.src = urlAsset(`sprites/${char}_${nombre}${i}.png`);
+      } else siguiente(i + 1);
+    };
+    im.src = urlAsset(`sprites/${char}_${nombre}${i}.webp`);
     fs.push(im);
   };
   siguiente(1);
@@ -4580,6 +4595,75 @@ function animPedir(nombre) {
   }
   send({ type: 'anim', id: state.myId, anim: nombre });
   animAplicar(state.myId, nombre);
+}
+
+// ---------- Bailarina del caño (sólo Ger la prende, todos la ven) ----------
+// Prop de fondo en loop hasta que Ger la apaga. Los PNG salen de
+// tools/procesar-bailarina.py con el caño en la MISMA x de lienzo, así que
+// dibujando los 6 sobre el mismo ancla el caño queda clavado y sólo se
+// mueve ella. Viaja como el modo pelea: aviso discreto para el cambio
+// instantáneo + bandera en el estado para el que entra tarde. El servidor
+// sólo se lo cree a Ger.
+const POLE = { x: 610, y: 535, h: 400, cuadros: 6, cada: 500, xRel: 284 / 669 };
+const poleImgs = [];
+let poleBajando = false;
+const pole = { on: false, t0: 0 };
+// Livianos (~85 KB los 6 en WebP): se piden al arrancar, de a uno y con
+// prioridad baja, igual que las tandas de café/birra.
+function poleCargar() {
+  if (poleImgs.length) return;
+  if (!assetsReady || poleBajando) { setTimeout(poleCargar, 500); return; }
+  poleBajando = true;
+  const siguiente = (i) => {
+    if (i > POLE.cuadros) { poleBajando = false; return; }
+    const im = new Image();
+    if ('fetchPriority' in im) im.fetchPriority = 'low';
+    let proboPng = false;
+    im.onload = () => siguiente(i + 1);
+    im.onerror = () => {
+      if (!proboPng) { proboPng = true; im.src = urlAsset(`sprites/pole${i}.png`); }
+      else siguiente(i + 1);
+    };
+    im.src = urlAsset(`sprites/pole${i}.webp`);
+    poleImgs.push(im);
+  };
+  siguiente(1);
+}
+poleCargar();
+function poleLista() {
+  return poleImgs.length === POLE.cuadros && poleImgs.every((im) => im.complete && im.naturalWidth);
+}
+// El t0 sólo se arma en el flanco apagado→prendido: el estado llega 20
+// veces por segundo y si no, el loop se reiniciaría sin parar.
+function poleFijar(active) {
+  if (active && !pole.on) pole.t0 = performance.now();
+  pole.on = !!active;
+}
+function poleAplicar(id, active) {
+  const p = state.players.get(id);
+  if (!p || p.char !== 'ger') return;   // sólo Ger la maneja
+  if (id === state.myId) p.poleOn = !!active;
+  poleFijar(!!active);
+  toast(active ? '💃 ¡Bailarina en la oficina!' : '💃 Se fue la bailarina');
+}
+// Va en el menú del propio Ger PARADO, junto al modo pelea.
+function polePedir() {
+  const me = state.players.get(state.myId);
+  if (!me || me.char !== 'ger') return;
+  if (me.seated) { toast('💃 Esto es parado: levantate con WASD'); return; }
+  if (!poleLista()) {
+    setTimeout(() => { if (!poleLista()) toast('⏳ Bajando la bailarina…'); }, 400);
+  }
+  const next = !pole.on;
+  send({ type: 'pole', id: state.myId, active: next });
+  poleAplicar(state.myId, next);
+}
+function drawPole(now) {
+  if (!pole.on || !poleLista()) return;
+  const im = poleImgs[Math.floor((now - pole.t0) / POLE.cada) % POLE.cuadros];
+  const h = POLE.h, w = h * (im.width / im.height);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(im, POLE.x - w * POLE.xRel, POLE.y - h, w, h);
 }
 
 const miloToma = new Image();
@@ -4921,6 +5005,7 @@ function render() {
   }
 
   drawCafetera(now);
+  drawPole(now);   // fondo, detrás de todos: el caño queda clavado en POLE.x
   if (sky.amb > 0.01) {
     ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
     ctx.fillRect(0, 0, VW, VH);
@@ -5366,6 +5451,10 @@ function init() {
           if (!p.seated && p.char === 'ger') items.push({
             t: p.fightMode ? '🕊️ Desactivar pelea' : '🥊 Activar modo pelea',
             f: fightModoPedir,
+          });
+          if (!p.seated && p.char === 'ger') items.push({
+            t: pole.on ? '💃 Apagar bailarina' : '💃 Bailarina',
+            f: polePedir,
           });
           items.push({ t: '💨 Zumbido', f: doZumbido });
           accAbrir(items, p.name, e.clientX, e.clientY);

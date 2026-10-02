@@ -71,7 +71,7 @@ cambiá la otra.
 | `Z X C V B N` | Emotes: 👋 😂 🎉 👍 🤔 🔥 |
 | `H` | Mostrar/ocultar la ayuda |
 | Click en la cabeza de un compañero | Menú radial: 👋 Saludar · 💬 Susurrar · 💨 Zumbido |
-| Click en tu propia cabeza | Estados, animaciones (si estás sentado 🪑), 🥊 modo pelea (solo Ger), 💨 zumbido |
+| Click en tu propia cabeza | Estados, animaciones (si estás sentado 🪑), 🥊 modo pelea y 💃 bailarina (solo Ger parado), 💨 zumbido |
 | 📷 / 🖥️ (columna derecha) | Prender cámara · compartir pantalla (uno a la vez) |
 | Reloj (barra de arriba) | 📡 Panel de la red P2P |
 | 🔔 (barra de arriba) | Notificaciones estilo Messenger (vienen prendidas): clic apagada→prende · clic prendida→opciones |

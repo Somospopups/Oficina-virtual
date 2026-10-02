@@ -83,6 +83,28 @@ else {
   git(['diff', '--check']);
   git(['status', '--porcelain']);
 
+  // Higiene de entregas: las carpetas actualizacion-*/, los .zip y los
+  // bundles viven en el disco, no en el repo (.gitignore). Se tolera lo de
+  // la versión ACTUAL (pendiente de PUBLICAR.bat); lo de versiones viejas
+  // se borra antes de commitear, o el próximo ZIP se confunde con uno ya
+  // publicado.
+  {
+    let restos = [];
+    let ver = '';
+    try { ver = (fs.readFileSync(path.join(raiz, 'game.js'), 'utf8').match(/const VERSION = '(v\d+)/) || [])[1] || ''; } catch {}
+    try {
+      restos = fs.readdirSync(raiz).filter((x) => {
+        if (!(x.startsWith('actualizacion') || x.endsWith('.zip') || /^cambio-v.*\.bundle$/.test(x))) return false;
+        return !(ver && x.includes(ver));   // lo actual puede quedarse
+      });
+    } catch {}
+    if (restos.length) {
+      console.log(`\x1b[31m  ✗ quedan restos de entregas ANTERIORES: ${restos.join(', ')}\x1b[0m`);
+      console.log('    Borralos antes de commitear (ya publicados o superados)');
+      fallos++;
+    } else console.log('  ✅ sin restos de entregas anteriores');
+  }
+
   // 8. ¿La base está fresca? PUBLICAR_CAMBIOS.md §2 manda arrancar toda tarea
   //    con fetch + reset contra origin/main. Trabajar sobre una base vieja es
   //    el error más caro: el cambio se ve bien acá y después no se aplica (o se

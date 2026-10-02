@@ -185,8 +185,10 @@ afirmar siempre `state.joined` después de entrar.
 
 ## 🧊 El `index.html` es el único que puede llegar viejo
 
-`style.css` y `game.js` se piden con `?t=` y cada dibujo con el hash de su
-contenido, así que nunca se ven versiones viejas de eso. Pero **el `index.html`
+`style.css`, `game.js` y `assets.js` se piden con `?v=vNNN` (la versión: se
+cachean dentro de la versión y siempre bajan los nuevos al publicar, sin
+`document.write`) y cada dibujo con el hash de su contenido, así que nunca
+se ven versiones viejas de eso. Pero **el `index.html`
 que los carga lo sirve GitHub Pages con `cache-control: max-age=600`**: el
 navegador puede tener uno guardado y mezclar **HTML viejo con CSS y JS nuevos**.
 La pantalla queda rota de formas raras (botones corridos, textos de otra
@@ -197,7 +199,8 @@ compara contra su `VERSION` al arrancar: si no coinciden, recarga **una sola
 vez** con `?fresco=…` (otra URL = otra entrada de caché = descarga de verdad).
 
 👉 **Al subir `VERSION` en `game.js` hay que subir también el `ov-build` del
-`index.html`.** Si se separan, `tools/checlear-boton-e.js` falla.
+`index.html` y los `?v=` de `style.css`, `assets.js` y `game.js`.** Si se
+separan, `tools/checlear-boton-e.js` falla.
 
 ## 😶 Emojis sobre fondo oscuro
 
@@ -270,6 +273,17 @@ El menú de acciones es radial: el radio de la elipse **crece con la cantidad
 de ítems** (`rx`), que con siete pastillas en el radio fijo de antes se
 pisaban entre ellas. La prueba `e2e/animaciones.js` compara los rectángulos y
 falla si se superponen.
+
+## 💃 Bailarina del caño (sólo Ger)
+
+Prop de fondo en loop (6 poses, `sprites/pole1..6.png` + `.webp`) que prende
+y apaga sólo Ger desde su menú **parado**, pero la ven todos. Los 6 lienzos
+miden lo mismo con el caño en la misma x —los genera
+`tools/procesar-bailarina.py` desde la hoja `bailarina.png` (fondo verde
+afuera, caño detectado y clavado por cuadro): si un cuadro mide distinto, el
+caño salta y `checlear-boton-e.js` falla. Viaja como el modo pelea (aviso
+`pole` + bandera `poleOn` en el estado para el que entra tarde, y se apaga
+si Ger se va); `server.js` sólo se lo cree a Ger.
 
 ## 🚶 El dibujo de pie (`sprites/<char>.png`)
 
