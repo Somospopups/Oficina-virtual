@@ -20,6 +20,9 @@ const src = fs.readFileSync(GAME, 'utf8');
 function sacarFuncion(nombre) {
   const ini = src.indexOf(`\nfunction ${nombre}(`);
   if (ini === -1) fallar(`no encontré la función ${nombre}() en game.js`);
+  const finLinea = src.indexOf('\n', ini + 1);
+  const primera = src.slice(ini + 1, finLinea);
+  if (primera.includes('}')) return primera;   // una línea (piso, sillas...): no hay más que sacar
   const fin = src.indexOf('\n}', ini);
   if (fin === -1) fallar(`no pude cerrar la función ${nombre}() en game.js`);
   return src.slice(ini + 1, fin + 2);
@@ -40,14 +43,18 @@ function ok(cond, msg) {
 
 const piezas = [
   sacarConst('VW'), sacarConst('FLOOR'), sacarConst('SEATS'), sacarConst('PRESENCIA_MS'),
-  sacarFuncion('lerp'), sacarFuncion('clamp'), sacarFuncion('walkable'),
+  sacarConst('ESC_NUEVA'), sacarConst('PISO_OFI'), sacarConst('PISO_BAL'), sacarConst('SILLAS_OFI'),
+  sacarConst('prev'),
+  sacarFuncion('lerp'), sacarFuncion('clamp'), sacarFuncion('prevAqui'),
+  sacarFuncion('piso'), sacarFuncion('sillas'), sacarFuncion('dimW'), sacarFuncion('dimH'), sacarFuncion('mitadX'),
+  sacarFuncion('walkable'),
   sacarFuncion('presente'), sacarFuncion('seatOwner'), sacarFuncion('seatFor'), sacarFuncion('puntoDePie'),
 ].join('\n');
 
 const caja = { state: { players: new Map(), myId: 'yo' }, performance: { now: () => 100000 }, console };
 vm.createContext(caja);
-vm.runInContext(piezas + '\nthis.api = { SEATS, seatFor, puntoDePie, walkable };', caja);
-const { SEATS, seatFor, puntoDePie, walkable } = caja.api;
+vm.runInContext(piezas + '\nthis.api = { SEATS, SILLAS_OFI, seatFor, puntoDePie, walkable, piso, sillas, prev };', caja);
+const { SEATS, SILLAS_OFI, seatFor, puntoDePie, walkable, piso, sillas, prev } = caja.api;
 
 const jugadores = caja.state.players;
 const NOW = 100000;
@@ -97,6 +104,19 @@ ok(seatFor({ seat: 2 }) !== SEATS[2], '...pero al que sigue conectado no se lo l
 console.log('\nLa pantalla avisa');
 ok(/Los cuatro escritorios están ocupados/.test(src), 'se le explica por chat al que entra de pie');
 ok(/no quedan puestos: quedás de pie/.test(src), 'y también si lo levantan de un puesto ya tomado');
+
+console.log('\nVista previa (sólo Ger, mundo nuevo)');
+jugadores.clear();
+jugadores.set('yo', { id: 'yo', name: 'Ger', char: 'ger', seated: false, x: 821, y: 600, seen: NOW });
+prev.on = true;
+ok(sillas().length === 4 && sillas() !== SEATS, 'en la oficina nueva hay otros 4 puestos');
+ok(sillas() === SILLAS_OFI, 'las sillas salen de la tabla nueva');
+ok(piso().yTop === 445, 'el piso es el de la oficina nueva');
+ok(seatFor({ seat: 0 }) === SILLAS_OFI[0], 'el reparto funciona en el mundo nuevo');
+const dp = puntoDePie();
+ok(walkable(dp.x, dp.y), 'el punto de pie cae en el mundo nuevo');
+prev.on = false;
+ok(sillas() === SEATS, 'al apagar vuelve el mundo viejo');
 
 if (fallos.length) {
   console.error(`\n❌ ${fallos.length} problema(s) en el reparto de escritorios.\n`);

@@ -136,7 +136,7 @@ function publicState() {
   return [...players.values()].filter((p) => p.authed).map((p) => ({
     id: p.id, name: p.name, char: p.char, color: p.color, joinTs: p.joinTs,
     x: p.x, y: p.y, dir: p.dir, moving: p.moving, seated: !!p.seated,
-    status: p.status, fightMode: !!p.fightMode, poleOn: !!p.poleOn, bubble: p.bubble, bubbleUntil: p.bubbleUntil,
+    status: p.status, fightMode: !!p.fightMode, poleOn: !!p.poleOn, preview: !!p.preview, bubble: p.bubble, bubbleUntil: p.bubbleUntil,
     emote: p.emote, emoteUntil: p.emoteUntil, wave: p.wave, waveUntil: p.waveUntil,
   }));
 }
@@ -210,7 +210,7 @@ wss.on('connection', (ws) => {
         p.moving = !!msg.moving;
         p.seated = !!msg.seated;
         p.fightMode = !!msg.fightMode;
-        if (p.char === 'ger') p.poleOn = !!msg.poleOn;   // la bailarina es sólo de Ger
+        if (p.char === 'ger') { p.poleOn = !!msg.poleOn; p.preview = !!msg.preview; }   // la bailarina y la previa son sólo de Ger
         p.lastMove = Date.now();
         break;
       }

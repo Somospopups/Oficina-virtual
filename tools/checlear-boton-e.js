@@ -472,6 +472,24 @@ ok(/case 'pole'/.test(srv) && /p\.char !== 'ger'/.test(srv),
    'el servidor sólo le cree la bailarina a Ger');
 ok(/Bailarina/.test(js) && /polePedir/.test(js),
    'la bailarina está en el menú (sólo Ger, parado)');
+// Vista previa de escenas nuevas (sólo Ger, privada): la puerta cruza
+// oficina ⇄ balcón y el resto lo ve como 👁 sin dibujarlo ni dibujarse.
+ok(/PISO_OFI/.test(js) && /PISO_BAL/.test(js) && /SILLAS_OFI/.test(js),
+   'las escenas nuevas tienen piso y sillas propios');
+ok(/function prevPedir/.test(js) && /Vista previa/.test(js),
+   'la vista previa está en el menú de Ger');
+ok(/PUERTA_OFI/.test(js) && /PUERTA_BAL/.test(js) && /puertaArmada/.test(js),
+   'la puerta cambia de escena con rearme');
+ok(/preview: !!\(prev\.on/.test(js) && /p\.preview/.test(srv),
+   'la previa viaja en el estado (los demás no dibujan a Ger)');
+{
+  const faltanPrev = [];
+  for (const f of ['bg_ofi.png', 'bg_ofi.webp', 'bg_balcon.png', 'bg_balcon.webp']) {
+    if (!fs.existsSync(path.join(raiz, 'sprites', f))) faltanPrev.push(f);
+  }
+  ok(faltanPrev.length === 0, 'están los fondos de las escenas nuevas',
+     faltanPrev.length ? 'faltan: ' + faltanPrev.join(', ') : '');
+}
 // El alto en pantalla es fijo y el ancho sale de la proporcion del PNG: si un
 // cuadro no mide lo mismo que el _sit.png, el personaje salta al animarse.
 {

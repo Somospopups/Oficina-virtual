@@ -292,6 +292,16 @@ caño salta y `checlear-boton-e.js` falla. Viaja como el modo pelea (aviso
 `pole` + bandera `poleOn` en el estado para el que entra tarde, y se apaga
 si Ger se va); `server.js` sólo se lo cree a Ger.
 
+## 👁 Vista previa de escenas (sólo Ger, privada)
+
+Oficina nueva + balcón (`sprites/bg_ofi/bg_balcon`, verdes afuera para el
+cielo dinámico, hechos con `tools/procesar-escenas.py`). Ger la prende de su
+menú y camina lo nuevo ÉL SOLO: el resto lo ve como 👁 en la lista y no lo
+dibuja (ni él a ellos). La puerta de vidrio del fondo cruza ofi ⇄ balcón con
+rearme (si no, rebota). Todo lo nuevo pasa por `piso()`/`sillas()`/`dimW()`/
+`dimH()`/`mitadX()`: con la previa apagada devuelven el mundo viejo intacto.
+Al abrirlo a todos: sacar el gate de Ger y sincronizar la escena.
+
 ## 🚶 El dibujo de pie (`sprites/<char>.png`)
 
 Es el sprite quieto de frente, y además **manda sobre todos los demás de pie**:

@@ -23,6 +23,33 @@ const SEATS = [
   { x: 861, y: 683, face: 'right' }, // recalado: manos sobre el teclado delantero der.
 ];
 
+// ---------- Vista previa de las escenas nuevas (sólo Ger, privado) ----------
+// Oficina nueva + balcón (Oficina/v1.jpg y v3.jpg, verdes afuera). Mientras
+// Ger la mira, él ve este mundo y el resto lo ve a él como "👁 viendo lo
+// nuevo": nadie se pisa porque cada lado dibuja sólo su mundo.
+// Todo pasa por piso()/sillas()/dimW()/dimH()/mitadX(): el mundo viejo (FLOOR,
+// SEATS, VW/VH) queda intacto cuando la previa está apagada.
+const ESC_NUEVA = { w: 1642, h: 656 };
+const PISO_OFI = { yTop: 445, yBot: 650, xlTop: 640, xrTop: 1010, xlBot: 40, xrBot: 1600 };
+const PISO_BAL = { yTop: 400, yBot: 650, xlTop: 560, xrTop: 1640, xlBot: 60, xrBot: 1640 };
+const SILLAS_OFI = [
+  { x: 330, y: 595, face: 'left' },
+  { x: 545, y: 560, face: 'left' },
+  { x: 1100, y: 560, face: 'right' },
+  { x: 1310, y: 595, face: 'right' },
+];
+// Puerta: zona que dispara el cambio + dónde se aparece del otro lado.
+const PUERTA_OFI = { x0: 1020, x1: 1175, y0: 440, y1: 505, ax: 660, ay: 550 };
+const PUERTA_BAL = { x0: 560, x1: 720, y0: 490, y1: 580, ax: 1095, ay: 530 };
+const SPAWN_OFI = { x: 821, y: 600 };
+const prev = { on: false, escena: 'ofi', puertaArmada: true, fade: 0, vuelta: null };
+function prevAqui() { const me = state.players.get(state.myId); return !!(prev.on && me && me.char === 'ger'); }
+function piso() { return prevAqui() ? (prev.escena === 'balcon' ? PISO_BAL : PISO_OFI) : FLOOR; }
+function sillas() { return prevAqui() ? (prev.escena === 'balcon' ? [] : SILLAS_OFI) : SEATS; }
+function dimW() { return prevAqui() ? ESC_NUEVA.w : VW; }
+function dimH() { return prevAqui() ? ESC_NUEVA.h : VH; }
+function mitadX() { return dimW() / 2; }
+
 const SPEED = 320;
 const SEND_MS = 140;
 // Cuánto vale la última señal de vida de un compañero. El que está sentado
@@ -53,7 +80,7 @@ function lerpColor(a, b, t) {
 // de los degradados del sentado: cada superficie se modela con su tono, sus
 // luces y sus sombras, igual que en los PNG de referencia.
 function tone(hex, t) { return lerpColor(hex, t > 0 ? '#ffffff' : '#000000', Math.abs(t)); }
-function depthScale(y) { return lerp(3.1, 20, clamp((y - FLOOR.yTop) / (FLOOR.yBot - FLOOR.yTop), 0, 1)); }
+function depthScale(y) { const F = piso(); return lerp(3.1, 20, clamp((y - F.yTop) / (F.yBot - F.yTop), 0, 1)); }
 function sitScale(y) { return lerp(4.8, 9.8, clamp((y - 560) / 190, 0, 1)); }
 
 // ---------- Ciclo día/noche (hora real) ----------
@@ -1889,6 +1916,39 @@ bgImg.onload = () => {
 };
 bgImg.src = urlAsset('bg_deep2.png');
 
+// Fondos de la vista previa (sólo Ger): se piden en WebP liviano con caída
+// a PNG, en baja prioridad y DESPUÉS de la oficina (igual que las tandas).
+const bgOfi = { im: new Image(), ok: false };
+const bgBal = { im: new Image(), ok: false };
+function prevFondoCargar(c, base) {
+  c.im.onload = () => { c.ok = true; };
+  c.im.onerror = () => { c.im.onerror = null; c.im.src = urlAsset(`sprites/${base}.png`); };
+  if ('fetchPriority' in c.im) c.im.fetchPriority = 'low';
+  c.im.src = urlAsset(`sprites/${base}.webp`);
+}
+(function prevFondos() {
+  if (typeof assetsReady !== 'undefined' && !assetsReady) { setTimeout(prevFondos, 1000); return; }
+  prevFondoCargar(bgOfi, 'bg_ofi');
+  prevFondoCargar(bgBal, 'bg_balcon');
+})();
+// Escena nueva: cielo dinámico de fondo (los verdes son transparencia) y la
+// imagen encima. De noche se oscurece como la oficina vieja.
+function drawPrevEscena(sky) {
+  const DW = dimW(), DH = dimH();
+  const gr = ctx.createLinearGradient(0, 0, 0, DH);
+  gr.addColorStop(0, sky.top); gr.addColorStop(1, sky.bot);
+  ctx.fillStyle = gr; ctx.fillRect(0, 0, DW, DH);
+  const sc = prev.escena === 'balcon' ? bgBal : bgOfi;
+  if (sc.ok && sc.im.complete && sc.im.naturalWidth) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(sc.im, 0, 0, DW, DH);
+  }
+  if (sky.amb > 0.01) {
+    ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
+    ctx.fillRect(0, 0, DW, DH);
+  }
+}
+
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const joinOverlay = document.getElementById('join');
@@ -1918,7 +1978,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v167 · 02/10/2026';
+const VERSION = 'v168 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -1985,7 +2045,7 @@ function myPublic() {
   if (!me) return null;
   return {
     id: me.id, name: me.name, char: me.char, color: me.color, x: me.x, y: me.y, dir: me.dir,
-    moving: me.moving, seated: me.seated, status: me.status, fightMode: !!me.fightMode, poleOn: !!me.poleOn, joinTs: state.joinTs || 0,
+    moving: me.moving, seated: me.seated, status: me.status, fightMode: !!me.fightMode, poleOn: !!me.poleOn, preview: !!(prev.on && me.char === 'ger'), joinTs: state.joinTs || 0,
     bubble: me.bubble, bubbleUntil: me.bubbleUntil, emote: me.emote, emoteUntil: me.emoteUntil,
   };
 }
@@ -2541,6 +2601,7 @@ function upsertRemote(p, snap) {
   cur.joinTs = p.joinTs || cur.joinTs;
   cur.name = p.name; cur.char = p.char || cur.char; cur.color = p.color; cur.dir = p.dir;
   cur.moving = p.moving; cur.status = p.status; cur.seated = !!p.seated; cur.fightMode = !!p.fightMode;
+  cur.preview = !!p.preview;
   // La bailarina viaja en el estado para el que entra tarde (flanco cuidado
   // en poleFijar: el estado llega 20 veces por segundo).
   if (p.char === 'ger' && p.poleOn !== undefined) poleFijar(!!p.poleOn);
@@ -3754,7 +3815,7 @@ function renderPlayerList() {
       if (abierto) cls.push('abierta');
       return `<div class="${cls.join(' ')}" data-id="${p.id || ''}" data-char="${p.char || ''}" title="Tocá para ver cuándo entró y cuánto estuvo">` +
         `<span class="dot" style="background:${(CHAR_DEF[p.char] || CHAR_DEF.ger).dot}"></span>${esc(p.name)}` +
-        `<span class="pl-flecha">${abierto ? '▾' : '▸'}</span>${p.seated ? ' 🪑' : ''} ` +
+        `<span class="pl-flecha">${abierto ? '▾' : '▸'}</span>${p.seated ? ' 🪑' : ''}${p.preview ? ' 👁' : ''} ` +
         `<span class="pl-status">${st.emoji} ${st.label}</span>` +
         (abierto ? histDetalle(p.char) : '') + '</div>';
     }).join('') +
@@ -3766,15 +3827,16 @@ function renderPlayerList() {
 
 // ---------- Movimiento en perspectiva ----------
 function walkable(x, y) {
-  if (y < FLOOR.yTop + 10 || y > FLOOR.yBot - 6) return false;
-  const t = (y - FLOOR.yTop) / (FLOOR.yBot - FLOOR.yTop);
-  const xl = lerp(FLOOR.xlTop, FLOOR.xlBot, t) + 24;
-  const xr = lerp(FLOOR.xrTop, FLOOR.xrBot, t) - 24;
+  const F = piso();
+  if (y < F.yTop + 10 || y > F.yBot - 6) return false;
+  const t = (y - F.yTop) / (F.yBot - F.yTop);
+  const xl = lerp(F.xlTop, F.xlBot, t) + 24;
+  const xr = lerp(F.xrTop, F.xrBot, t) - 24;
   return x >= xl && x <= xr;
 }
 function seatNear(x, y, r = 110) {
   let best = null, bd = r;
-  for (const s of SEATS) { const d = Math.hypot(s.x - x, s.y - y); if (d < bd) { bd = d; best = s; } }
+  for (const s of sillas()) { const d = Math.hypot(s.x - x, s.y - y); if (d < bd) { bd = d; best = s; } }
   return best;
 }
 function seatLibreCerca() {
@@ -3811,7 +3873,7 @@ function seatOwner(s, exceptId) {
 // Dónde pararse al entrar cuando no quedan puestos: en la entrada del pasillo,
 // corriéndose al costado si ya hay alguien justo ahí (que no se amontonen).
 function puntoDePie() {
-  const bx = VW / 2, by = 820;
+  const bx = mitadX(), by = prevAqui() ? (prev.escena === 'balcon' ? 600 : 610) : 820;
   const libre = (x, y) => {
     if (!walkable(x, y)) return false;
     for (const p of state.players.values()) {
@@ -3832,7 +3894,7 @@ function puntoDePie() {
 function resolveSeatConflict() {
   const me = state.players.get(state.myId);
   if (!me || !me.seated || !state.joined) return;
-  const myS = SEATS.find((s) => Math.hypot(me.x - s.x, me.y - s.y) < 50);
+  const myS = sillas().find((s) => Math.hypot(me.x - s.x, me.y - s.y) < 50);
   if (!myS) return;
   for (const p of state.players.values()) {
     if (p.id === state.myId || !p.seated) continue;
@@ -3846,9 +3908,10 @@ function resolveSeatConflict() {
         toast(`😅 ${p.name} llegó antes: te corriste al puesto de al lado`);
       } else {
         me.seated = false;
-        let nx = myS.x + (myS.x < VW / 2 ? 90 : -90);
-        let ny = clamp(myS.y + 40, FLOOR.yTop + 12, FLOOR.yBot - 8);
-        if (!walkable(nx, ny)) { nx = myS.x; ny = clamp(myS.y + 70, FLOOR.yTop + 12, FLOOR.yBot - 8); }
+        let nx = myS.x + (myS.x < mitadX() ? 90 : -90);
+        const F = piso();
+        let ny = clamp(myS.y + 40, F.yTop + 12, F.yBot - 8);
+        if (!walkable(nx, ny)) { nx = myS.x; ny = clamp(myS.y + 70, F.yTop + 12, F.yBot - 8); }
         if (!walkable(nx, ny)) { const d = puntoDePie(); nx = d.x; ny = d.y; }
         me.x = nx; me.y = ny;
         toast(`😅 ${p.name} llegó antes y no quedan puestos: quedás de pie`);
@@ -3859,7 +3922,7 @@ function resolveSeatConflict() {
     }
   }
 }
-function nearAnySeat(x, y) { return SEATS.some((s) => Math.hypot(s.x - x, s.y - y) < 55); }
+function nearAnySeat(x, y) { return sillas().some((s) => Math.hypot(s.x - x, s.y - y) < 55); }
 window.addEventListener('keydown', (e) => {
   if (attachmentModal && !attachmentModal.classList.contains('hidden')) {
     if (e.key === 'Escape') { closeAttachmentPreview(); e.preventDefault(); }
@@ -3951,9 +4014,10 @@ function dniError(msg) {
 // arriba de otro). Usa el mismo criterio que seatOwner: cuenta solo a los que
 // están realmente sentados y siguen conectados.
 function seatFor(entry) {
-  const pref = SEATS[entry && entry.seat != null ? entry.seat : -1];
+  const SIL = sillas();
+  const pref = SIL[entry && entry.seat != null ? entry.seat : -1];
   if (pref && !seatOwner(pref, state.myId)) return pref;
-  for (const s of SEATS) if (!seatOwner(s, state.myId)) return s;
+  for (const s of SIL) if (!seatOwner(s, state.myId)) return s;
   return null;
 }
 async function join() {
@@ -4115,16 +4179,17 @@ function rebuildWideBackdrop() {
 function resize() {
   canvas.width = window.innerWidth; canvas.height = window.innerHeight;
   backdropDirty = true;
-  viewScale = Math.min(canvas.width / VW, canvas.height / VH);
+  const DW = dimW(), DH = dimH();
+  viewScale = Math.min(canvas.width / DW, canvas.height / DH);
   // En pantalla ancha (PC y TV) SIEMPRE hay rieles laterales. Si el aspecto de
   // la pantalla hace que la oficina no deje 220px por lado (caso típico: TV
   // 16:9), se achica la oficina hasta reservarlos. Así el TV, el monitor y
   // cualquier pantalla ancha se ven exactamente igual.
-  if (canvas.width > 900 && (canvas.width - VW * viewScale) / 2 < 220) {
-    viewScale = Math.min((canvas.width - 440) / VW, canvas.height / VH);
+  if (canvas.width > 900 && (canvas.width - DW * viewScale) / 2 < 220) {
+    viewScale = Math.min((canvas.width - 440) / DW, canvas.height / DH);
   }
-  viewOX = (canvas.width - VW * viewScale) / 2;
-  viewOY = (canvas.height - VH * viewScale) / 2;
+  viewOX = (canvas.width - DW * viewScale) / 2;
+  viewOY = (canvas.height - DH * viewScale) / 2;
   document.documentElement.style.setProperty('--desktop-rail-width', Math.max(0, Math.round(viewOX)) + 'px');
   document.body.classList.toggle('desktop-rails', canvas.width > 900);
   layoutDesktopAudio();
@@ -4201,7 +4266,7 @@ function layoutMobile() {
   // la franja del medio es más corta que su alto natural, se achica (pero no de
   // más). Así los cuadros de las cámaras pueden usar el alto que necesitan sin
   // deformar la oficina.
-  const ESCENA_MIN = Math.round(Math.min(280, VH * vw / VW));
+  const ESCENA_MIN = Math.round(Math.min(280, dimH() * vw / dimW()));
   const CHAT_MAX = 300, CHAT_MIN = 150;
   const hayCam = stripEl && !stripEl.hidden;
   const tiraTop = Math.round(barraBottom + AIRE);
@@ -4246,9 +4311,9 @@ function layoutMobile() {
   // natural entre la oficina y la zona de mensajes.
   const zonaTop = tiraBottom + AIRE;
   const zonaAlto = Math.max(160, chatTop - AIRE - zonaTop);
-  const escala = Math.min(vw / VW, zonaAlto / VH);
+  const escala = Math.min(vw / dimW(), zonaAlto / dimH());
   viewScale = escala;
-  viewOX = (vw - VW * escala) / 2;
+  viewOX = (vw - dimW() * escala) / 2;
   viewOY = zonaTop;
   backdropDirty = true;   // el fondo se repinta con la oficina en su nuevo lugar
 
@@ -4503,9 +4568,10 @@ function update(dt) {
 
     if (me.seated && want) {
       me.seated = false;
-      const toward = me.x < VW / 2 ? 1 : -1;
+      const toward = me.x < mitadX() ? 1 : -1;
       let nx = me.x + toward * 120, ny = me.y + 40;
-      ny = clamp(ny, FLOOR.yTop + 12, FLOOR.yBot - 8);
+      const F = piso();
+      ny = clamp(ny, F.yTop + 12, F.yBot - 8);
       if (!walkable(nx, ny)) nx = me.x + toward * 40;
       me.x = nx; me.y = ny;
       sendMoveNow();
@@ -4525,6 +4591,23 @@ function update(dt) {
       me.moving = false;
     }
     me.tx = me.x; me.ty = me.y;
+
+    // Puerta oficina ⇄ balcón (sólo vista previa): cruzar la zona cambia de
+    // escena con fundido. Se rearma al salir de la zona para no rebotar.
+    if (prevAqui() && !me.seated) {
+      const puerta = prev.escena === 'balcon' ? PUERTA_BAL : PUERTA_OFI;
+      const dentro = me.x >= puerta.x0 && me.x <= puerta.x1 && me.y >= puerta.y0 && me.y <= puerta.y1;
+      if (dentro && prev.puertaArmada) {
+        prev.puertaArmada = false;
+        prev.escena = prev.escena === 'balcon' ? 'ofi' : 'balcon';
+        const dest = prev.escena === 'balcon' ? { x: PUERTA_OFI.ax, y: PUERTA_OFI.ay } : { x: PUERTA_BAL.ax, y: PUERTA_BAL.ay };
+        me.seated = false; me.moving = false;
+        me.x = me.tx = dest.x; me.y = me.ty = dest.y;
+        prev.fade = now;
+        toast(prev.escena === 'balcon' ? '🚪 Saliste al balcón' : '🚪 Volviste a la oficina');
+        sendMoveNow();
+      } else if (!dentro) prev.puertaArmada = true;
+    }
 
     if (me.moving && now - lastSend > SEND_MS) { lastSend = now; sendMoveNow(); }
     else if (!me.moving && now - lastSend > 1000) { lastSend = now; sendMoveNow(); }
@@ -4591,6 +4674,7 @@ const CAFE_MS = 25000;
 function cafeCerca() {
   // Radio chico a propósito: hay que pegarse BIEN a la cafetera (muy atrás,
   // contra el ventanal) para que la E no le robe la acción al escritorio cercano.
+  if (prevAqui()) return false;   // la cafetera quedó en la oficina vieja
   const me = state.players.get(state.myId);
   return me && Math.hypot(me.x - CAFE.x, me.y - CAFE.y) < 48;
 }
@@ -4787,6 +4871,7 @@ function poleAplicar(id, active) {
 function polePedir() {
   const me = state.players.get(state.myId);
   if (!me || me.char !== 'ger') return;
+  if (prevAqui()) { toast('💃 La bailarina quedó en la oficina vieja'); return; }
   if (me.seated) { toast('💃 Esto es parado: levantate con WASD'); return; }
   if (!poleLista()) {
     setTimeout(() => { if (!poleLista()) toast('⏳ Bajando la bailarina…'); }, 400);
@@ -4794,6 +4879,28 @@ function polePedir() {
   const next = !pole.on;
   send({ type: 'pole', id: state.myId, active: next });
   poleAplicar(state.myId, next);
+}
+// Vista previa de las escenas nuevas: privada y sólo Ger. Al prenderla se
+// guarda dónde estaba (para volver igual) y aparece en la oficina nueva; al
+// apagarla vuelve a su lugar. El resto lo ve como 👁 en la lista.
+function prevPedir() {
+  const me = state.players.get(state.myId);
+  if (!me || me.char !== 'ger') return;
+  if (!prev.on) {
+    prev.vuelta = { x: me.x, y: me.y, seated: me.seated, dir: me.dir };
+    prev.on = true; prev.escena = 'ofi'; prev.puertaArmada = true;
+    me.seated = false; me.moving = false;
+    me.x = me.tx = SPAWN_OFI.x; me.y = me.ty = SPAWN_OFI.y;
+    resize();
+    toast(bgOfi.ok ? '👁 Vista previa: caminá a la puerta de vidrio para salir al balcón' : '⏳ Bajando la oficina nueva…');
+  } else {
+    prev.on = false;
+    const v = prev.vuelta;
+    if (v) { me.seated = !!v.seated; me.moving = false; me.x = me.tx = v.x; me.y = me.ty = v.y; if (v.dir) me.dir = v.dir; }
+    resize();
+    toast('👁 Vista previa apagada');
+  }
+  sendMoveNow();
 }
 function drawPole(now) {
   if (!pole.on || !poleLista()) return;
@@ -4842,21 +4949,22 @@ function drawCafetera(now) {
 const CAT_SEG = 26000;
 const cat = { x: 612, y: 560, dir: 1, petBy: null, petUntil: 0, heartsUntil: 0, lastMiau: 0 };
 function catPlan(nowMs, nocturno) {
-  if (nocturno) return { goal: { x: 622, y: 706 }, pose: 'sleep' };  // de noche duerme en medio del pasillo, bien visible
+  const F = piso();
+  if (nocturno && !prevAqui()) return { goal: { x: 622, y: 706 }, pose: 'sleep' };  // de noche duerme en medio del pasillo, bien visible
   const i = Math.floor(nowMs / CAT_SEG);
   const r = rnd(i, 29, 3);
-  if (r < 0.30) return { goal: { x: 575 + rnd(i, 31, 7) * 80, y: 590 + rnd(i, 37, 1) * 80 }, pose: 'sleep' };  // siesta al solcito
-  const y = lerp(FLOOR.yTop + 130, FLOOR.yBot - 110, rnd(i, 17, 9));
-  const t2 = (y - FLOOR.yTop) / (FLOOR.yBot - FLOOR.yTop);
-  const xl = lerp(FLOOR.xlTop, FLOOR.xlBot, t2) + 46;
-  const xr = lerp(FLOOR.xrTop, FLOOR.xrBot, t2) - 46;
+  if (r < 0.30) return { goal: { x: (F.xlTop + F.xrTop) / 2 + (rnd(i, 31, 7) - 0.5) * 80, y: F.yTop + 130 + rnd(i, 37, 1) * 80 }, pose: 'sleep' };  // siesta al solcito
+  const y = lerp(F.yTop + 130, F.yBot - 110, rnd(i, 17, 9));
+  const t2 = (y - F.yTop) / (F.yBot - F.yTop);
+  const xl = lerp(F.xlTop, F.xlBot, t2) + 46;
+  const xr = lerp(F.xrTop, F.xrBot, t2) - 46;
   return { goal: { x: lerp(xl, xr, rnd(i, 13, 5)), y }, pose: r < 0.55 ? 'sit' : 'idle' };
 }
 function catFrame(nocturno) {
   let goal = null, pose = 'idle';
   if (cat.petBy && performance.now() < cat.petUntil) {
     const p = state.players.get(cat.petBy);
-    if (p && p.status !== 'ausente') { goal = { x: p.x - 34, y: Math.min(FLOOR.yBot - 60, p.y + 4) }; pose = 'sit'; }
+    if (p && p.status !== 'ausente') { goal = { x: p.x - 34, y: Math.min(piso().yBot - 60, p.y + 4) }; pose = 'sit'; }
   }
   if (!goal) { const pl = catPlan(Date.now(), nocturno); goal = pl.goal; pose = pl.pose; }
   cat.x += (goal.x - cat.x) * 0.045;
@@ -5126,6 +5234,9 @@ function render() {
   const hf = d.getHours() + d.getMinutes() / 60;
   const sky = skyNow(hf);
 
+  if (prevAqui()) {
+    drawPrevEscena(sky);
+  } else {
   if (bgReady) ctx.drawImage(bgCv, 0, 0, VW, VH);
   else { ctx.fillStyle = '#20242e'; ctx.fillRect(0, 0, VW, VH); }
 
@@ -5141,7 +5252,7 @@ function render() {
     ctx.globalAlpha = 1;
   }
 
-  drawCafetera(now);
+  if (!prevAqui()) drawCafetera(now);
   if (sky.amb > 0.01) {
     ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
     ctx.fillRect(0, 0, VW, VH);
@@ -5160,21 +5271,27 @@ function render() {
     }
     ctx.globalCompositeOperation = 'source-over';
   }
+  }
 
   const nocturno = sky.amb > 0.24;
   let catDibujado = false;
   let poleDibujado = false;   // la bailarina ordena por y como todos: el que pasa por detrás queda detrás
-  const list = [...state.players.values()].sort((a, b) => a.y - b.y);
+  const yoPrev = prevAqui();
+  // Vista previa privada: Ger ve sólo su mundo nuevo; el resto no lo dibuja
+  // (lo ve como 👁 en la lista) y él no dibuja al resto.
+  const list = [...state.players.values()]
+    .filter((p) => (yoPrev ? p.id === state.myId : !p.preview))
+    .sort((a, b) => a.y - b.y);
   for (const p of list) {
     if (!p.name) continue;
     if (p.status === 'ausente') continue; // 🏃 ¡Ya vengo!: el personaje se va de la escena (sigue en la lista y su puesto queda reservado)
     if (!catDibujado && cat.y < p.y) { drawCat(now, nocturno); catDibujado = true; }
-    if (!poleDibujado && POLE.y < p.y) { drawPole(now); poleDibujado = true; }
+    if (!poleDibujado && POLE.y < p.y) { if (!yoPrev) drawPole(now); poleDibujado = true; }
     let topY, shR, fs;
     if (p.seated) {
       const ss = sitScale(p.y);
       const sframe = Math.floor(now / 280) % 2;
-      const face = p.x < VW / 2 ? 'left' : 'right';
+      const face = p.x < mitadX() ? 'left' : 'right';
       const spr = getSitSprite(p.char || 'ger', face, true, sframe);
       // Conserva la proporción natural de cada conjunto personaje + silla gamer.
       const h = 48 * ss * ((CHAR_DEF[p.char || 'ger'] || {}).kid ? 0.9 : 1), w = h * (spr.width / spr.height);
@@ -5283,6 +5400,11 @@ function render() {
   }
   if (!catDibujado) drawCat(now, nocturno);
   if (!poleDibujado) drawPole(now);
+  // Fundido del cambio de escena (puerta oficina ⇄ balcón).
+  if (prev.fade && now - prev.fade < 350) {
+    ctx.fillStyle = `rgba(5,6,10,${(1 - (now - prev.fade) / 350).toFixed(2)})`;
+    ctx.fillRect(0, 0, dimW(), dimH());
+  } else prev.fade = 0;
 
   const ce = climaEmoji();
   // El reloj muestra sólo hora · clima · versión (sin fase ni satélite).
@@ -5607,13 +5729,17 @@ function init() {
           // Las animaciones aparecen sólo cuando estás sentado: los dibujos
           // traen la silla adentro, de pie no habría qué mostrar.
           if (p.seated) for (const n of animDe(p.char)) items.push({ t: ANIMS[n].titulo, f: () => animPedir(n) });
-          if (!p.seated && p.char === 'ger') items.push({
+          if (!p.seated && p.char === 'ger' && !prev.on) items.push({
             t: p.fightMode ? '🕊️ Desactivar pelea' : '🥊 Activar modo pelea',
             f: fightModoPedir,
           });
-          if (!p.seated && p.char === 'ger') items.push({
+          if (!p.seated && p.char === 'ger' && !prev.on) items.push({
             t: pole.on ? '💃 Apagar bailarina' : '💃 Bailarina',
             f: polePedir,
+          });
+          if (p.char === 'ger') items.push({
+            t: prev.on ? '👁 Salir de vista previa' : '👁 Vista previa',
+            f: prevPedir,
           });
           items.push({ t: '💨 Zumbido', f: doZumbido });
           accAbrir(items, p.name, e.clientX, e.clientY);
