@@ -59,18 +59,32 @@ def main():
     # Lienzo común: el caño en la misma x para los 6.
     polo_x = max(polos)
     ancho = polo_x + max(cw - p for p in polos)
-    print(f'lienzo: {ancho}x{chh}, caño en x={polo_x}')
 
-    for idx, (cel, px0) in enumerate(zip(celdas, polos)):
-        rgba = Image.new('RGBA', (ancho, chh), (0, 0, 0, 0))
+    # Base del caño por cuadro: fila más baja con metal en la banda del caño.
+    # Sin esto el pie del caño salta hasta 19 px entre cuadros (se ve en los
+    # pies). Se alinea abajo: el lienzo crece lo necesario y arriba se pierde
+    # sólo caño (que sigue de largo fuera de la hoja).
+    bases = []
+    for cel, px0 in zip(celdas, polos):
+        px = cel.load()
+        base = max((y for y in range(chh) for x in range(px0 - 8, px0 + 8)
+                    if es_gris(px[x, y])), default=chh - 1)
+        bases.append(base)
+    base_y = max(bases)
+    alto = chh + (base_y - min(bases))
+    print(f'lienzo: {ancho}x{alto}, caño en x={polo_x}, base en y={base_y}')
+
+    for idx, (cel, px0, b0) in enumerate(zip(celdas, polos, bases)):
+        rgba = Image.new('RGBA', (ancho, alto), (0, 0, 0, 0))
         px_cel = cel.load()
         # Pega con key de verde directo sobre el lienzo.
         dx = polo_x - px0
+        dy = base_y - b0
         for y in range(chh):
             for x in range(cw):
                 p = px_cel[x, y]
                 if not es_verde(p):
-                    rgba.putpixel((x + dx, y), p + (255,))
+                    rgba.putpixel((x + dx, y + dy), p + (255,))
         base = f'pole{idx + 1}'
         rgba.save(os.path.join(RAIZ, 'sprites', base + '.png'))
         rgba.save(os.path.join(RAIZ, 'sprites', base + '.webp'), 'WEBP', quality=85, method=6)

@@ -1844,7 +1844,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v158 · 02/10/2026';
+const VERSION = 'v159 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -5005,7 +5005,6 @@ function render() {
   }
 
   drawCafetera(now);
-  drawPole(now);   // fondo, detrás de todos: el caño queda clavado en POLE.x
   if (sky.amb > 0.01) {
     ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
     ctx.fillRect(0, 0, VW, VH);
@@ -5027,11 +5026,13 @@ function render() {
 
   const nocturno = sky.amb > 0.24;
   let catDibujado = false;
+  let poleDibujado = false;   // la bailarina ordena por y como todos: el que pasa por detrás queda detrás
   const list = [...state.players.values()].sort((a, b) => a.y - b.y);
   for (const p of list) {
     if (!p.name) continue;
     if (p.status === 'ausente') continue; // 🏃 ¡Ya vengo!: el personaje se va de la escena (sigue en la lista y su puesto queda reservado)
     if (!catDibujado && cat.y < p.y) { drawCat(now, nocturno); catDibujado = true; }
+    if (!poleDibujado && POLE.y < p.y) { drawPole(now); poleDibujado = true; }
     let topY, shR, fs;
     if (p.seated) {
       const ss = sitScale(p.y);
@@ -5144,6 +5145,7 @@ function render() {
     if (p.bubble && now < p.bubbleUntil) drawBubble(ctx, p.bubble, p.x, ly - fs * 0.8, fs);
   }
   if (!catDibujado) drawCat(now, nocturno);
+  if (!poleDibujado) drawPole(now);
 
   const ce = climaEmoji();
   clockBox.textContent = `${phaseName(hf)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` + (ce ? ` · ${ce}` : '') + (USE_P2P ? ` · 📡${p2pPeerCount}` : '');
