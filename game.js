@@ -1918,7 +1918,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v165 · 02/10/2026';
+const VERSION = 'v166 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -3634,8 +3634,7 @@ function updateSendMic() {
 }
 // El chatInput es un <textarea>: crece solo hasta ~5 líneas (96px) y después
 // scrollea por dentro, así se puede leer completo y corregir antes de mandar.
-// TODO cambio programático del texto pasa por acá (borrar al enviar/cancelar,
-// insertar emojis, pre-cargar "/w nombre ..."), además del evento input.
+// Todo cambio programático del texto pasa por acá.
 function chatAutoGrow() {
   const i = document.getElementById('chatInput');
   if (!i || i.tagName !== 'TEXTAREA') return;

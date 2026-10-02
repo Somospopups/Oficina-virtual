@@ -615,7 +615,6 @@ body.spectator-mode #stick,
 body.spectator-mode #camBtn,
 body.spectator-mode #musicBtn,
 body.spectator-mode #musicPanel { display: none !important; }
-body.spectator-mode #musicPanel { display: none !important; }
 /* El panel de video SÍ se ve en modo espectador: es justo para el caso de la TV
    del local, que mira la oficina en espectador y tiene que ver lo que pone el DJ.
    Lo que no tiene sentido es la radio, porque el espectador no puede ser DJ. */

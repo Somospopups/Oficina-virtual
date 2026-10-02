@@ -24,6 +24,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const raiz = path.resolve(__dirname, '..');
 const RAIZ = raiz;
@@ -392,6 +393,78 @@ const anims = [];
   }
   ok(tams.size === 1, 'los 6 cuadros de la bailarina miden lo mismo (el caño no salta)',
      [...tams].join(', '));
+}
+// El caño queda clavado porque POLE.xRel apunta a su columna real: si se
+// reprocesa la hoja y el caño cae en otra x, el juego lo dibujaría corrido.
+// Se decodifica el PNG (zlib propio, sin dependencias) y se busca la banda
+// gris vertical en cada cuadro.
+{
+  const leerPng = (f) => {
+    const b = fs.readFileSync(path.join(raiz, 'sprites', f));
+    if (b.readUInt32BE(0) !== 0x89504e47) throw new Error('no es PNG');
+    const w = b.readUInt32BE(16), h = b.readUInt32BE(20);
+    const tipo = b[25], prof = b[24];
+    if (prof !== 8 || (tipo !== 2 && tipo !== 6)) throw new Error('sólo RGB(A) 8 bits');
+    const ch = tipo === 6 ? 4 : 3;
+    let pos = 33, datos = [];
+    while (pos < b.length) {
+      const n = b.readUInt32BE(pos), tipoC = b.toString('ascii', pos + 4, pos + 8);
+      if (tipoC === 'IDAT') datos.push(b.subarray(pos + 8, pos + 8 + n));
+      pos += 12 + n;
+    }
+    const crudo = zlib.inflateSync(Buffer.concat(datos));
+    const px = Buffer.alloc(w * h * ch);
+    const fila = w * ch;
+    let p = 0;
+    for (let y = 0; y < h; y++) {
+      const filtro = crudo[p++];
+      for (let x = 0; x < fila; x++) {
+        const izq = x >= ch ? px[y * fila + x - ch] : 0;
+        const arr = y > 0 ? px[(y - 1) * fila + x] : 0;
+        const dia = (x >= ch && y > 0) ? px[(y - 1) * fila + x - ch] : 0;
+        let v = crudo[p++];
+        if (filtro === 1) v += izq;
+        else if (filtro === 2) v += arr;
+        else if (filtro === 3) v += (izq + arr) >> 1;
+        else if (filtro === 4) {
+          const q = arr + izq - dia, pa = Math.abs(q - izq), pb = Math.abs(q - arr), pc = Math.abs(q - dia);
+          v += pa <= pb && pa <= pc ? izq : (pb <= pc ? arr : dia);
+        }
+        px[y * fila + x] = v & 255;
+      }
+    }
+    return { w, h, ch, px };
+  };
+  const esGris = (r, g, b2, a) => a > 16 && (Math.max(r, g, b2) - Math.min(r, g, b2)) < 36 && ((r + g + b2) / 3) > 45 && ((r + g + b2) / 3) < 225;
+  const centros = [];
+  for (let i = 1; i <= 6; i++) {
+    const { w, h, ch, px } = leerPng(`pole${i}.png`);
+    const todas = [];
+    for (let x = 0; x < w; x++) {
+      let n = 0;
+      for (let y = 0; y < h; y++) {
+        const o = (y * w + x) * ch;
+        if (esGris(px[o], px[o + 1], px[o + 2], ch === 4 ? px[o + 3] : 255)) n++;
+      }
+      todas.push(n > h * 0.28);
+    }
+    let ini = -1, anchas = [];
+    for (let x = 0; x <= w; x++) {
+      if (x < w && todas[x]) { if (ini < 0) ini = x; }
+      else { if (ini >= 0) { anchas.push([ini, x - 1]); ini = -1; } }
+    }
+    anchas.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
+    centros.push(anchas.length ? (anchas[0][0] + anchas[0][1]) / 2 / w : -1);
+  }
+  const m = js.match(/xRel:\s*([\d.]+)\s*\/\s*([\d.]+)/);
+  const xRel = m ? (Number(m[1]) / Number(m[2])) : NaN;
+  const iguales = centros.every((c) => Math.abs(c - centros[0]) * 669 < 1.5);
+  ok(centros.every((c) => c > 0) && iguales,
+     'el caño está en la misma columna en los 6 cuadros',
+     centros.map((c) => (c * 669).toFixed(1)).join(', '));
+  ok(Number.isFinite(xRel) && Math.abs(xRel - centros[0]) * 669 < 1.5,
+     'POLE.xRel apunta a la columna real del caño',
+     `juego=${m ? m[0] : '?'} real=${(centros[0] * 669).toFixed(1)}/669`);
 }
 ok(/case 'pole'/.test(srv) && /p\.char !== 'ger'/.test(srv),
    'el servidor sólo le cree la bailarina a Ger');

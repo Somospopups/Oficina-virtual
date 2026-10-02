@@ -46,7 +46,11 @@ function etagDe(st) {
   return `"${st.size.toString(36)}-${Number(st.mtimeMs).toString(36)}"`;
 }
 const server = http.createServer((req, res) => {
-  let urlPath = decodeURIComponent(req.url.split('?')[0]);
+  // Una URL malformada (/% y amigas) hace que decodeURIComponent LANCE: sin
+  // este try el proceso entero se cae y Render queda muerto hasta reiniciar.
+  let urlPath;
+  try { urlPath = decodeURIComponent(String(req.url).split('?')[0]); }
+  catch { res.writeHead(400); return res.end('Bad Request'); }
   if (urlPath === '/') urlPath = '/index.html';
   // Credenciales TURN (para cruzar NATs que el STUN solo no cruza): salen de
   // VARIABLES DE ENTORNO, nunca del repo (que es público). Sin ellas se
