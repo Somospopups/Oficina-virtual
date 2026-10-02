@@ -1,5 +1,7 @@
 # 🏢 Oficina Virtual 2D — Equipo opencode
 
+[![Chequeos](https://github.com/Somospopups/Oficina-virtual/actions/workflows/chequeos.yml/badge.svg)](https://github.com/Somospopups/Oficina-virtual/actions/workflows/chequeos.yml)
+
 Entorno 2D multiplayer estilo videojuego (pixel art) donde el equipo trabaja e
 interactúa en una oficina compartida, en tiempo real desde el navegador.
 
@@ -119,7 +121,6 @@ El mapa está calcado de la foto del espacio del equipo, en versión pixel art c
   - `server.js` — servidor HTTP + WebSocket
   - `index.html` / `style.css` / `game.js` — la oficina (se sirve tal cual desde
     la raíz, igual en GitHub Pages que con `node server.js`)
-  - `opciones.html` — panel de opciones
   - `sprites/` — sprites de personajes, michi y objetos
   - `tools/limpiar-fondo-sprites.js` — revisa los PNG de `sprites/` y saca el
     fondo claro opaco de los que salieron sin transparencia (los que ya están

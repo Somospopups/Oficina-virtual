@@ -35,7 +35,7 @@ const srv = fs.readFileSync(path.join(raiz, 'server.js'), 'utf8');
 let malas = 0;
 const ok = (c, et) => { console.log(`  ${c ? '✅' : '❌'} ${et}`); if (!c) malas++; };
 
-console.log('🕹️ Controles táctiles en el celu + dibujos siempre frescos (v111)\n');
+console.log('🕹️ Guard general: controles táctiles, dibujos frescos, historial y ROSTER\n');
 
 const movilTemprano = css.slice(css.indexOf('@media (max-width: 900px)'), css.indexOf('@media (max-width: 900px)') + 4000);
 // el ÚLTIMO media query del celu que tenga reglas de la tira (puede haber

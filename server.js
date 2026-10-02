@@ -28,7 +28,12 @@ const server = http.createServer((req, res) => {
   let urlPath = decodeURIComponent(req.url.split('?')[0]);
   if (urlPath === '/') urlPath = '/index.html';
   const filePath = path.join(PUBLIC_DIR, path.normalize(urlPath));
-  if (!filePath.startsWith(PUBLIC_DIR)) {
+  // path.normalize ya colapsa los "..", así que con startsWith alcanza hoy; se
+  // le exige igual el separador, porque sin él entraría cualquier directorio
+  // hermano que empiece igual ("Oficina-virtual-copia\..."). Defensa simple,
+  // sin lógica nueva que pueda romper el serveo normal.
+  const dentro = filePath === PUBLIC_DIR || filePath.startsWith(PUBLIC_DIR + path.sep);
+  if (!dentro) {
     res.writeHead(403); return res.end('Forbidden');
   }
   const rel = path.relative(PUBLIC_DIR, filePath).split(path.sep)[0];

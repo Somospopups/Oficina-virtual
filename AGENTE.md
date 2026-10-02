@@ -339,7 +339,9 @@ barra inventada.
 
 1. **`npm test`** — corre todo el resto de una: `tools/chequear-todo.js`
    (`node --check` de game/server/tools, fondos de los PNG, `generar-assets`,
-   `checlear-boton-e`, `chequear-sillas`, `chequear-caminata`, `git diff --check`).
+   `checlear-boton-e`, `chequear-sillas`, `chequear-caminata`, `git diff --check`
+   y que la base siga siendo `origin/main`, que es la sección 2 de
+   `PUBLICAR_CAMBIOS.md`).
    Es el mismo comando que corre GitHub Actions (`.github/workflows/chequeos.yml`).
 1. Si querés correrlos de a uno: `node --check game.js` (y `server.js` si lo
    tocaste), `node tools/checlear-boton-e.js`, `node tools/chequear-sillas.js`.

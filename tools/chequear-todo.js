@@ -82,6 +82,42 @@ if (sinGit) { console.log('\n\x1b[33m⚠️  git no está disponible: se saltean
 else {
   git(['diff', '--check']);
   git(['status', '--porcelain']);
+
+  // 8. ¿La base está fresca? PUBLICAR_CAMBIOS.md §2 manda arrancar toda tarea
+  //    con fetch + reset contra origin/main. Trabajar sobre una base vieja es
+  //    el error más caro: el cambio se ve bien acá y después no se aplica (o se
+  //    aplica sobre código anterior) en el PUBLICAR.bat.
+  //    Estar POR DELANTE es otro tema: es el commit que todavía no se publicó.
+  console.log('\n\x1b[1m▶ base contra origin/main\x1b[0m');
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    // En Actions siempre se prueba el commit exacto que se subió: no hay base
+    // que elegir, y un push ajeno durante la corrida lo marcaría en roja.
+    console.log('  ➖ no aplica en Actions (ahí siempre se prueba el commit que se subió)');
+  } else {
+    const fetch = spawnSync('git', ['fetch', '--quiet', 'origin'], { cwd: raiz, stdio: 'ignore' });
+    if (fetch.status !== 0) {
+      console.log('  ⚠️  no pude consultar origin/main (¿sin red?): no se comprueba la base');
+      salteados++;
+    } else {
+      const cuenta = (rango) => {
+        const r = spawnSync('git', ['rev-list', '--count', rango], { cwd: raiz, encoding: 'utf8' });
+        const n = parseInt(String(r.stdout || '').trim(), 10);
+        return Number.isFinite(n) ? n : 0;
+      };
+      const atras = cuenta('HEAD..origin/main');
+      const adelante = cuenta('origin/main..HEAD');
+      if (atras > 0) {
+        console.log(`\x1b[31m  ✗ el repo local está ${atras} commit(s) POR DETRÁS de origin/main\x1b[0m`);
+        console.log('    Antes de tocar nada:');
+        console.log('      git fetch origin main && git reset --hard origin/main');
+        console.log('    (PUBLICAR_CAMBIOS.md §2. Si no, el cambio se aplica sobre código viejo)');
+        fallos++;
+      } else {
+        console.log('  ✅ la base es origin/main');
+        if (adelante > 0) console.log(`  ⚠️  ${adelante} commit sin publicar todavía (estado normal antes del PUBLICAR.bat)`);
+      }
+    }
+  }
 }
 
 console.log('');

@@ -66,8 +66,9 @@ npm test
 
 (`npm test` = `node tools/chequear-todo.js`: sintaxis de game/server/tools,
 fondos de los PNG, `generar-assets` + `git diff --exit-code -- assets.js`,
-`checlear-boton-e`, `chequear-sillas`, `chequear-caminata`, `git diff --check`
-y `git status`. Se detiene en el primero que falla. Es lo mismo que corre
+`checlear-boton-e`, `chequear-sillas`, `chequear-caminata`, `git diff --check`,
+`git status` y que la base siga siendo `origin/main` (la sección 2 de arriba).
+Se detiene en el primero que falla. Es lo mismo que corre
 `.github/workflows/chequeos.yml` en cada push a `main`.)
 
 A mano, si hace falta aislar algo:

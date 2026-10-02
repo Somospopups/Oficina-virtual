@@ -8,6 +8,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Disparable a mano desde la pestaña Actions, por si hay que repetir el
+  # chequeo sin subir un commit (p. ej. para revalidar una rama vieja).
+  workflow_dispatch:
 
 jobs:
   chequeos:
