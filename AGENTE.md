@@ -352,6 +352,13 @@ En espectador la pantalla compartida toma TODO (`#videoPanel.share-full`,
 que pone `rtcVerPantalla` y saca `rtcOcultarPantalla`): es la TV del local.
 Al cortar se esconde sola; al salir del modo espectador también.
 
+Si no se ven ni se escuchan: tocá el reloj → el panel muestra la malla por
+compañero (`connected` / `failed` / a medio negociar, con 🎤📷🖥 de lo que
+está llegando) y el botón ⟲ reintenta sin tocar micros ni cámaras. `failed`
+parejo entre redes distintas = falta TURN: se configura en el servidor con
+`TURN_URLS` + `TURN_USER` + `TURN_PASS` (el cliente lo pide en `/turn.json`);
+sin eso sólo hay STUN y hay NATs que no cruzan.
+
 ## 🔢 Versionado y publicación
 
 - Cada cambio sube el número de `VERSION` en `game.js` (v118, v119…) con la

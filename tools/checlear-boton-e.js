@@ -177,6 +177,16 @@ ok(/camStripAbierta/.test(js) && !/camStripSticky/.test(js),
 ok(/camStripAbierta && rtcCamOn\) \{\s*\n\s*camStripAbierta = false/.test(js),
    'al volver a presionar se ocultan las cámaras');
 
+// 8d) la llamada se diagnostica y se repara: el panel de red muestra la malla
+// por compañero con botón de reintento, la caída se reintenta sola con ICE
+// restart, y hay TURN opcional por entorno (sin credenciales en el repo).
+ok(/rtcMallaLineas\(\)/.test(js) && /npRetry/.test(js),
+   'el panel de red muestra la malla por compañero y reintenta');
+ok(/restartIce/.test(js) && /rtcProgramarReintento/.test(js),
+   'la llamada caída se reintenta sola con ICE restart');
+ok(/turn\.json/.test(js) && /turn\.json/.test(srv) && /TURN_URLS/.test(srv),
+   'hay TURN opcional por variables de entorno');
+
 // 9) los dibujos NUNCA pueden salir viejos del caché: cada PNG se pide con un
 // hash de su propio contenido (assets.js, generado por tools/generar-assets.js).
 // El mapa y los .css/.js se versionan con ?v= (sin document.write bloqueante).

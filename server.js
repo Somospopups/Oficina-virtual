@@ -48,6 +48,18 @@ function etagDe(st) {
 const server = http.createServer((req, res) => {
   let urlPath = decodeURIComponent(req.url.split('?')[0]);
   if (urlPath === '/') urlPath = '/index.html';
+  // Credenciales TURN (para cruzar NATs que el STUN solo no cruza): salen de
+  // VARIABLES DE ENTORNO, nunca del repo (que es público). Sin ellas se
+  // responde null y el cliente sigue solo con STUN, como hasta ahora.
+  //   TURN_URLS="turn:host:3478?transport=udp,turn:host:3478?transport=tcp" TURN_USER=u TURN_PASS=p
+  if (urlPath === '/turn.json') {
+    const urls = String(process.env.TURN_URLS || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const body = (urls.length && process.env.TURN_USER && process.env.TURN_PASS)
+      ? JSON.stringify({ urls, username: process.env.TURN_USER, credential: process.env.TURN_PASS })
+      : 'null';
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(body);
+  }
   const filePath = path.join(PUBLIC_DIR, path.normalize(urlPath));
   // path.normalize ya colapsa los "..", así que con startsWith alcanza hoy; se
   // le exige igual el separador, porque sin él entraría cualquier directorio

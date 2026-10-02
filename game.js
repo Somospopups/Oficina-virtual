@@ -315,6 +315,14 @@ function normalizarFigura(img, altoFigura) {
 // Malla completa (1,1,1) y no "hub": cada uno se conecta con cada uno. A los 3 no
 // hay drama; a 8 esto ya no escala y ahí haría falta un servidor de reenvío.
 const RTC_STUN = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+let RTC_EXTRA = [];   // TURN opcional desde /turn.json (cruza NATs que el STUN no cruza)
+function rtcServidores() { return RTC_EXTRA.length ? RTC_STUN.concat(RTC_EXTRA) : RTC_STUN; }
+// Se pide al arrancar: las conexiones se crean mucho después, así que casi
+// siempre ya está. Si el servidor no tiene TURN configurado responde null y
+// todo sigue igual que antes.
+fetch('turn.json').then((r) => (r.ok ? r.json() : null)).then((t) => {
+  if (t && t.urls) RTC_EXTRA = [{ urls: t.urls, username: t.username, credential: t.credential }];
+}).catch(() => { /* sin TURN: solo STUN */ });
 const rtcMesh = new Map();     // peerId -> { pc, polite, pendingIce[] }
 const rtcMic = new Map();      // peerId -> true si tiene el micro abierto
 const rtcNivel = new Map();    // peerId -> 0..1, para ver quién está hablando
@@ -799,8 +807,8 @@ function rtcAsegurarOferta(peer) {
 function rtcPar(peer) {
   let p = rtcMesh.get(peer);
   if (p) return p;
-  const pc = new RTCPeerConnection({ iceServers: RTC_STUN });
-  p = { pc, polite: !rtcIniciyo(peer), pendingIce: [], flujo: null, nuevo: true };
+  const pc = new RTCPeerConnection({ iceServers: rtcServidores() });
+  p = { pc, polite: !rtcIniciyo(peer), pendingIce: [], flujo: null, nuevo: true, est: '', ice: '', cambioTs: 0, reintentos: 0, pidiendo: false, reintentoTs: 0 };
   // El track local se agrega SIEMPRE, aun muto, para que prender y apagar el
   // micro sea solo track.enabled y no una renegociación (que es lo que suele
   // fallar y cortar la llamada).
@@ -834,15 +842,24 @@ function rtcPar(peer) {
     else rtcConectarAudio(peer, st);
   };
   pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'connected') { rtcAviso = false; renderCallUI(); }
-    if (pc.connectionState === 'failed' && !rtcAviso) {
+    p.est = pc.connectionState; p.cambioTs = Date.now();
+    if (pc.connectionState === 'connected') { rtcAviso = false; p.reintentos = 0; renderCallUI(); }
+    if ((pc.connectionState === 'failed' || pc.connectionState === 'disconnected') && !rtcAviso) {
       // Sin TURN esto pasa en redes simétricas o con firewalls corporativos. Es
       // el motivo por el que existe el mensaje: mejor un aviso claro que un
       // botón mudo sin explicación.
       rtcAviso = true;
-      toast('⚠️ No se pudo conectar con alguien. Puede ser una red restrictiva (sin TURN no hay más).');
+      toast('⚠️ No se pudo conectar con alguien. Puede ser una red restrictiva (sin TURN no hay más). Tocá el reloj → reintentar.');
       renderCallUI();
     }
+    // Auto-reparación: si soy el iniciador y sigue caído, un ICE restart con
+    // oferta fresca suele revivirlo (NAT que cambió de mapeo). Con tope para
+    // no pelear eternamente contra una red que no cruza.
+    if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') rtcProgramarReintento(peer);
+    renderNetPanel();
+  };
+  pc.oniceconnectionstatechange = () => {
+    try { p.ice = pc.iceConnectionState; p.cambioTs = Date.now(); renderNetPanel(); } catch { /* ya muerto */ }
   };
   rtcMesh.set(peer, p);
   return p;
@@ -867,6 +884,8 @@ function rtcAsegurarCanales(p) {
 
 async function rtcOfrecer(peer) {
   const p = rtcPar(peer);
+  if (p.pidiendo) return;   // ya hay una oferta en vuelo: no se pisa
+  p.pidiendo = true;
   try {
     rtcAsegurarCanales(p);
     const of = await p.pc.createOffer();
@@ -874,6 +893,31 @@ async function rtcOfrecer(peer) {
     p.nuevo = false;
     send({ type: 'rtc-offer', to: peer, sdp: p.pc.localDescription, from: state.myId, spec: 1 });
   } catch { /* se reconecta solo con el siguiente hello */ }
+  p.pidiendo = false;
+}
+
+// Reintento manual (botón del panel de red) o automático (un ICE restart con
+// oferta fresca). Cierra la conexión muerta y negocia de cero con los tracks
+// actuales: no toca micros ni cámaras, sólo la malla.
+function rtcReintentarPeer(peer) {
+  const viejo = rtcMesh.get(peer);
+  if (viejo) { try { viejo.pc.close(); } catch { /* ya cerrado */ } rtcMesh.delete(peer); }
+  const p = rtcPar(peer);
+  p.reintentos = (viejo ? viejo.reintentos : 0) + 1;
+  p.reintentoTs = Date.now();
+  if (rtcIniciyo(peer)) rtcOfrecer(peer);
+}
+function rtcProgramarReintento(peer) {
+  const p = rtcMesh.get(peer);
+  if (!p || !rtcIniciyo(peer) || (p.reintentos || 0) >= 2) return;
+  if (Date.now() - (p.reintentoTs || 0) < 15000) return;
+  p.reintentoTs = Date.now();
+  setTimeout(() => {
+    const q = rtcMesh.get(peer);
+    if (!q || q.est === 'connected') return;
+    try { q.pc.restartIce(); } catch { /* navegador viejo */ }
+    rtcReintentarPeer(peer);
+  }, 4000);
 }
 
 // Contestar una oferta que viene DIRIGIDA a mí (espectadores): acá el par se
@@ -1874,7 +1918,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v162 · 02/10/2026';
+const VERSION = 'v163 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -2126,7 +2170,14 @@ function bytesHex(b) { return [...b].map((x) => x.toString(16).padStart(2, '0'))
 function updateNetLabel() {
   const now = performance.now();
   p2pPeerCount = [...state.players.values()].filter((p) => p.id !== state.myId && p.seen && now - p.seen < 9000).length;
+  // El panel abierto se refresca solo (1/s): los estados de la malla cambian solos.
+  if (now - updateNetLabel.ult > 1000) {
+    updateNetLabel.ult = now;
+    const el = document.getElementById('netPanel');
+    if (el && !el.classList.contains('hidden')) renderNetPanel();
+  }
 }
+updateNetLabel.ult = 0;
 async function connectP2P() {
   try {
     // toast() no puede interrumpir la conexión si el DOM todavía está cargando.
@@ -2204,7 +2255,36 @@ function renderNetPanel() {
   el.innerHTML = `<div class="np-title">🛰 RED P2P (tocá el reloj para cerrar)</div>${relays}<br>` +
     `enviados: ${busSent} · recibidos: ${busRecv}<br>peers: ${p2pPeerCount} · firma: ${busKey ? '<span class="ok">ok</span>' : '<span class="bad">no</span>'}<br>` +
     (busErr ? `<span class="bad">error: ${busErr.slice(0, 60)}</span><br>` : '') +
+    rtcMallaLineas() +
+    `<button id="npRetry" type="button">⟲ reintentar caídos</button><br>` +
     `versión: ${VERSION}`;
+  const rb = document.getElementById('npRetry');
+  if (rb) rb.onclick = () => {
+    let n = 0;
+    for (const [peer, p] of rtcMesh) {
+      if (p.est !== 'connected') { rtcReintentarPeer(peer); n++; }
+    }
+    toast(n ? `⟲ Reintentando ${n} conexión${n > 1 ? 'es' : ''}…` : '✅ Todas las conexiones están bien');
+    renderNetPanel();
+  };
+}
+// Estado de la malla WebRTC por compañero: si no se ven ni se escuchan,
+// acá se ve si la conexión está caída (failed = la red no cruza, falta TURN)
+// o a medio negociar, y se reintenta sin tocar micros ni cámaras.
+function rtcMallaLineas() {
+  if (!rtcMesh.size) return 'malla: <span class="bad">sin conexiones</span><br>';
+  const lin = [];
+  for (const [peer, p] of rtcMesh) {
+    const est = p.est || 'nueva';
+    const cls = est === 'connected' ? 'ok' : (est === 'failed' || est === 'disconnected' ? 'bad' : '');
+    const det = [];
+    if (rtcVivo.get(peer)) det.push('🎤');
+    if (rtcCamVivo.get(peer)) det.push('📷');
+    if (rtcShareVivo.get(peer)) det.push('🖥');
+    const hace = p.cambioTs ? ` · hace ${Math.max(0, Math.round((Date.now() - p.cambioTs) / 1000))}s` : '';
+    lin.push(`${esc(rtcNombreDe(peer))}: <span class="${cls}">${est}${p.ice && p.ice !== est ? '/' + p.ice : ''}</span>${det.length ? ' ' + det.join('') : ''}${hace}`);
+  }
+  return 'malla:<br>' + lin.join('<br>') + '<br>';
 }
 function netToggle() {
   const el = document.getElementById('netPanel');
