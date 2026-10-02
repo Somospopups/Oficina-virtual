@@ -73,7 +73,7 @@ cambiá la otra.
 | Click en la cabeza de un compañero | Menú radial: 👋 Saludar · 💬 Susurrar · 💨 Zumbido |
 | Click en tu propia cabeza | Estados, animaciones (si estás sentado 🪑), 🥊 modo pelea y 💃 bailarina (solo Ger parado), 💨 zumbido |
 | 📷 / 🖥️ (columna derecha) | Prender cámara · compartir pantalla (uno a la vez) |
-| Reloj (barra de arriba) | 📡 Panel de la red P2P |
+| Reloj (hora · clima · versión) | Hora: 📡 panel de la red · Versión: busca actualización y vuelve a entrar solo |
 | 🔔 (barra de arriba) | Notificaciones estilo Messenger (vienen prendidas): clic apagada→prende · clic prendida→opciones |
 | Nombre en 🟢 En la oficina | Historial de esa persona (los que no están ahora, en gris al final) |
 

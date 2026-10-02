@@ -170,6 +170,15 @@ ok(/panel\.classList\.toggle\('share-full', state\.spectating\)/.test(js) &&
 ok(/body\.spectator-mode #videoPanel\.share-full/.test(css) && /height: 100vh/.test(css),
    'el modo grande del espectador ocupa toda la pantalla');
 
+// 8e) el reloj muestra hora · clima · versión, y la versión actualiza sin
+// salir: busca el sello publicado y si hay algo nuevo recarga y reingresa.
+ok(/['"]clockHora['"]/.test(js) && /['"]clockVer['"]/.test(js) && /#clockVer/.test(css),
+   'el reloj muestra hora y versión por separado');
+ok(/function versionRefrescar\(\)/.test(js) && /ov-build/.test(js) && /\?fresco=/.test(js),
+   'la versión busca actualización y recarga en fresco');
+ok(/sessionStorage\.setItem\('ovDni'/.test(js) && /ovAuto/.test(js),
+   'tras actualizar se vuelve a entrar solo con el DNI de la pestaña');
+
 // 8c) el 📷 es el interruptor de la videoconferencia: muestra y al volver a
 // presionar desaparece (nada de tira pegajosa que quede siempre visible).
 ok(/camStripAbierta/.test(js) && !/camStripSticky/.test(js),

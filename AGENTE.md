@@ -202,6 +202,12 @@ vez** con `?fresco=…` (otra URL = otra entrada de caché = descarga de verdad)
 `index.html` y los `?v=` de `style.css`, `assets.js` y `game.js`.** Si se
 separan, `tools/checlear-boton-e.js` falla.
 
+El reloj muestra sólo hora · clima · versión. Tocando la versión se busca
+actualización sin salir: si el sello publicado es más nuevo, recarga con
+`?fresco=` y vuelve a entrar solo con el DNI que vive en `sessionStorage`
+(la pestaña, nunca sale del equipo). `versionRefrescar()` + bandera
+`ovAuto` en el arranque.
+
 ## 😶 Emojis sobre fondo oscuro
 
 Algunos emojis son grises o plateados (`📎`, `🔗`) y sobre el fondo oscuro de un

@@ -1918,7 +1918,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v163 · 02/10/2026';
+const VERSION = 'v164 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -2289,6 +2289,27 @@ function rtcMallaLineas() {
 function netToggle() {
   const el = document.getElementById('netPanel');
   if (el) { el.classList.toggle('hidden'); renderNetPanel(); }
+}
+// Refrescar versión sin salir y volver a entrar: compara el sello publicado
+// (recién bajado, sin caché) con el propio; si hay algo nuevo, recarga con
+// URL distinta (= descarga de verdad) y se vuelve a entrar solo con el DNI
+// que vive en la pestaña. Como el guardián de html viejo, pero a pedido.
+let verCheckTs = 0;
+async function versionRefrescar() {
+  if (Date.now() - verCheckTs < 10000) return;
+  verCheckTs = Date.now();
+  const mia = VERSION.split(' ')[0];
+  toast('🔎 Buscando actualización…');
+  try {
+    const r = await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' });
+    const m = (await r.text()).match(/<meta name="ov-build" content="([^"]+)"/);
+    const pub = m && m[1];
+    if (pub && pub !== mia) {
+      try { if (state.joined) sessionStorage.setItem('ovAuto', '1'); } catch { /* incógnito */ }
+      toast(`⬇ Hay ${pub}: actualizando…`);
+      setTimeout(() => { location.href = location.pathname + '?fresco=' + Date.now(); }, 700);
+    } else toast(`✅ Ya tenés la última (${mia})`);
+  } catch { toast('⚠️ No se pudo comprobar: revisá la conexión'); }
 }
 let globalErrShown = false;
 window.addEventListener('error', (e) => {
@@ -3976,6 +3997,9 @@ async function join() {
   const dup = [...state.players.values()].find((p) => p.char === entry.char && p.id !== state.myId && performance.now() - (p.seen || 0) < 9000);
   if (dup) { dniError(`⚠️ ${entry.name} ya está en la oficina desde otro dispositivo.`); return; }
   dniError('');
+  // El DNI queda en la pestaña (nunca sale de este equipo): prellena el
+  // ingreso y permite volver a entrar solo tras una actualización.
+  try { sessionStorage.setItem('ovDni', dni); } catch { /* incógnito */ }
   state.spectating = false; document.body.classList.remove('spectator-mode');
   spectatorWhisperBacklog.length = 0;
   state.myChar = entry.char; state.myName = entry.name; state.joined = true; state.joinTs = state.joinTs || Date.now();
@@ -5256,7 +5280,24 @@ function render() {
   if (!poleDibujado) drawPole(now);
 
   const ce = climaEmoji();
-  clockBox.textContent = `${phaseName(hf)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` + (ce ? ` · ${ce}` : '') + (USE_P2P ? ` · 📡${p2pPeerCount}` : '');
+  // El reloj muestra sólo hora · clima · versión (sin fase ni satélite).
+  // La hora abre el panel de red; la versión busca actualización y recarga
+  // sola. Estructura armada una sola vez: esto corre en cada cuadro.
+  let horaEl = document.getElementById('clockHora');
+  if (!horaEl) {
+    clockBox.textContent = '';
+    clockBox.title = 'Hora: panel de red · Versión: buscar actualización';
+    horaEl = document.createElement('span');
+    horaEl.id = 'clockHora';
+    horaEl.title = 'Red P2P: tocá la hora para ver el panel 🛰';
+    const verEl = document.createElement('span');
+    verEl.id = 'clockVer';
+    verEl.title = 'Tocá la versión para buscar actualización';
+    verEl.addEventListener('click', (e) => { e.stopPropagation(); versionRefrescar(); });
+    clockBox.append(horaEl, verEl);
+  }
+  horaEl.textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` + (ce ? ` · ${ce}` : '');
+  document.getElementById('clockVer').textContent = ` · ${VERSION.split(' ')[0]}`;
 
   // Marco visual de escritorio: oscurece solo las bandas exteriores; el área de
   // la oficina queda intacta y sus límites coinciden con los paneles laterales.
@@ -5708,6 +5749,15 @@ function init() {
   setInterval(renderNetPanel, 2000);
   const q = new URLSearchParams(location.search);
   if (q.get('dni')) dniInput.value = q.get('dni');
+  // Volver solo de una actualización: si veníamos adentro, se entra directo.
+  try {
+    const guardado = sessionStorage.getItem('ovDni') || '';
+    if (!dniInput.value && /^\d{7,8}$/.test(guardado)) dniInput.value = guardado;
+    if (sessionStorage.getItem('ovAuto') === '1' && /^\d{7,8}$/.test(dniInput.value || '')) {
+      sessionStorage.removeItem('ovAuto');
+      setTimeout(() => { if (!state.joined && !state.spectating) join(); }, 2500);
+    }
+  } catch { /* incógnito */ }
   joinBtn.onclick = join;
   dniInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
   dniInput.addEventListener('input', async () => {
