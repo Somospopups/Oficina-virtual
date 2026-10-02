@@ -547,7 +547,18 @@ function rtcOcultarPantalla() {
 }
 
 // ---------- Cámaras: prender, apagar y mostrar ----------
-async function rtcCamToggle() { if (rtcCamOn) rtcCamApagar(); else rtcCamPrender(); }
+// El 📷 del riel es el interruptor de la videoconferencia: la muestra (con
+// tu cámara) y al volverlo a presionar desaparece todo.
+async function rtcCamToggle() {
+  if (camStripAbierta && rtcCamOn) {
+    camStripAbierta = false;
+    rtcCamApagar();
+  } else {
+    camStripAbierta = true;
+    if (!rtcCamOn) await rtcCamPrender();
+  }
+  renderCallUI(); renderCamStrip();
+}
 async function rtcCamPrender() {
   if (rtcCamOn) return;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('📷 Este navegador no deja usar la cámara.'); return; }
@@ -625,21 +636,21 @@ function rtcCamVer(peer, stream) {
 // Los <video> viven en el DOM y solo se les cambia el srcObject cuando hace
 // falta, así el que ya está reproduciendo no parpadea en cada re-render.
 // La tira es "pegajosa": aparece la primera vez que alguien prende una cámara
-// y de ahí en más se queda (con los cuadros en "apagada" si hace falta). Si se
-// escondiera al apagar, el botoncito 📷 del cuadro desaparecería con ella y no
-// habría desde dónde volver a prenderla.
-let camStripSticky = false;
+// La tira es el interruptor de la videoconferencia: el 📷 la muestra y al
+// volverlo a presionar desaparece (con tu cámara). No es pegajosa: si se
+// quedara siempre visible, el botón no sería un toggle de verdad.
+let camStripAbierta = false;
 let camStripPrimero = '';   // quién está primero en la fila, para scrollear cuando cambia
 function renderCamStrip() {
   const strip = document.getElementById('camStrip');
   if (!strip) return;
-  const alguna = rtcCamOn || rtcCamPeers.size > 0 || camStripSticky;
+  // El espectador no tiene botón: para él la tira va siempre (es la TV).
+  const alguna = (camStripAbierta || state.spectating) && (rtcCamOn || rtcCamPeers.size > 0);
   // La tira, en el celu, ocupa la franja entre la oficina y el chat y empuja el
   // chat hacia abajo: si aparece o desaparece, hay que recalcular el layout.
   const cambio = strip.hidden !== !alguna;
   strip.hidden = !alguna;
   if (!alguna) { if (cambio) { camStripPrimero = ''; layoutMobile(); } return; }
-  camStripSticky = true;
   // En el celu la fila scrollea, así que entra más gente que en el escritorio
   // (donde la tira es una columna con un tercio del alto del riel).
   const MAX = esMovil() ? 8 : 3;
@@ -1178,9 +1189,10 @@ function renderCallUI() {
   }
   const cb = document.getElementById('camBtn');
   if (cb) {
-    cb.classList.toggle('on', rtcCamOn);
-    cb.style.opacity = rtcCamOn ? '1' : '0.65';
-    cb.title = rtcCamOn ? 'Cámara prendida: tocá para apagarla' : 'Prender tu cámara: aparece en los cuadros de video';
+    const vis = camStripAbierta && rtcCamOn;
+    cb.classList.toggle('on', vis);
+    cb.style.opacity = vis ? '1' : '0.65';
+    cb.title = vis ? 'Videoconferencia visible: tocá para ocultar las cámaras' : 'Mostrar videoconferencia (prende tu cámara)';
   }
   const sh = document.getElementById('shareBtn');
   if (sh) {
@@ -1862,7 +1874,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v161 · 02/10/2026';
+const VERSION = 'v162 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada

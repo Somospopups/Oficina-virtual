@@ -170,6 +170,13 @@ ok(/panel\.classList\.toggle\('share-full', state\.spectating\)/.test(js) &&
 ok(/body\.spectator-mode #videoPanel\.share-full/.test(css) && /height: 100vh/.test(css),
    'el modo grande del espectador ocupa toda la pantalla');
 
+// 8c) el 📷 es el interruptor de la videoconferencia: muestra y al volver a
+// presionar desaparece (nada de tira pegajosa que quede siempre visible).
+ok(/camStripAbierta/.test(js) && !/camStripSticky/.test(js),
+   'la tira de cámaras es un toggle, no queda pegada');
+ok(/camStripAbierta && rtcCamOn\) \{\s*\n\s*camStripAbierta = false/.test(js),
+   'al volver a presionar se ocultan las cámaras');
+
 // 9) los dibujos NUNCA pueden salir viejos del caché: cada PNG se pide con un
 // hash de su propio contenido (assets.js, generado por tools/generar-assets.js).
 // El mapa y los .css/.js se versionan con ?v= (sin document.write bloqueante).
