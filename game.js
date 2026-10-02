@@ -30,17 +30,23 @@ const SEATS = [
 // Todo pasa por piso()/sillas()/dimW()/dimH()/mitadX(): el mundo viejo (FLOOR,
 // SEATS, VW/VH) queda intacto cuando la previa está apagada.
 const ESC_NUEVA = { w: 1642, h: 656 };
-// Límites dibujados en rojo por el dueño (Oficina/v1rojo.jpg y v3rojo.jpg):
-// el polígono rojo ES el piso (los muebles quedan afuera solos). Sólo el
-// mueble bajo la ventana y la columna van como bloques.
+// Límites dibujados en rojo por el dueño (Oficina/v1rojo.jpg y v3rojo.jpg),
+// medidos píxel por píxel: son polígonos, no trapezoides (la terraza tiene
+// escalón y quiebres). El punto va adentro o no va.
 const PISO_OFI = {
-  yTop: 440, yBot: 650, xlTop: 640, xrTop: 1010, xlBot: 180, xrBot: 1470,
+  yTop: 400, yBot: 650,
+  xlTop: 649, xrTop: 1025, xlBot: 294, xrBot: 1337,
+  poli: [[649, 402], [1025, 402], [1337, 656], [294, 656]],
   obst: [
     { x0: 640, x1: 1010, y0: 375, y1: 448 },   // mueble bajo la ventana
   ],
 };
 const PISO_BAL = {
-  yTop: 395, yBot: 650, xlTop: 560, xrTop: 1330, xlBot: 0, xrBot: 1642,
+  yTop: 385, yBot: 650,
+  xlTop: 560, xrTop: 1130, xlBot: 70, xrBot: 1642,
+  poli: [[560, 393], [1130, 393], [1400, 520], [1650, 660], [70, 660],
+         [101, 640], [140, 620], [180, 600], [218, 580], [256, 560],
+         [294, 540], [334, 520], [371, 500], [448, 460], [490, 432]],
   obst: [
     { x0: 995, x1: 1025, y0: 350, y1: 565 },   // columna de la pérgola
   ],
@@ -55,7 +61,7 @@ const SILLAS_OFI = [
 const PUERTA_OFI = { x0: 990, x1: 1100, y0: 450, y1: 505, ax: 660, ay: 550 };
 const PUERTA_BAL = { x0: 560, x1: 720, y0: 500, y1: 580, ax: 1080, ay: 535 };
 const SPAWN_OFI = { x: 821, y: 600 };
-const prev = { on: false, escena: 'ofi', puertaArmada: true, fade: 0, vuelta: null };
+const prev = { on: false, escena: 'ofi', fade: 0, vuelta: null };
 function prevAqui() { const me = state.players.get(state.myId); return !!(prev.on && me && me.char === 'ger'); }
 function piso() { return prevAqui() ? (prev.escena === 'balcon' ? PISO_BAL : PISO_OFI) : FLOOR; }
 function sillas() { return prevAqui() ? (prev.escena === 'balcon' ? [] : SILLAS_OFI) : SEATS; }
@@ -1999,7 +2005,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v170 · 02/10/2026';
+const VERSION = 'v171 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -3850,16 +3856,30 @@ function renderPlayerList() {
 function walkable(x, y) {
   const F = piso();
   if (y < F.yTop + 10 || y > F.yBot - 6) return false;
-  const t = (y - F.yTop) / (F.yBot - F.yTop);
-  const xl = lerp(F.xlTop, F.xlBot, t) + 24;
-  const xr = lerp(F.xrTop, F.xrBot, t) - 24;
-  if (x < xl || x > xr) return false;
+  if (F.poli) {
+    // Escenas nuevas: el límite es el polígono rojo del dueño, tal cual.
+    if (!enPoli(F.poli, x, y)) return false;
+  } else {
+    const t = (y - F.yTop) / (F.yBot - F.yTop);
+    const xl = lerp(F.xlTop, F.xlBot, t) + 24;
+    const xr = lerp(F.xrTop, F.xrBot, t) - 24;
+    if (x < xl || x > xr) return false;
+  }
   // En las escenas nuevas los muebles y la columna no se pisan (en la vieja
   // no hay obstáculos: se camina por todo el trapecio como siempre).
   if (F.obst) for (const o of F.obst) {
     if (x >= o.x0 && x <= o.x1 && y >= o.y0 && y <= o.y1) return false;
   }
   return true;
+}
+// Punto adentro del polígono o no va (ray casting).
+function enPoli(poli, x, y) {
+  let dentro = false;
+  for (let i = 0, j = poli.length - 1; i < poli.length; j = i++) {
+    const xi = poli[i][0], yi = poli[i][1], xj = poli[j][0], yj = poli[j][1];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) dentro = !dentro;
+  }
+  return dentro;
 }
 function seatNear(x, y, r = 110) {
   let best = null, bd = r;
@@ -4636,23 +4656,6 @@ function update(dt) {
     }
     me.tx = me.x; me.ty = me.y;
 
-    // Puerta oficina ⇄ balcón (sólo vista previa): cruzar la zona cambia de
-    // escena con fundido. Se rearma al salir de la zona para no rebotar.
-    if (prevAqui() && !me.seated) {
-      const puerta = prev.escena === 'balcon' ? PUERTA_BAL : PUERTA_OFI;
-      const dentro = me.x >= puerta.x0 && me.x <= puerta.x1 && me.y >= puerta.y0 && me.y <= puerta.y1;
-      if (dentro && prev.puertaArmada) {
-        prev.puertaArmada = false;
-        prev.escena = prev.escena === 'balcon' ? 'ofi' : 'balcon';
-        const dest = prev.escena === 'balcon' ? { x: PUERTA_OFI.ax, y: PUERTA_OFI.ay } : { x: PUERTA_BAL.ax, y: PUERTA_BAL.ay };
-        me.seated = false; me.moving = false;
-        me.x = me.tx = dest.x; me.y = me.ty = dest.y;
-        prev.fade = now;
-        toast(prev.escena === 'balcon' ? '🚪 Saliste al balcón' : '🚪 Volviste a la oficina');
-        sendMoveNow();
-      } else if (!dentro) prev.puertaArmada = true;
-    }
-
     if (me.moving && now - lastSend > SEND_MS) { lastSend = now; sendMoveNow(); }
     else if (!me.moving && now - lastSend > 1000) { lastSend = now; sendMoveNow(); }
 
@@ -4690,6 +4693,11 @@ function update(dt) {
   if (near) {
     hintBox.innerHTML = `Cerca de <b>${esc(near.name)}</b> — <span class="key">/w ${esc(near.name)} msg</span> susurrar`;
     hintBox.classList.add('show');
+  } else if (state.joined && puertaCerca()) {
+    hintBox.innerHTML = prev.escena === 'balcon'
+      ? `🚪 <b>Puerta</b> — <span class="key">E</span> volver a la oficina`
+      : `🚪 <b>Puerta</b> — <span class="key">E</span> salir al balcón`;
+    hintBox.classList.add('show');
   } else if (state.joined && cafeCerca()) {
     const soyMilo = (state.players.get(state.myId) || {}).char === 'milo';
     hintBox.innerHTML = soyMilo
@@ -4705,7 +4713,7 @@ function update(dt) {
   } else hintBox.classList.remove('show');
   // El botón de acción del celu brilla cuando hay algo para hacer cerca
   const be = document.getElementById('btnE');
-  if (be) be.classList.toggle('activo', !!(state.joined && (cafeCerca() || seatLibreCerca() || catCerca())));
+  if (be) be.classList.toggle('activo', !!(state.joined && (puertaCerca() || cafeCerca() || seatLibreCerca() || catCerca())));
 }
 
 // ---------- Cafetera: un cafecito da energía (velocidad) por un rato ----------
@@ -4722,10 +4730,33 @@ function cafeCerca() {
   const me = state.players.get(state.myId);
   return me && Math.hypot(me.x - CAFE.x, me.y - CAFE.y) < 48;
 }
+// Puerta oficina ⇄ balcón con la E (sólo vista previa): parado cerca de la
+// puerta, la E cruza con fundido. Nada de cruzar caminando: era fácil
+// atravesarla sin querer y el rearme confundía.
+function puertaCerca() {
+  if (!prevAqui()) return null;
+  const me = state.players.get(state.myId);
+  if (!me || me.seated) return null;
+  const puerta = prev.escena === 'balcon' ? PUERTA_BAL : PUERTA_OFI;
+  const cx = (puerta.x0 + puerta.x1) / 2, cy = (puerta.y0 + puerta.y1) / 2;
+  return Math.hypot(me.x - cx, me.y - cy) < 120 ? puerta : null;
+}
+function cruzarPuerta() {
+  const me = state.players.get(state.myId);
+  if (!me || !puertaCerca()) return;
+  prev.escena = prev.escena === 'balcon' ? 'ofi' : 'balcon';
+  const dest = prev.escena === 'balcon' ? { x: PUERTA_OFI.ax, y: PUERTA_OFI.ay } : { x: PUERTA_BAL.ax, y: PUERTA_BAL.ay };
+  me.seated = false; me.moving = false;
+  me.x = me.tx = dest.x; me.y = me.ty = dest.y;
+  prev.fade = performance.now();
+  toast(prev.escena === 'balcon' ? '🚪 Saliste al balcón' : '🚪 Volviste a la oficina');
+  sendMoveNow();
+}
 // Botón de acción (tecla E en PC, botón redondo en el celu).
-// Prioridad: cafetera > escritorio > Michi.
+// Prioridad: puerta (vista previa) > cafetera > escritorio > Michi.
 function accionE() {
   if (!state.joined) return;
+  if (prevAqui() && puertaCerca()) { cruzarPuerta(); return; }
   if (cafeCerca()) { cafeTomar(); return; }
   // Sentarse conserva prioridad: aun en modo pelea, al acercarse a cualquier PC
   // la E usa la silla. Lejos de un escritorio, la misma E tira el golpe siguiente.
@@ -4932,7 +4963,7 @@ function prevPedir() {
   if (!me || me.char !== 'ger') return;
   if (!prev.on) {
     prev.vuelta = { x: me.x, y: me.y, seated: me.seated, dir: me.dir };
-    prev.on = true; prev.escena = 'ofi'; prev.puertaArmada = true;
+    prev.on = true; prev.escena = 'ofi';
     me.seated = false; me.moving = false;
     me.x = me.tx = SPAWN_OFI.x; me.y = me.ty = SPAWN_OFI.y;
     resize();

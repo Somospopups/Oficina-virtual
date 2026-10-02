@@ -472,14 +472,14 @@ ok(/case 'pole'/.test(srv) && /p\.char !== 'ger'/.test(srv),
    'el servidor sólo le cree la bailarina a Ger');
 ok(/Bailarina/.test(js) && /polePedir/.test(js),
    'la bailarina está en el menú (sólo Ger, parado)');
-// Vista previa de escenas nuevas (sólo Ger, privada): la puerta cruza
-// oficina ⇄ balcón y el resto lo ve como 👁 sin dibujarlo ni dibujarse.
+// Vista previa de escenas nuevas (sólo Ger, privada): la puerta se cruza con
+// la E en los dos sentidos y el resto lo ve como 👁 sin dibujarlo ni dibujarse.
 ok(/PISO_OFI/.test(js) && /PISO_BAL/.test(js) && /SILLAS_OFI/.test(js),
    'las escenas nuevas tienen piso y sillas propios');
 ok(/function prevPedir/.test(js) && /Vista previa/.test(js),
    'la vista previa está en el menú de Ger');
-ok(/PUERTA_OFI/.test(js) && /PUERTA_BAL/.test(js) && /puertaArmada/.test(js),
-   'la puerta cambia de escena con rearme');
+ok(/PUERTA_OFI/.test(js) && /PUERTA_BAL/.test(js) && /function cruzarPuerta/.test(js) && /function puertaCerca/.test(js),
+   'la puerta se cruza con la E (ida y vuelta)');
 ok(/preview: !!\(prev\.on/.test(js) && /p\.preview/.test(srv),
    'la previa viaja en el estado (los demás no dibujan a Ger)');
 // Geometría de las escenas nuevas (leída del juego, no duplicada): las sillas,
@@ -502,11 +502,22 @@ ok(/preview: !!\(prev\.on/.test(js) && /p\.preview/.test(srv),
   };
   const F = tomar('PISO_OFI');
   const FB = tomar('PISO_BAL');
+  const enPoli = (poli, x, y) => {
+    let dentro = false;
+    for (let i = 0, j = poli.length - 1; i < poli.length; j = i++) {
+      const xi = poli[i][0], yi = poli[i][1], xj = poli[j][0], yj = poli[j][1];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) dentro = !dentro;
+    }
+    return dentro;
+  };
   const enPiso = (FF, x, y) => {
     if (!FF) return false;
     if (y < FF.yTop + 10 || y > FF.yBot - 6) return false;
-    const t = (y - FF.yTop) / (FF.yBot - FF.yTop);
-    if (x < (FF.xlTop + (FF.xlBot - FF.xlTop) * t + 24) || x > (FF.xrTop + (FF.xrBot - FF.xrTop) * t - 24)) return false;
+    if (FF.poli && !enPoli(FF.poli, x, y)) return false;
+    if (!FF.poli) {
+      const t = (y - FF.yTop) / (FF.yBot - FF.yTop);
+      if (x < (FF.xlTop + (FF.xlBot - FF.xlTop) * t + 24) || x > (FF.xrTop + (FF.xrBot - FF.xrTop) * t - 24)) return false;
+    }
     return !(FF.obst || []).some((o) => x >= o.x0 && x <= o.x1 && y >= o.y0 && y <= o.y1);
   };
   const S = tomar('SILLAS_OFI') || [];
@@ -525,8 +536,6 @@ ok(/preview: !!\(prev\.on/.test(js) && /p\.preview/.test(srv),
   }
   ok(!prov.length, 'sillas, spawn y puerta de la oficina nueva son pisables', prov.join(', '));
 }
-ok(/PUERTA_OFI/.test(js) && /PUERTA_BAL/.test(js) && /puertaArmada/.test(js),
-   'la puerta cambia de escena con rearme');
 ok(/preview: !!\(prev\.on/.test(js) && /p\.preview/.test(srv),
    'la previa viaja en el estado (los demás no dibujan a Ger)');
 {

@@ -45,7 +45,7 @@ const piezas = [
   sacarConst('VW'), sacarConst('FLOOR'), sacarConst('SEATS'), sacarConst('PRESENCIA_MS'),
   sacarConst('ESC_NUEVA'), sacarConst('PISO_OFI'), sacarConst('PISO_BAL'), sacarConst('SILLAS_OFI'),
   sacarConst('prev'),
-  sacarFuncion('lerp'), sacarFuncion('clamp'), sacarFuncion('prevAqui'),
+  sacarFuncion('lerp'), sacarFuncion('clamp'), sacarFuncion('enPoli'), sacarFuncion('prevAqui'),
   sacarFuncion('piso'), sacarFuncion('sillas'), sacarFuncion('dimW'), sacarFuncion('dimH'), sacarFuncion('mitadX'),
   sacarFuncion('walkable'),
   sacarFuncion('presente'), sacarFuncion('seatOwner'), sacarFuncion('seatFor'), sacarFuncion('puntoDePie'),

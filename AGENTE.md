@@ -298,12 +298,14 @@ Oficina nueva + balcón (`sprites/bg_ofi/bg_balcon`, verdes afuera para el
 cielo dinámico, hechos con `tools/procesar-escenas.py`). Ger la prende de su
 menú y camina lo nuevo ÉL SOLO: el resto lo ve como 👁 en la lista y no lo
 dibuja (ni él a ellos). La puerta de vidrio del fondo cruza ofi ⇄ balcón con
-rearme (si no, rebota). Todo lo nuevo pasa por `piso()`/`sillas()`/`dimW()`/
+la E parado cerca (`puertaCerca` + `cruzarPuerta`, con fundido; nada de
+cruzar caminando). Los límites son los polígonos rojos del dueño
+(`Oficina/v1rojo.jpg`, `v3rojo.jpg`) tal cual en `poli` (+ `obst` del mueble
+y la columna). Todo lo nuevo pasa por `piso()`/`sillas()`/`dimW()`/
 `dimH()`/`mitadX()`: con la previa apagada devuelven el mundo viejo intacto.
 El cielo es el mismo de siempre (`pintarCielo`, con sol, nubes, lluvia, nieve
-y rayos) pintado a pantalla completa detrás de cada escena. Los muebles y la
-columna no se pisan (`obst` en cada piso) y en la previa se ve el borde
-caminable, los bloques y la 🚪 (`drawPrevMarcas`). Al abrirlo a todos: sacar
+y rayos) pintado a pantalla completa detrás de cada escena. En la previa
+sólo queda la 🚪 (`drawPrevMarcas`). Al abrirlo a todos: sacar
 el gate de Ger y sincronizar la escena.
 
 ## 🚶 El dibujo de pie (`sprites/<char>.png`)
