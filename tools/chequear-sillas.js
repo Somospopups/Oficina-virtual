@@ -53,8 +53,8 @@ const piezas = [
 
 const caja = { state: { players: new Map(), myId: 'yo' }, performance: { now: () => 100000 }, console };
 vm.createContext(caja);
-vm.runInContext(piezas + '\nthis.api = { SEATS, SILLAS_OFI, seatFor, puntoDePie, walkable, piso, sillas, prev };', caja);
-const { SEATS, SILLAS_OFI, seatFor, puntoDePie, walkable, piso, sillas, prev } = caja.api;
+vm.runInContext(piezas + '\nthis.api = { SEATS, FLOOR, SILLAS_OFI, seatFor, puntoDePie, walkable, piso, sillas, prev };', caja);
+const { SEATS, FLOOR, SILLAS_OFI, seatFor, puntoDePie, walkable, piso, sillas, prev } = caja.api;
 
 const jugadores = caja.state.players;
 const NOW = 100000;
@@ -111,7 +111,7 @@ jugadores.set('yo', { id: 'yo', name: 'Ger', char: 'ger', seated: false, x: 821,
 prev.on = true;
 ok(sillas().length === 4 && sillas() !== SEATS, 'en la oficina nueva hay otros 4 puestos');
 ok(sillas() === SILLAS_OFI, 'las sillas salen de la tabla nueva');
-ok(piso().yTop === 445, 'el piso es el de la oficina nueva');
+ok(piso() !== FLOOR, 'el piso es el de la oficina nueva');
 ok(seatFor({ seat: 0 }) === SILLAS_OFI[0], 'el reparto funciona en el mundo nuevo');
 const dp = puntoDePie();
 ok(walkable(dp.x, dp.y), 'el punto de pie cae en el mundo nuevo');

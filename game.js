@@ -30,19 +30,17 @@ const SEATS = [
 // Todo pasa por piso()/sillas()/dimW()/dimH()/mitadX(): el mundo viejo (FLOOR,
 // SEATS, VW/VH) queda intacto cuando la previa está apagada.
 const ESC_NUEVA = { w: 1642, h: 656 };
-// Medidos sobre la grilla de las imágenes (ver prev_arg/): trapecio del piso
-// más rectángulos de muebles que no se pisan. Sin esto en la terraza se
-// "vuela" por fuera de la baranda y no se llega al fondo.
+// Límites dibujados en rojo por el dueño (Oficina/v1rojo.jpg y v3rojo.jpg):
+// el polígono rojo ES el piso (los muebles quedan afuera solos). Sólo el
+// mueble bajo la ventana y la columna van como bloques.
 const PISO_OFI = {
-  yTop: 445, yBot: 650, xlTop: 650, xrTop: 1060, xlBot: 300, xrBot: 1400,
+  yTop: 440, yBot: 650, xlTop: 640, xrTop: 1010, xlBot: 180, xrBot: 1470,
   obst: [
-    { x0: 0, x1: 680, y0: 440, y1: 550 },      // escritorios izquierda
-    { x0: 1105, x1: 1642, y0: 440, y1: 550 },  // escritorios derecha
     { x0: 640, x1: 1010, y0: 375, y1: 448 },   // mueble bajo la ventana
   ],
 };
 const PISO_BAL = {
-  yTop: 375, yBot: 650, xlTop: 520, xrTop: 1560, xlBot: 40, xrBot: 1620,
+  yTop: 395, yBot: 650, xlTop: 560, xrTop: 1330, xlBot: 0, xrBot: 1642,
   obst: [
     { x0: 995, x1: 1025, y0: 350, y1: 565 },   // columna de la pérgola
   ],
@@ -1962,24 +1960,11 @@ function drawPrevEscena(now, hf, sky) {
     ctx.fillRect(0, 0, DW, DH);
   }
 }
-// En la previa se ve dónde se puede pisar: borde del piso caminable, bloques
-// (muebles, columna) y la 🚪 de la puerta. Vive sólo acá, no en la oficina.
+// En la previa sólo queda la 🚪 de la puerta (la del balcón no se ve en el
+// dibujo): las líneas de debug ya cumplieron y molestan.
 function drawPrevMarcas() {
-  const F = piso();
-  const yA = F.yTop + 10, yB = F.yBot - 6;
-  const tA = (yA - F.yTop) / (F.yBot - F.yTop), tB = (yB - F.yTop) / (F.yBot - F.yTop);
-  const xl = (t) => lerp(F.xlTop, F.xlBot, t) + 24, xr = (t) => lerp(F.xrTop, F.xrBot, t) - 24;
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.30)'; ctx.lineWidth = 2;
-  ctx.setLineDash([10, 8]);
-  ctx.beginPath();
-  ctx.moveTo(xl(tA), yA); ctx.lineTo(xr(tA), yA); ctx.lineTo(xr(tB), yB); ctx.lineTo(xl(tB), yB);
-  ctx.closePath(); ctx.stroke();
-  ctx.setLineDash([6, 5]);
-  ctx.strokeStyle = 'rgba(255,120,120,0.45)';
-  for (const o of (F.obst || [])) ctx.strokeRect(o.x0, o.y0, o.x1 - o.x0, o.y1 - o.y0);
-  ctx.setLineDash([]);
   const puerta = prev.escena === 'balcon' ? PUERTA_BAL : PUERTA_OFI;
+  ctx.save();
   ctx.font = '30px serif'; ctx.textAlign = 'center';
   ctx.fillText('🚪', (puerta.x0 + puerta.x1) / 2, puerta.y1 + 34);
   ctx.restore();
@@ -2014,7 +1999,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v169 · 02/10/2026';
+const VERSION = 'v170 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
