@@ -482,6 +482,53 @@ ok(/PUERTA_OFI/.test(js) && /PUERTA_BAL/.test(js) && /puertaArmada/.test(js),
    'la puerta cambia de escena con rearme');
 ok(/preview: !!\(prev\.on/.test(js) && /p\.preview/.test(srv),
    'la previa viaja en el estado (los demás no dibujan a Ger)');
+// Geometría de las escenas nuevas (leída del juego, no duplicada): las sillas,
+// el spawn, la zona de puerta y su destino tienen que ser pisables y estar
+// fuera de los muebles. Sin esto en la terraza se vuela o no se llega.
+{
+  const prov = [];
+  const tomar = (n) => {
+    const ini = js.indexOf(`const ${n} = `);
+    if (ini < 0) { prov.push(`sin ${n}`); return null; }
+    let j = ini + `const ${n} = `.length, prof = 0, fin = -1;
+    for (let k = j; k < js.length && fin < 0; k++) {
+      const c = js[k];
+      if (c === '{' || c === '[') prof++;
+      else if (c === '}' || c === ']') { prof--; if (!prof) fin = k; }
+    }
+    if (fin < 0) { prov.push(`${n} ilegible`); return null; }
+    try { return Function(`return (${js.slice(j, fin + 1)});`)(); }
+    catch { prov.push(`${n} ilegible`); return null; }
+  };
+  const F = tomar('PISO_OFI');
+  const FB = tomar('PISO_BAL');
+  const enPiso = (FF, x, y) => {
+    if (!FF) return false;
+    if (y < FF.yTop + 10 || y > FF.yBot - 6) return false;
+    const t = (y - FF.yTop) / (FF.yBot - FF.yTop);
+    if (x < (FF.xlTop + (FF.xlBot - FF.xlTop) * t + 24) || x > (FF.xrTop + (FF.xrBot - FF.xrTop) * t - 24)) return false;
+    return !(FF.obst || []).some((o) => x >= o.x0 && x <= o.x1 && y >= o.y0 && y <= o.y1);
+  };
+  const S = tomar('SILLAS_OFI') || [];
+  S.forEach((s, i) => { if (!enPiso(F, s.x, s.y)) prov.push(`silla${i + 1} en mueble/fuera`); });
+  const SP = tomar('SPAWN_OFI');
+  if (SP && !enPiso(F, SP.x, SP.y)) prov.push('spawn no pisables');
+  // Cada puerta: zona alcanzable en su escena y destino pisables en la otra.
+  for (const [pn, pfn, pfd] of [['PUERTA_OFI', 'ofi', 'bal'], ['PUERTA_BAL', 'bal', 'ofi']]) {
+    const PU = tomar(pn);
+    if (!PU) continue;
+    const FA = pfn === 'ofi' ? F : FB, FB2 = pfd === 'ofi' ? F : FB;
+    let entra = false;
+    for (let x = PU.x0; x <= PU.x1 && !entra; x += 10) for (let y = PU.y0; y <= PU.y1 && !entra; y += 10) entra = enPiso(FA, x, y);
+    if (!entra) prov.push(`a ${pn} no se llega`);
+    if (!enPiso(FB2, PU.ax, PU.ay)) prov.push(`destino de ${pn} no pisables`);
+  }
+  ok(!prov.length, 'sillas, spawn y puerta de la oficina nueva son pisables', prov.join(', '));
+}
+ok(/PUERTA_OFI/.test(js) && /PUERTA_BAL/.test(js) && /puertaArmada/.test(js),
+   'la puerta cambia de escena con rearme');
+ok(/preview: !!\(prev\.on/.test(js) && /p\.preview/.test(srv),
+   'la previa viaja en el estado (los demás no dibujan a Ger)');
 {
   const faltanPrev = [];
   for (const f of ['bg_ofi.png', 'bg_ofi.webp', 'bg_balcon.png', 'bg_balcon.webp']) {

@@ -30,17 +30,32 @@ const SEATS = [
 // Todo pasa por piso()/sillas()/dimW()/dimH()/mitadX(): el mundo viejo (FLOOR,
 // SEATS, VW/VH) queda intacto cuando la previa está apagada.
 const ESC_NUEVA = { w: 1642, h: 656 };
-const PISO_OFI = { yTop: 445, yBot: 650, xlTop: 640, xrTop: 1010, xlBot: 40, xrBot: 1600 };
-const PISO_BAL = { yTop: 400, yBot: 650, xlTop: 560, xrTop: 1640, xlBot: 60, xrBot: 1640 };
+// Medidos sobre la grilla de las imágenes (ver prev_arg/): trapecio del piso
+// más rectángulos de muebles que no se pisan. Sin esto en la terraza se
+// "vuela" por fuera de la baranda y no se llega al fondo.
+const PISO_OFI = {
+  yTop: 445, yBot: 650, xlTop: 650, xrTop: 1060, xlBot: 300, xrBot: 1400,
+  obst: [
+    { x0: 0, x1: 680, y0: 440, y1: 550 },      // escritorios izquierda
+    { x0: 1105, x1: 1642, y0: 440, y1: 550 },  // escritorios derecha
+    { x0: 640, x1: 1010, y0: 375, y1: 448 },   // mueble bajo la ventana
+  ],
+};
+const PISO_BAL = {
+  yTop: 375, yBot: 650, xlTop: 520, xrTop: 1560, xlBot: 40, xrBot: 1620,
+  obst: [
+    { x0: 995, x1: 1025, y0: 350, y1: 565 },   // columna de la pérgola
+  ],
+};
 const SILLAS_OFI = [
-  { x: 330, y: 595, face: 'left' },
-  { x: 545, y: 560, face: 'left' },
-  { x: 1100, y: 560, face: 'right' },
-  { x: 1310, y: 595, face: 'right' },
+  { x: 420, y: 600, face: 'left' },
+  { x: 580, y: 570, face: 'left' },
+  { x: 1060, y: 570, face: 'right' },
+  { x: 1240, y: 600, face: 'right' },
 ];
 // Puerta: zona que dispara el cambio + dónde se aparece del otro lado.
-const PUERTA_OFI = { x0: 1020, x1: 1175, y0: 440, y1: 505, ax: 660, ay: 550 };
-const PUERTA_BAL = { x0: 560, x1: 720, y0: 490, y1: 580, ax: 1095, ay: 530 };
+const PUERTA_OFI = { x0: 990, x1: 1100, y0: 450, y1: 505, ax: 660, ay: 550 };
+const PUERTA_BAL = { x0: 560, x1: 720, y0: 500, y1: 580, ax: 1080, ay: 535 };
 const SPAWN_OFI = { x: 821, y: 600 };
 const prev = { on: false, escena: 'ofi', puertaArmada: true, fade: 0, vuelta: null };
 function prevAqui() { const me = state.players.get(state.myId); return !!(prev.on && me && me.char === 'ger'); }
@@ -1931,22 +1946,43 @@ function prevFondoCargar(c, base) {
   prevFondoCargar(bgOfi, 'bg_ofi');
   prevFondoCargar(bgBal, 'bg_balcon');
 })();
-// Escena nueva: cielo dinámico de fondo (los verdes son transparencia) y la
-// imagen encima. De noche se oscurece como la oficina vieja.
-function drawPrevEscena(sky) {
+// Escena nueva: cielo COMPLETO atrás (los verdes son transparencia: sol,
+// nubes, lluvia, nieve y rayos se ven por las ventanas) y la imagen encima.
+function drawPrevEscena(now, hf, sky) {
   const DW = dimW(), DH = dimH();
-  const gr = ctx.createLinearGradient(0, 0, 0, DH);
-  gr.addColorStop(0, sky.top); gr.addColorStop(1, sky.bot);
-  ctx.fillStyle = gr; ctx.fillRect(0, 0, DW, DH);
+  pintarCielo(ctx, DW, DH, now, hf, sky);
   const sc = prev.escena === 'balcon' ? bgBal : bgOfi;
   if (sc.ok && sc.im.complete && sc.im.naturalWidth) {
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(sc.im, 0, 0, DW, DH);
   }
+  drawPrevMarcas();
   if (sky.amb > 0.01) {
     ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
     ctx.fillRect(0, 0, DW, DH);
   }
+}
+// En la previa se ve dónde se puede pisar: borde del piso caminable, bloques
+// (muebles, columna) y la 🚪 de la puerta. Vive sólo acá, no en la oficina.
+function drawPrevMarcas() {
+  const F = piso();
+  const yA = F.yTop + 10, yB = F.yBot - 6;
+  const tA = (yA - F.yTop) / (F.yBot - F.yTop), tB = (yB - F.yTop) / (F.yBot - F.yTop);
+  const xl = (t) => lerp(F.xlTop, F.xlBot, t) + 24, xr = (t) => lerp(F.xrTop, F.xrBot, t) - 24;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.30)'; ctx.lineWidth = 2;
+  ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.moveTo(xl(tA), yA); ctx.lineTo(xr(tA), yA); ctx.lineTo(xr(tB), yB); ctx.lineTo(xl(tB), yB);
+  ctx.closePath(); ctx.stroke();
+  ctx.setLineDash([6, 5]);
+  ctx.strokeStyle = 'rgba(255,120,120,0.45)';
+  for (const o of (F.obst || [])) ctx.strokeRect(o.x0, o.y0, o.x1 - o.x0, o.y1 - o.y0);
+  ctx.setLineDash([]);
+  const puerta = prev.escena === 'balcon' ? PUERTA_BAL : PUERTA_OFI;
+  ctx.font = '30px serif'; ctx.textAlign = 'center';
+  ctx.fillText('🚪', (puerta.x0 + puerta.x1) / 2, puerta.y1 + 34);
+  ctx.restore();
 }
 
 const canvas = document.getElementById('game');
@@ -1978,7 +2014,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v168 · 02/10/2026';
+const VERSION = 'v169 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -3832,7 +3868,13 @@ function walkable(x, y) {
   const t = (y - F.yTop) / (F.yBot - F.yTop);
   const xl = lerp(F.xlTop, F.xlBot, t) + 24;
   const xr = lerp(F.xrTop, F.xrBot, t) - 24;
-  return x >= xl && x <= xr;
+  if (x < xl || x > xr) return false;
+  // En las escenas nuevas los muebles y la columna no se pisan (en la vieja
+  // no hay obstáculos: se camina por todo el trapecio como siempre).
+  if (F.obst) for (const o of F.obst) {
+    if (x >= o.x0 && x <= o.x1 && y >= o.y0 && y <= o.y1) return false;
+  }
+  return true;
 }
 function seatNear(x, y, r = 110) {
   let best = null, bd = r;
@@ -4445,6 +4487,15 @@ function climaEmoji() {
 function drawSky(now, hf, sky) {
   const g = skyCv.getContext('2d');
   const W = WIN.w, H = WIN.h;
+  pintarCielo(g, W, H, now, hf, sky);
+  g.fillStyle = '#e8e8ec';
+  g.fillRect(0, 0, W, 3); g.fillRect(0, H - 4, W, 4);
+  g.fillRect(W / 3 - 2, 0, 4, H); g.fillRect(2 * W / 3 - 2, 0, 4, H);
+}
+// El mismo cielo del ventanal, pero sobre cualquier tamaño: en la vista
+// previa se pinta a pantalla completa detrás de las escenas nuevas, así las
+// ventanas muestran sol, nubes, lluvia, nieve y rayos de verdad.
+function pintarCielo(g, W, H, now, hf, sky) {
   const grad = g.createLinearGradient(0, 0, 0, H);
   grad.addColorStop(0, sky.top); grad.addColorStop(1, sky.bot);
   g.fillStyle = grad; g.fillRect(0, 0, W, H);
@@ -4487,17 +4538,7 @@ function drawSky(now, hf, sky) {
     g.fillRect(0, 0, W, H);
   }
   const night = sky.star;
-  for (const b of BUILDINGS) {
-    g.fillStyle = night > 0.5 ? '#1c2438' : (b.brick ? '#b07860' : '#9aa0a8');
-    g.fillRect(b.x, H - b.h, b.w, b.h);
-    for (let wy = H - b.h + 3; wy < H - 3; wy += 4) {
-      for (let wx = b.x + 2; wx < b.x + b.w - 2; wx += 3) {
-        const on = rnd(wx, wy, 21) > 0.45;
-        if (night > 0.4) { if (on) { g.fillStyle = `rgba(255,215,106,${(0.4 + night * 0.6).toFixed(2)})`; g.fillRect(wx, wy, 1, 2); } }
-        else { g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(wx, wy, 1, 2); }
-      }
-    }
-  }
+  pintarEdificios(g, W, H, night);
   // ---- Clima real por encima del skyline (y debajo del marco) ----
   if (clima.ok) {
     const tipo = climaTipo();
@@ -4542,9 +4583,27 @@ function drawSky(now, hf, sky) {
       }
     }
   }
-  g.fillStyle = '#e8e8ec';
-  g.fillRect(0, 0, W, 3); g.fillRect(0, H - 4, W, 4);
-  g.fillRect(W / 3 - 2, 0, 4, H); g.fillRect(2 * W / 3 - 2, 0, 4, H);
+}
+
+// Skyline en mosaico: la tabla BUILDINGS cubre un ventanal (WIN.w + 20); acá
+// se repite a lo ancho para fondos grandes. En el ventanal da una sola tira,
+// idéntico a antes.
+function pintarEdificios(g, W, H, night) {
+  for (let ox = 0; ox < W; ox += WIN.w + 20) {
+    for (const b of BUILDINGS) {
+      const bx = b.x + ox;
+      if (bx + b.w < 0 || bx > W) continue;
+      g.fillStyle = night > 0.5 ? '#1c2438' : (b.brick ? '#b07860' : '#9aa0a8');
+      g.fillRect(bx, H - b.h, b.w, b.h);
+      for (let wy = H - b.h + 3; wy < H - 3; wy += 4) {
+        for (let wx = bx + 2; wx < bx + b.w - 2; wx += 3) {
+          const on = rnd(wx, wy, 21) > 0.45;
+          if (night > 0.4) { if (on) { g.fillStyle = `rgba(255,215,106,${(0.4 + night * 0.6).toFixed(2)})`; g.fillRect(wx, wy, 1, 2); } }
+          else { g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(wx, wy, 1, 2); }
+        }
+      }
+    }
+  }
 }
 
 function update(dt) {
@@ -5235,7 +5294,7 @@ function render() {
   const sky = skyNow(hf);
 
   if (prevAqui()) {
-    drawPrevEscena(sky);
+    drawPrevEscena(now, hf, sky);
   } else {
   if (bgReady) ctx.drawImage(bgCv, 0, 0, VW, VH);
   else { ctx.fillStyle = '#20242e'; ctx.fillRect(0, 0, VW, VH); }
