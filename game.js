@@ -1918,7 +1918,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v164 · 02/10/2026';
+const VERSION = 'v165 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -5290,14 +5290,17 @@ function render() {
     horaEl = document.createElement('span');
     horaEl.id = 'clockHora';
     horaEl.title = 'Red P2P: tocá la hora para ver el panel 🛰';
+    const sepEl = document.createElement('span');
+    sepEl.id = 'clockSep';
+    sepEl.textContent = ' · ';
     const verEl = document.createElement('span');
     verEl.id = 'clockVer';
     verEl.title = 'Tocá la versión para buscar actualización';
     verEl.addEventListener('click', (e) => { e.stopPropagation(); versionRefrescar(); });
-    clockBox.append(horaEl, verEl);
+    clockBox.append(horaEl, sepEl, verEl);
   }
   horaEl.textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` + (ce ? ` · ${ce}` : '');
-  document.getElementById('clockVer').textContent = ` · ${VERSION.split(' ')[0]}`;
+  document.getElementById('clockVer').textContent = VERSION.split(' ')[0];
 
   // Marco visual de escritorio: oscurece solo las bandas exteriores; el área de
   // la oficina queda intacta y sus límites coinciden con los paneles laterales.

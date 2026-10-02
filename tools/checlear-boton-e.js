@@ -172,8 +172,8 @@ ok(/body\.spectator-mode #videoPanel\.share-full/.test(css) && /height: 100vh/.t
 
 // 8e) el reloj muestra hora · clima · versión, y la versión actualiza sin
 // salir: busca el sello publicado y si hay algo nuevo recarga y reingresa.
-ok(/['"]clockHora['"]/.test(js) && /['"]clockVer['"]/.test(js) && /#clockVer/.test(css),
-   'el reloj muestra hora y versión por separado');
+ok(/['"]clockHora['"]/.test(js) && /['"]clockVer['"]/.test(js) && /['"]clockSep['"]/.test(js) && /#clockVer/.test(css),
+   'el reloj muestra hora y versión por separado (el · no se subraya)');
 ok(/function versionRefrescar\(\)/.test(js) && /ov-build/.test(js) && /\?fresco=/.test(js),
    'la versión busca actualización y recarga en fresco');
 ok(/sessionStorage\.setItem\('ovDni'/.test(js) && /ovAuto/.test(js),
