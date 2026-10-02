@@ -80,6 +80,26 @@ En GitHub Pages (P2P) el DNI se valida contra `game.js`; en Render o en el
 servidor local, contra `server.js`. Si sumás a alguien en uno solo, entra en un
 modo y le rebota el DNI en el otro.
 
+**En los dos archivos figura el `dniHash`, nunca el DNI.** Desde v152 el
+número no está escrito en el repo (que es público) ni sale en claro por el bus:
+quien lo tipea, `game.js` calcula
+`SHA-256('somospopups-dni-v1:' + dni)` y compara contra el de cada fila
+(`dniHashDe()` / `entryPorDni()` en `game.js`, `dniHashDe()` en `server.js`).
+Sumar a alguien = su `dniHash` en **los dos** lados, más su clave en
+`HIST_PUB`; `tools/checlear-boton-e.js` falla si las listas no son idénticas,
+si cambia el salt o si aparece un `dni: '<número>'` otra vez.
+
+>⚠️ **Es privacidad, no seguridad.** Un DNI tiene 8 dígitos y se fuerza bruta
+>en minutos con una PC normal: lo que se evita es que el documento de todos
+>quede publicado en el repo y en los relays, no que alguien se haga pasar por
+>otro. Si algún día hace falta seguridad de verdad, eso se resuelve en el
+>servidor (o en otro medio de ingreso), no acá.
+>
+>**Y no se toca `histClaveDe(dni)`:** la clave del historial sigue
+>derivándose del DNI **en crudo**, con `'ov-hist-v1:'`, y sólo en el equipo.
+>Si pasás eso a hasheado, las firmas dejan de coincidir con `HIST_PUB` y se
+>pierde todo el historial ya publicado.
+
 ## 📏 Los controles del chat miden todos lo mismo
 
 El campo de escribir, el micrófono/enviar y los botones de clip y emoji son
@@ -117,7 +137,9 @@ El historial de asistencia resuelve eso así, y conviene repetir el patrón:
   nueva en cada carga y así no habría a quién atribuirle una sesión. Las claves
   públicas están escritas en `HIST_PUB` para no hacer cinco multiplicaciones de
   curva en cada arranque. **Si entra alguien nuevo al ROSTER hay que agregarlo
-  ahí también** (el checker avisa si falta).
+  ahí también** (el checker avisa si falta). Ojo: acá el DNI va **en crudo**
+  (`histClaveDe`), porque la clave derivada es la que firman las sesiones; el
+  `ROSTER` en cambio guarda sólo el hash (ver la sección del ROSTER).
 
 Tres reglas que ya costaron un bug cada una:
 
@@ -315,8 +337,12 @@ barra inventada.
 
 ## ✅ Antes de commitear
 
-1. `node --check game.js` (y `server.js` si lo tocaste).
-1. `node tools/checlear-boton-e.js` y `node tools/chequear-sillas.js`.
+1. **`npm test`** — corre todo el resto de una: `tools/chequear-todo.js`
+   (`node --check` de game/server/tools, fondos de los PNG, `generar-assets`,
+   `checlear-boton-e`, `chequear-sillas`, `chequear-caminata`, `git diff --check`).
+   Es el mismo comando que corre GitHub Actions (`.github/workflows/chequeos.yml`).
+1. Si querés correrlos de a uno: `node --check game.js` (y `server.js` si lo
+   tocaste), `node tools/checlear-boton-e.js`, `node tools/chequear-sillas.js`.
 2. Revisar en pantalla panorámica (modo `desktop-rails`, canvas > 900) que
    nada pise la oficina ni descuadre los rieles.
 3. Revisar en móvil que la oficina siga libre (los controles van en sus

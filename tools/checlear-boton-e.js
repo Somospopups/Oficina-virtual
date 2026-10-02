@@ -222,12 +222,39 @@ ok(abajo > 0, `el clip y el emoji tienen aire antes de la linea (padding-bottom:
 // Cada persona del ROSTER necesita su clave para que se le puedan atribuir las
 // sesiones. Si entra alguien nuevo y no se agrega aca, su historial no existe.
 {
-  const chars = [...js.matchAll(/\{ dni: '\d+',\s*name: '[^']+',\s*char: '(\w+)'/g)].map((m) => m[1]);
+  const chars = [...js.matchAll(/\{ dniHash: '[0-9a-f]{64}',\s*name: '[^']+',\s*char: '(\w+)'/g)].map((m) => m[1]);
   const bloque = (js.match(/const HIST_PUB = \{[^}]*\}/) || [''])[0];
   const faltan = chars.filter((c) => !new RegExp(`\\b${c}:\\s*'[0-9a-f]{64}'`).test(bloque));
   ok(chars.length > 0 && faltan.length === 0,
      'todos los del ROSTER tienen su clave en HIST_PUB',
      faltan.length ? `les falta a: ${faltan.join(', ')}` : '');
+}
+// El ROSTER no puede volver a guardar DNI en crudo: el repo es publico y, en
+// modo P2P, el 'profile' sale por los relays (tambien publicos). Guardamos el
+// SHA-256 de (salt + dni). Es PRIVACIDAD, no seguridad: un DNI son 8 digitos y
+// se fuerza bruta; lo que no puede ser es que quede escrito en el repo.
+{
+  const enCrudo = (t) => (t.match(/\bdni\s*:\s*'\d{7,8}'/g) || []).length;
+  const malas = enCrudo(js) + enCrudo(srv);
+  ok(malas === 0, 'ningun DNI en crudo en el ROSTER (game.js ni server.js)',
+     malas ? `aparecen ${malas} entradas con dni: '<numero>': usá dniHash` : '');
+}
+// game.js y server.js tienen la misma lista de hashes y el mismo salt. Si se
+// desincronizan, en modo servidor le rebota a alguien que entra bien en GitHub
+// Pages (alli el ROSTER es el de game.js).
+{
+  const hashes = (t) => [...t.matchAll(/\{ dniHash: '([0-9a-f]{64})'/g)].map((m) => m[1]);
+  const g = hashes(js), s = hashes(srv);
+  const salt = (t) => (t.match(/ROSTER_DNI_SALT = '([^']+)'/) || [])[1];
+  ok(g.length > 0 && g.length === s.length,
+     `el ROSTER tiene las mismas ${g.length} personas en game.js y en server.js`,
+     `game.js=${g.length} server.js=${s.length}`);
+  ok(JSON.stringify(g) === JSON.stringify(s),
+     'los hashes del ROSTER son identicos, en el mismo orden, en game.js y en server.js',
+     'agrega la persona en los DOS archivos y con el mismo hash');
+  ok(!!salt(js) && salt(js) === salt(srv),
+     'el salt de los DNI es el mismo en game.js y en server.js',
+     `game.js=${salt(js)} server.js=${salt(srv)}`);
 }
 // El historial esta OCULTO: no tiene boton ni panel propio, aparece al tocar
 // el nombre de alguien en la lista de companeros.

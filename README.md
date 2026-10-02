@@ -30,7 +30,9 @@ node server.js       # escucha en 0.0.0.0:3000 (o $PORT)
 ```
 
 Compartís `http://tu-host:3000`. En este modo la sincronización usa
-WebSockets contra este servidor. Tip: `?name=Laura` pre-carga el nombre.
+WebSockets contra este servidor. Tip: `?dni=30111222` pre-carga el DNI de quien
+abre la URL. Es un atajo para tu propio equipo, no lo compartas: queda en el
+historial del navegador.
 
 ## 🖼️ Si tocás un dibujo, corré esto antes de publicar
 
@@ -39,6 +41,11 @@ node tools/generar-assets.js     # reescribe assets.js con el hash de cada PNG
 node tools/checlear-boton-e.js   # falla si un dibujo quedó sin regenerar
 ```
 
+O **`npm test`**, que corre todos los chequeos del repo de una (`node --check`,
+dibujos, sillas, caminata, whitespace). Es el mismo comando que ejecuta GitHub
+Actions en cada push a `main`, y es lo que hay que dejar verde antes de tocar
+`PUBLICAR.bat`.
+
 Cada imagen se pide con un **hash de su propio contenido** (`sprites/ger_sit.png?v=6cc8f410`).
 Así, al reemplazar un dibujo el navegador descarga el nuevo y **nunca muestra una
 versión vieja** del caché, ni al entrar ni dentro de la oficina. No hay que subir
@@ -46,16 +53,31 @@ ningún `?v=` a mano: se calculan solos y el guard te avisa si se olvidó.
 
 ## 🎮 Controles
 
-| Tecla | Acción |
+Esta tabla es la que está dentro del juego con `H` (`index.html`); si cambiás una,
+cambiá la otra.
+
+| Tecla / botón | Acción |
 |---|---|
-| `WASD` / flechas | Moverse (con colisiones contra muebles) |
+| `WASD` / flechas | Moverse (con colisiones contra muebles; estando sentado te levantás) |
+| `E` | Acción contextual: sentarte 🪑 en el escritorio · ☕ cafecito (velocidad extra) · ❤ acariciar a Michi |
 | `Enter` | Abrir chat · Enter envía · Shift+Enter salto de línea · Esc cancela |
 | `/w nombre msg` | Susurro / mensaje privado |
-| `F` | Saludar 👋 al compañero más cercano |
-| `1–3` | Cambiar estado: 💻 codeando · 🤝 reunión · 🏃 ¡Ya vengo! |
-| 🔔 | Notificaciones estilo Messenger (vienen prendidas): clic apagada→prende · clic prendida→opciones |
-| `Z X C V B N M` | Emotes: 👋 😂 🎉 👍 🤔 🔥 ☕ |
-| `H` | Ayuda |
+| `1–3` | Cambiar estado: 💻 codeando · 🤝 reunión · 🏃 ¡Ya vengo! (tocá el activo para volver a 💻) |
+| `4` | 💨 Zumbido: sacude toda la oficina, estilo Messenger |
+| `P` | 📻 Radio de la oficina: pegás un link de YouTube y suena sincronizado para todos |
+| `M` | 🎤 Micro de la oficina: se queda abierto; cerralo con la misma tecla |
+| `Z X C V B N` | Emotes: 👋 😂 🎉 👍 🤔 🔥 |
+| `H` | Mostrar/ocultar la ayuda |
+| Click en la cabeza de un compañero | Menú radial: 👋 Saludar · 💬 Susurrar · 💨 Zumbido |
+| Click en tu propia cabeza | Estados, animaciones (si estás sentado 🪑), 🥊 modo pelea (solo Ger), 💨 zumbido |
+| 📷 / 🖥️ (columna derecha) | Prender cámara · compartir pantalla (uno a la vez) |
+| Reloj (barra de arriba) | 📡 Panel de la red P2P |
+| 🔔 (barra de arriba) | Notificaciones estilo Messenger (vienen prendidas): clic apagada→prende · clic prendida→opciones |
+| Nombre en 🟢 En la oficina | Historial de esa persona (los que no están ahora, en gris al final) |
+
+**No hay atajo para la cámara ni la pantalla:** van por los botones. Los únicos
+atajos de letras son `WASD`/flechas, `E`, `Enter`, `H`, `P`, `M`, `1`–`4` y
+`Z X C V B N`.
 
 ## 🗺️ La oficina (réplica del local real)
 
@@ -103,6 +125,8 @@ El mapa está calcado de la foto del espacio del equipo, en versión pixel art c
     fondo claro opaco de los que salieron sin transparencia (los que ya están
     bien no se tocan). Uso: `node tools/limpiar-fondo-sprites.js --check` para
     revisar sin escribir, o sin `--check` para limpiar.
+  - `tools/chequear-todo.js` — el que corre `npm test`: junta todos los
+    chequeos y para en el primero que falla (también es el de la CI).
 
 ## 🚀 Despliegue para el equipo
 

@@ -5,6 +5,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 3000;
@@ -16,6 +17,8 @@ const MIME = {
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
 };
@@ -58,14 +61,22 @@ function broadcast(obj, exceptWs = null) {
 // ⚠️ Tiene que ser EL MISMO que el ROSTER de game.js. Si acá falta alguien, en
 // modo servidor (Render o local) le rebota el DNI aunque en GitHub Pages entre
 // bien, porque en P2P el DNI se valida contra game.js.
+// No va el DNI en crudo: llega el hash y acá se compara. Mismo salt que en
+// game.js. Es privacidad (esto es un repo público), no seguridad: un DNI de 8
+// dígitos se fuerza bruta. AGENTE.md lo explica.
+const ROSTER_DNI_SALT = 'somospopups-dni-v1:';
 const ROSTER = [
-  { dni: '33245911', name: 'Ger',  char: 'ger'  },
-  { dni: '31923010', name: 'Facu', char: 'facu' },
-  { dni: '34186736', name: 'Ovni', char: 'ovni' },
+  { dniHash: 'b1107acec716b2b2fb97d22981b837e7e06820b04eb9e547f5ddfc8ac49d7462', name: 'Ger',  char: 'ger'  },
+  { dniHash: '3287864555e7cb9d27c8d35d1061d2a0bdb49443d15437f20380a73525ede609', name: 'Facu', char: 'facu' },
+  { dniHash: '06c9e59af9a354f49c5f4e256cfcd7d4234d72548168a5f255d7042d0080f2cc', name: 'Ovni', char: 'ovni' },
   // visita: entra igual que todos; game.js es el que no la lista en gris cuando no está.
-  { dni: '54472249', name: 'Milo', char: 'milo', visita: true },
-  { dni: '32769127', name: 'Ove',  char: 'ove'  },
+  { dniHash: '8d3e12b8ee8286deb18b955aa7ca2e0b4313815025769398ce8adde55a8e37f1', name: 'Milo', char: 'milo', visita: true },
+  { dniHash: '94f949db2a43a11784e6eb9ee9d1dede14710bf804fa413ef2368765ce17f07f', name: 'Ove',  char: 'ove'  },
 ];
+
+function dniHashDe(dni) {
+  return crypto.createHash('sha256').update(ROSTER_DNI_SALT + dni, 'utf8').digest('hex');
+}
 
 function publicState() {
   return [...players.values()].filter((p) => p.authed).map((p) => ({
@@ -100,7 +111,9 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'welcome', id, players: publicState() }));
 
   // Broadcast periódico de estado (20 Hz) — posiciones suaves para todos
-  setInterval(() => {
+  // Se limpia en 'close': si no, cada conexión dejaba un timer de 50 ms vivo
+  // para siempre y la fuga crecía con cada persona que entraba y salía.
+  const stateTimer = setInterval(() => {
     if (ws.readyState === 1) {
       ws.send(JSON.stringify({ type: 'state', players: publicState(), t: Date.now() }));
     }
@@ -114,7 +127,14 @@ wss.on('connection', (ws) => {
 
     switch (msg.type) {
       case 'profile': {
-        const entry = ROSTER.find((r) => r.dni === String(msg.dni || '').replace(/\D/g, ''));
+        // El cliente manda el hash. Si llega en crudo (pestaña con el JS viejo
+        // todavía abierta) lo hasheamos acá y compara igual: nadie queda fuera
+        // durante el paso de versión.
+        const limpio = String(msg.dni || '').replace(/\D/g, '');
+        const hash = msg.dniHash
+          ? String(msg.dniHash).toLowerCase()
+          : (limpio ? dniHashDe(limpio) : '');
+        const entry = ROSTER.find((r) => r.dniHash === hash);
         if (!entry) { ws.send(JSON.stringify({ type: 'auth-fail', reason: 'dni' })); return; }
         const dup = [...players.values()].some((q) => q.authed && q.char === entry.char && q.id !== id);
         if (dup) { ws.send(JSON.stringify({ type: 'auth-fail', reason: 'dup' })); return; }
@@ -190,6 +210,7 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    clearInterval(stateTimer);
     const p = players.get(id);
     players.delete(id);
     if (p && p.authed) broadcast({ type: 'left', id, name: p.name });

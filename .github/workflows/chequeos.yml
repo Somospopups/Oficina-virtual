@@ -1,0 +1,23 @@
+name: chequeos
+
+# Corre los mismos chequeos que `npm test` en local. Si algo no se puede
+# verificar en Actions (navegador real, dedo sobre el joystick), no se inventa
+# nada: esos siguen siendo manuales según AGENTE.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  chequeos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Sin `npm install`: los tools no tienen dependencias (sólo node, git y
+      # ws que es del servidor y no se chequea acá).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Correr todos los chequeos
+        run: npm test

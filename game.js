@@ -100,14 +100,22 @@ const BUILDINGS = [];
 })();
 
 // ---------- Roster del equipo (ingreso por DNI) ----------
+// Guardamos el SHA-256 de (ROSTER_DNI_SALT + dni), nunca el DNI en crudo: este
+// repo es público y en modo P2P el 'profile' sale por los relays. El que tipea
+// su DNI se lo hashea en el momento y se compara con esto. OJO con dos límites:
+//   · es PRIVACIDAD, no seguridad — un DNI tiene 8 dígitos y se fuerza bruta;
+//   · histClaveDe() sigue derivando la clave del historial del DNI tipeado,
+//     en crudo y sólo en este equipo: si acá se cambia eso se rompe todo el
+//     historial ya publicado (las firmas dejarían de coincidir con HIST_PUB).
+// El mismo bloque, con los mismos hashes, vive en server.js (AGENTE.md).
 const ROSTER = [
-  { dni: '33245911', name: 'Ger',  char: 'ger',  seat: 1 },
-  { dni: '31923010', name: 'Facu', char: 'facu', seat: 2 },
-  { dni: '34186736', name: 'Ovni', char: 'ovni', seat: 3 },
+  { dniHash: 'b1107acec716b2b2fb97d22981b837e7e06820b04eb9e547f5ddfc8ac49d7462', name: 'Ger',  char: 'ger',  seat: 1 },
+  { dniHash: '3287864555e7cb9d27c8d35d1061d2a0bdb49443d15437f20380a73525ede609', name: 'Facu', char: 'facu', seat: 2 },
+  { dniHash: '06c9e59af9a354f49c5f4e256cfcd7d4234d72548168a5f255d7042d0080f2cc', name: 'Ovni', char: 'ovni', seat: 3 },
   // "visita": entra y figura como cualquiera mientras está, pero cuando no
   // está no se lo lista en gris, porque no es de la oficina.
-  { dni: '54472249', name: 'Milo', char: 'milo', seat: 0, visita: true },  // escritorio delantero izq. (el único libre)
-  { dni: '32769127', name: 'Ove',  char: 'ove'  },  // sin puesto fijo: se sienta en el que quede libre
+  { dniHash: '8d3e12b8ee8286deb18b955aa7ca2e0b4313815025769398ce8adde55a8e37f1', name: 'Milo', char: 'milo', seat: 0, visita: true },  // escritorio delantero izq. (el único libre)
+  { dniHash: '94f949db2a43a11784e6eb9ee9d1dede14710bf804fa413ef2368765ce17f07f', name: 'Ove',  char: 'ove'  },  // sin puesto fijo: se sienta en el que quede libre
 ];
 // ---------- VERSIONADO DE LOS DIBUJOS POR CONTENIDO ----------
 // Antes cada PNG se pedía con un ?v= escrito a mano: si se reemplazaba el
@@ -1767,6 +1775,16 @@ const state = { myId: null, myName: '', myColor: 0, players: new Map(), joined: 
 const spectatorWhisperBacklog = [];
 const SPECTATOR_PIN_SALT = 'somospopups-observer-v1:';
 const SPECTATOR_PIN_HASH = 'f18455ea0b372784dc5b59b1085cdeeefbbc6c7cbfc580e675a63af1a0e11a86';
+// Mismo esquema que el PIN de espectador, para el ingreso al ROSTER.
+const ROSTER_DNI_SALT = 'somospopups-dni-v1:';
+async function dniHashDe(dni) {
+  return bHex(await bSha(new TextEncoder().encode(ROSTER_DNI_SALT + dni)));
+}
+async function entryPorDni(dni) {
+  if (!dni) return null;
+  const h = await dniHashDe(dni);
+  return ROSTER.find((r) => r.dniHash === h) || null;
+}
 let spectatorFailures = 0, spectatorLockUntil = 0, spectatorCheckBusy = false;
 const keys = {};
 let lastSend = 0, lastSeatState = null, audioCtx = null;
@@ -1826,7 +1844,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v151 · 01/10/2026';
+const VERSION = 'v152 · 01/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -3840,7 +3858,7 @@ async function join() {
       return;
     }
   }
-  const entry = ROSTER.find((r) => r.dni === dni);
+  const entry = await entryPorDni(dni);
   if (!entry) { dniError('⛔ DNI no autorizado: la oficina es privada del equipo.'); return; }
   spectatorFailures = 0;
   const dup = [...state.players.values()].find((p) => p.char === entry.char && p.id !== state.myId && performance.now() - (p.seen || 0) < 9000);
@@ -3865,7 +3883,10 @@ async function join() {
   if (me.seated) for (const n of animDe(me.char)) animCargar(me.char, n);   // entró ya sentado: ídem sentarseE
   joinOverlay.classList.add('hidden');
   try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch {}
-  send({ type: 'profile', id: state.myId, name: entry.name, char: entry.char, dni });
+  // El ROSTER no guarda el DNI: mandamos el hash. En servidor lo valida
+  // server.js contra el suyo; en P2P a los demás no les hace falta (usan
+  // name/char/color), y antes salía EN CLARO por los relays públicos.
+  send({ type: 'profile', id: state.myId, name: entry.name, char: entry.char, dniHash: entry.dniHash });
   sendMoveNow();
   if (seat) { setStatus('codeando', true); addChat(null, 'Te sentaste en tu puesto 💻 — WASD para levantarte', 'system'); }
   else {
@@ -5490,8 +5511,12 @@ function init() {
   if (q.get('dni')) dniInput.value = q.get('dni');
   joinBtn.onclick = join;
   dniInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
-  dniInput.addEventListener('input', () => {
-    const entry = ROSTER.find((r) => r.dni === dniInput.value.replace(/\D/g, ''));
+  dniInput.addEventListener('input', async () => {
+    // Va por hash igual que el ingreso: antes, tipear cualquier DNI de 8 dígitos
+    // te mostraba de quién era el puesto (un "oráculo" del roster).
+    const escrito = dniInput.value.replace(/\D/g, '');
+    const entry = await entryPorDni(escrito);
+    if (dniInput.value.replace(/\D/g, '') !== escrito) return; // siguió tipeando
     previewChar(entry ? entry.char : null);
     dniError('');
   });

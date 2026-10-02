@@ -58,7 +58,19 @@ Usar la fecha local de Argentina. No reutilizar una versión ya publicada.
 
 ## 5. Verificaciones antes de entregar
 
-Ejecutar como mínimo:
+Un solo comando corre todo:
+
+```bash
+npm test
+```
+
+(`npm test` = `node tools/chequear-todo.js`: sintaxis de game/server/tools,
+fondos de los PNG, `generar-assets` + `git diff --exit-code -- assets.js`,
+`checlear-boton-e`, `chequear-sillas`, `chequear-caminata`, `git diff --check`
+y `git status`. Se detiene en el primero que falla. Es lo mismo que corre
+`.github/workflows/chequeos.yml` en cada push a `main`.)
+
+A mano, si hace falta aislar algo:
 
 ```bash
 node tools/limpiar-fondo-sprites.js --check
