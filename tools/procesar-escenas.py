@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Procesa las escenas nuevas (Oficina/v1.jpg = oficina, v3.jpg = balcón).
+"""Procesa las escenas nuevas (Oficina/v1.jpg = oficina, V2.jpg = balcón).
 
 - Saca el verde de pantalla (los vidrios y el cielo quedan transparentes para
   dibujar el cielo dinámico atrás, como el ventanal actual).
@@ -42,4 +42,4 @@ def procesar(src, dst_base):
 
 if __name__ == '__main__':
     procesar('Oficina/v1.jpg', 'bg_ofi')
-    procesar('Oficina/v3.jpg', 'bg_balcon')
+    procesar('Oficina/V2.jpg', 'bg_balcon')

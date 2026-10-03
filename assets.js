@@ -3,8 +3,8 @@
  * navegador deja de mostrar la versión vieja. */
 window.ASSETS = {
   "bg_deep2.png": "v=6cc8f410",
-  "sprites/bg_balcon.png": "v=92e6121d",
-  "sprites/bg_balcon.webp": "v=8beff54a",
+  "sprites/bg_balcon.png": "v=0c28a3f5",
+  "sprites/bg_balcon.webp": "v=db0e67c3",
   "sprites/bg_ofi.png": "v=c4ead3fe",
   "sprites/bg_ofi.webp": "v=978e0636",
   "sprites/cafetera.png": "v=361ec975",

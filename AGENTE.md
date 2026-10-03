@@ -299,9 +299,13 @@ cielo dinámico, hechos con `tools/procesar-escenas.py`). Ger la prende de su
 menú y camina lo nuevo ÉL SOLO: el resto lo ve como 👁 en la lista y no lo
 dibuja (ni él a ellos). La puerta de vidrio del fondo cruza ofi ⇄ balcón con
 la E parado cerca (`puertaCerca` + `cruzarPuerta`, con fundido; nada de
-cruzar caminando). Los límites son los polígonos rojos del dueño
-(`Oficina/v1rojo.jpg`, `v3rojo.jpg`) tal cual en `poli` (+ `obst` del mueble
-y la columna). Todo lo nuevo pasa por `piso()`/`sillas()`/`dimW()`/
+cruzar caminando). El límite de la oficina es el polígono rojo del dueño
+(`Oficina/v1rojo.jpg`) tal cual en `poli`; el balcón (`Oficina/V2.jpg`, que no
+lleva trazo rojo) se midió píxel por píxel con 30px de holgura. El único
+`obst` es el mueble del fondo de la oficina y apoya en y=400, justo sobre el
+borde del polígono: el piso de enfrente (y 410..448) sí se camina, porque
+taparlo hacía que "la oficina no llegara al final". Todo lo nuevo pasa por
+`piso()`/`sillas()`/`dimW()`/
 `dimH()`/`mitadX()`: con la previa apagada devuelven el mundo viejo intacto.
 El cielo es el mismo de siempre (`pintarCielo`, con sol, nubes, lluvia, nieve
 y rayos) pintado a pantalla completa detrás de cada escena. En la previa

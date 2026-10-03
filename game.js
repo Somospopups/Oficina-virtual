@@ -24,32 +24,32 @@ const SEATS = [
 ];
 
 // ---------- Vista previa de las escenas nuevas (sólo Ger, privado) ----------
-// Oficina nueva + balcón (Oficina/v1.jpg y v3.jpg, verdes afuera). Mientras
+// Oficina nueva + balcón (Oficina/v1.jpg y V2.jpg, verdes afuera). Mientras
 // Ger la mira, él ve este mundo y el resto lo ve a él como "👁 viendo lo
 // nuevo": nadie se pisa porque cada lado dibuja sólo su mundo.
 // Todo pasa por piso()/sillas()/dimW()/dimH()/mitadX(): el mundo viejo (FLOOR,
 // SEATS, VW/VH) queda intacto cuando la previa está apagada.
 const ESC_NUEVA = { w: 1642, h: 656 };
-// Límites dibujados en rojo por el dueño (Oficina/v1rojo.jpg y v3rojo.jpg),
-// medidos píxel por píxel: son polígonos, no trapezoides (la terraza tiene
-// escalón y quiebres). El punto va adentro o no va.
+// Límites de la oficina: polígono rojo del dueño (Oficina/v1rojo.jpg).
+// El balcón V2 (Oficina/V2.jpg) no tiene trazo rojo: su deck se midió píxel
+// por píxel (pendiente ±2.13 px/y, borde trasero y=465) con 30px de holgura
+// para que el chibi no meta medio cuerpo en la baranda.
 const PISO_OFI = {
   yTop: 400, yBot: 650,
   xlTop: 649, xrTop: 1025, xlBot: 294, xrBot: 1337,
   poli: [[649, 402], [1025, 402], [1337, 656], [294, 656]],
+  // El estante y la compu del fondo apoyan en y≈400, igual que el borde del
+  // polígono. El piso de enfrente (y 410..448) es baldosa lisa y se camina,
+  // así que el mueble no llega hasta 448: ahí tapaba el fondo de la oficina.
   obst: [
-    { x0: 640, x1: 1010, y0: 375, y1: 448 },   // mueble bajo la ventana
+    { x0: 640, x1: 1010, y0: 375, y1: 400 },   // mueble bajo la ventana
   ],
 };
 const PISO_BAL = {
-  yTop: 385, yBot: 650,
-  xlTop: 560, xrTop: 1130, xlBot: 70, xrBot: 1642,
-  poli: [[560, 393], [1130, 393], [1400, 520], [1650, 660], [70, 660],
-         [101, 640], [140, 620], [180, 600], [218, 580], [256, 560],
-         [294, 540], [334, 520], [371, 500], [448, 460], [490, 432]],
-  obst: [
-    { x0: 995, x1: 1025, y0: 350, y1: 565 },   // columna de la pérgola
-  ],
+  yTop: 460, yBot: 650,
+  xlTop: 435, xrTop: 1216, xlBot: 29, xrBot: 1623,
+  poli: [[435, 465], [1216, 465], [1623, 656], [29, 656]],
+  obst: [],
 };
 const SILLAS_OFI = [
   { x: 420, y: 600, face: 'left' },
@@ -58,8 +58,10 @@ const SILLAS_OFI = [
   { x: 1240, y: 600, face: 'right' },
 ];
 // Puerta: zona que dispara el cambio + dónde se aparece del otro lado.
-const PUERTA_OFI = { x0: 990, x1: 1100, y0: 450, y1: 505, ax: 660, ay: 550 };
-const PUERTA_BAL = { x0: 560, x1: 720, y0: 500, y1: 580, ax: 1080, ay: 535 };
+// En el balcón no hay puerta dibujada: se entra/sale por abajo al centro
+// (la 🚪 marca el lugar).
+const PUERTA_OFI = { x0: 990, x1: 1100, y0: 450, y1: 505, ax: 821, ay: 590 };
+const PUERTA_BAL = { x0: 750, x1: 900, y0: 560, y1: 620, ax: 1080, ay: 535 };
 const SPAWN_OFI = { x: 821, y: 600 };
 const prev = { on: false, escena: 'ofi', fade: 0, vuelta: null };
 function prevAqui() { const me = state.players.get(state.myId); return !!(prev.on && me && me.char === 'ger'); }
@@ -2005,7 +2007,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v171 · 02/10/2026';
+const VERSION = 'v173 · 02/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
