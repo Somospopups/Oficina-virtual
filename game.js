@@ -102,14 +102,34 @@ function lerpColor(a, b, t) {
 // luces y sus sombras, igual que en los PNG de referencia.
 function tone(hex, t) { return lerpColor(hex, t > 0 ? '#ffffff' : '#000000', Math.abs(t)); }
 function depthScale(y) { const F = piso(); return lerp(3.1, 20, clamp((y - F.yTop) / (F.yBot - F.yTop), 0, 1)); }
+// Mismo contrato que depthScale (s tal que el alto dibujado = 44*s), pero con
+// el rango propio de cada escena NUEVA de la vista previa. Esas escenas miden
+// 656 px de alto contra los 896 de la oficina vieja y su piso es mucho más
+// corto (250 y 190 px contra 430), así que la rampa vieja se pasaba por arriba
+// y por abajo: en el frente el chibi quedaba clavado en 487 px —tres cuartos
+// de pantalla, la cabeza rozando el alféizar de los leds— y al llegar a la
+// baranda del balcón bajaba a 156 px, más bajo que el antepecho (el riel mide
+// 125 px de riel a base). Cada escena acota su alto de cabeza a pies, lineal
+// en y, que es como proyecta la perspectiva real: el horizonte del balcón cae
+// en y≈281 y el riel de 1.10 m da 195 px, así que 195 es el piso físico y 215
+// el piso legible; al frente la física pide 390-400. La VELOCIDAD de caminar
+// sigue midiéndose con depthScale para no cambiar el paso de siempre.
+function escalaFigura(y) {
+  if (!prevAqui()) return depthScale(y);
+  const F = piso();
+  const t = clamp((y - F.yTop) / (F.yBot - F.yTop), 0, 1);
+  const E = prev.escena === 'balcon' ? [215, 400] : [140, 390];
+  return lerp(E[0], E[1], t) / 44;
+}
 // Altura del sentado (la silla viene adentro del dibujo). El mundo viejo está
 // calibrado contra y 560..750, que son las y de SEATS; en la vista previa hay
-// que normalizar contra el piso de la ESCENA, o las sillas nuevas (y 570/600)
-// caen al mínimo de esa rampa y el chibi pasa de 493 a 243 px al sentarse.
+// que salirla de la MISMA rampa de la escena, o las sillas nuevas (y 570/600)
+// quedaban más altas que el chibi parado al lado.
 function sitScale(y) {
   if (!prevAqui()) return lerp(4.8, 9.8, clamp((y - 560) / 190, 0, 1));
-  const F = piso();
-  return lerp(4.8, 9.8, clamp((y - F.yTop) / (F.yBot - F.yTop), 0, 1));
+  // 0.82 = lo que mide sentado contra parado en la oficina vieja (0.97 atrás,
+  // 0.78 adelante).
+  return escalaFigura(y) * 44 * 0.82 / 48;
 }
 
 // ---------- Ciclo día/noche (hora real) ----------
@@ -2015,7 +2035,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v174 · 03/10/2026';
+const VERSION = 'v175 · 03/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -5234,7 +5254,7 @@ function drawCat(now, nocturno) {
   const miauT = Date.now() - miauBkt * 9000;
   const maullando = pose !== 'sleep' && rnd(miauBkt, 53, 11) < 0.15 && miauT < 1400;
   if (maullando && cat.lastMiau !== miauBkt) { cat.lastMiau = miauBkt; catMiau(); }
-  const u = clamp(depthScale(cat.y) / 12, 0.65, 1.8) * 6.0;
+  const u = clamp(escalaFigura(cat.y) / 12, 0.65, 1.8) * 6.0;
   const g = ctx;
   g.fillStyle = 'rgba(0,0,0,0.22)';
   g.beginPath(); g.ellipse(cat.x, cat.y + 1.5 * u, 7.5 * u, 2.2 * u, 0, 0, Math.PI * 2); g.fill();
@@ -5414,7 +5434,7 @@ function render() {
       // dibujaba hasta 42% más alto al caminar hacia arriba. Como todos los PNG
       // pasan por normalizarFigura(), la figura ocupa todo el lienzo y el mismo
       // 44*s da el mismo alto de cabeza a pies en cualquier pose.
-      const sRaw = depthScale(p.y);
+      const sRaw = escalaFigura(p.y);
       const baseH = ca.baseH || spr.height;
       // El tope sale del sprite DE ESTA persona, no de assetsReady, que recién
       // se prende cuando terminaron de bajar los dibujos de los cinco (13 MB).
@@ -5739,7 +5759,7 @@ function init() {
     const kid = (CHAR_DEF[p.char || 'ger'] || {}).kid;
     if (p.seated) return 48 * sitScale(p.y) * (kid ? 0.9 : 1);
     const spr = charAssets[p.char || 'ger'] && charAssets[p.char || 'ger'].down;
-    const sRaw = depthScale(p.y);
+    const sRaw = escalaFigura(p.y);
     // Mismo tope que en el render: el alto de figura del sprite base.
     const baseH = (charAssets[p.char || 'ger'] || {}).baseH || (spr ? spr.height : 44);
     const s = spr ? Math.min(sRaw, baseH / 44) : sRaw;
@@ -5804,7 +5824,7 @@ function init() {
     const wx = ((e.clientX - r.left) * (canvas.width / r.width) - viewOX) / viewScale;
     const wy = ((e.clientY - r.top) * (canvas.height / r.height) - viewOY) / viewScale;
     // ¿Tocó a Michi?
-    const uCat = clamp(depthScale(cat.y) / 12, 0.65, 1.8) * 6.0;
+    const uCat = clamp(escalaFigura(cat.y) / 12, 0.65, 1.8) * 6.0;
     if (Math.abs(wx - cat.x) < 9 * uCat && wy > cat.y - 17 * uCat && wy < cat.y + 3 * uCat) {
       accAbrir([
         { t: '❤ Acariciar', f: () => { if (catCerca()) catMimar(); else toast('🐈 Acercate más a Michi'); } },
