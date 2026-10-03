@@ -1397,14 +1397,12 @@ function loadCharAssets() {
         esp.onload = () => { charAssets[k].up = normalizarFigura(esp, base.alto).img; };
         esp.src = urlAsset(`sprites/${k}_up.png`);
       }
-      // Si el personaje tiene hoja propia con las 4 direcciones (Ger, Milo y
-      // Ovni), sus PNG se normalizan contra su sprite de frente. Si no, se arma
-      // la caminata muneco-de-papel desde su unico PNG: el frente sale bien, pero
-      // de espaldas es la silueta oscurecida y de perfil el frente espejado, asi
-      // que camina mirando al reves. Ovni conserva el frente de papel (el
-      // dibujo original del personaje) y usa su hoja para el resto.
+      // Si el personaje tiene hoja propia con las 4 direcciones, sus PNG se
+      // normalizan contra su sprite de frente. Si no, se arma la caminata
+      // muneco-de-papel desde su unico PNG: el frente sale bien, pero de espaldas
+      // es la silueta oscurecida y de perfil el frente espejado, asi que camina
+      // mirando al reves. Desde la v176 Ovni entra en el primer grupo.
       if (walkSources[k]) {
-        if (k === 'ovni') walkAssets[k] = { down: buildPasoFrames(base.img) };
         normalizarCaminata(k, base.alto);
       } else {
         walkAssets[k] = {
@@ -2035,7 +2033,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v175 · 03/10/2026';
+const VERSION = 'v176 · 03/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -4818,8 +4816,9 @@ function cafeAplicar(id) {
 // (preparados con preparar-animacion.py, que los alinea contra el sentado) y
 // agregar la entrada acá. Nada más.
 const ANIMS = {
-  cafe:  { titulo: '☕ Tomar un café',   quien: { ger: 4 } },
-  birra: { titulo: '🍺 Tomar una birra', quien: { ger: 4 } },
+  cafe:  { titulo: '☕ Tomar un café',   quien: { ger: 4, ovni: 4 } },
+  birra: { titulo: '🍺 Tomar una birra', quien: { ger: 4, ovni: 4 } },
+  coca:  { titulo: '🥤 Tomar una coca',  quien: { ovni: 4 } },
 };
 // Guion compartido: [qué dibujo, cuánto dura].
 const ANIM_GUION = [[1, 520], [2, 440], [3, 700], [2, 340], [4, 940]];
@@ -5138,15 +5137,16 @@ const fightFrames = [];
     left: [l1, l2, l3, l2],
     right: [r1, r2, r3, r2],
   };
-  // Ovni (v101). No tiene 'down' a proposito: el frente sigue siendo el recorte
-  // de papel sobre su PNG original, que es el dibujo bueno del personaje. La
-  // hoja cubre solo las direcciones que antes no existian.
-  const ol1 = img('ovni_wl1'), ol2 = img('ovni_wl2'), ol3 = img('ovni_wl3');
-  const or1 = img('ovni_wr1'), or2 = img('ovni_wr2'), or3 = img('ovni_wr3');
+  // Ovni (v101, hoja completa desde la v176): las 4 direcciones salen de su
+  // propia hoja. El perfil del dibujo MIRA A LA DERECHA (wr) y la izquierda (wl)
+  // es su espejo, igual que en Ove.
+  const ol1 = img('ovni_wl1'), ol2 = img('ovni_wl2'), ol3 = img('ovni_wl3'), ol4 = img('ovni_wl4');
+  const or1 = img('ovni_wr1'), or2 = img('ovni_wr2'), or3 = img('ovni_wr3'), or4 = img('ovni_wr4');
   walkSources.ovni = {
-    up: [img('ovni_wu1'), img('ovni_wu2')],
-    left: [ol1, ol2, ol3, ol2],
-    right: [or1, or2, or3, or2],
+    down: [img('ovni_walk1'), img('ovni_walk2'), img('ovni_walk3'), img('ovni_walk4')],
+    up: [img('ovni_wu1'), img('ovni_wu2'), img('ovni_wu3'), img('ovni_wu4')],
+    left: [ol1, ol2, ol3, ol4],
+    right: [or1, or2, or3, or4],
   };
   // Ove: hoja propia con las 4 direcciones. El perfil de la hoja mira a la
   // IZQUIERDA (wl) y el derecho es su espejo (wr), igual que Ger y Milo.
@@ -5164,8 +5164,6 @@ const fightFrames = [];
 function normalizarCaminata(k, alto) {
   const src = walkSources[k];
   if (!src) return;
-  // No se pisa lo que ya haya: Ovni precarga 'down' con el recorte de papel y
-  // esta funcion solo completa las direcciones que trae en walkSources.
   walkAssets[k] = walkAssets[k] || {};
   for (const dir of Object.keys(src)) {
     // El orden del ciclo es fijo (zancada → paso → ...), así que cada frame tiene
@@ -5770,8 +5768,14 @@ function init() {
     accMenu.innerHTML = '';
     accMenu.classList.remove('hidden');
     const poner = (el, x, y) => {
-      el.style.left = Math.max(84, Math.min(window.innerWidth - 84, x)) + 'px';
-      el.style.top = Math.max(22, Math.min(window.innerHeight - 26, y)) + 'px';
+      const lx = Math.max(84, Math.min(window.innerWidth - 84, x));
+      const ly = Math.max(22, Math.min(window.innerHeight - 26, y));
+      el.style.left = lx + 'px';
+      el.style.top = ly + 'px';
+      // Devuelve lo que se DIBUJÓ de verdad. poner() recorta contra el borde de
+      // la pantalla: si pos sigue guardando el valor sin recortar, el que separa
+      // las pastillas cree que las separó y quedan pisadas (v176, con 6 acciones).
+      return [lx, ly];
     };
     // Nombre arriba, y las acciones flotando en elipse alrededor (estilo Sims)
     const t = document.createElement('div');
@@ -5802,7 +5806,11 @@ function init() {
       i: p[0] - el.offsetWidth / 2, d: p[0] + el.offsetWidth / 2,
       a: p[1] - el.offsetHeight / 2, b: p[1] + el.offsetHeight / 2,
     });
-    for (let pase = 0; pase < 8; pase++) {
+    // Se itera hasta converger, no con un tope corto: Ovni sentado junta 7
+    // pastillas (3 estados + 3 bebidas + zumbido) y el recorte contra el borde
+    // obliga a más pasadas (49 en el peor caso medido sobre 300 posiciones al
+    // azar, con 3, 5, 6 y 8 pastillas).
+    for (let pase = 0; pase < 60; pase++) {
       const cs = els.map((el, k) => caja(el, pos[k]));
       let movio = false;
       for (let k = 0; k < els.length; k++) for (let j = k + 1; j < els.length; j++) {
@@ -5810,7 +5818,8 @@ function init() {
         if (Math.min(cs[k].d, cs[j].d) - Math.max(cs[k].i, cs[j].i) <= 0 || sy <= 0) continue;
         const paso = (sy + 6) / 2 * (cs[k].a <= cs[j].a ? -1 : 1);
         pos[k][1] += paso; pos[j][1] -= paso;
-        poner(els[k], pos[k][0], pos[k][1]); poner(els[j], pos[j][0], pos[j][1]);
+        pos[k][1] = poner(els[k], pos[k][0], pos[k][1])[1];
+        pos[j][1] = poner(els[j], pos[j][0], pos[j][1])[1];
         cs[k] = caja(els[k], pos[k]); cs[j] = caja(els[j], pos[j]);
         movio = true;
       }
