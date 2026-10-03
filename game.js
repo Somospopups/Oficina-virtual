@@ -102,7 +102,15 @@ function lerpColor(a, b, t) {
 // luces y sus sombras, igual que en los PNG de referencia.
 function tone(hex, t) { return lerpColor(hex, t > 0 ? '#ffffff' : '#000000', Math.abs(t)); }
 function depthScale(y) { const F = piso(); return lerp(3.1, 20, clamp((y - F.yTop) / (F.yBot - F.yTop), 0, 1)); }
-function sitScale(y) { return lerp(4.8, 9.8, clamp((y - 560) / 190, 0, 1)); }
+// Altura del sentado (la silla viene adentro del dibujo). El mundo viejo está
+// calibrado contra y 560..750, que son las y de SEATS; en la vista previa hay
+// que normalizar contra el piso de la ESCENA, o las sillas nuevas (y 570/600)
+// caen al mínimo de esa rampa y el chibi pasa de 493 a 243 px al sentarse.
+function sitScale(y) {
+  if (!prevAqui()) return lerp(4.8, 9.8, clamp((y - 560) / 190, 0, 1));
+  const F = piso();
+  return lerp(4.8, 9.8, clamp((y - F.yTop) / (F.yBot - F.yTop), 0, 1));
+}
 
 // ---------- Ciclo día/noche (hora real) ----------
 const SKY_STOPS = [
@@ -2007,7 +2015,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v173 · 02/10/2026';
+const VERSION = 'v174 · 03/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -5030,7 +5038,10 @@ function catPlan(nowMs, nocturno) {
   if (nocturno && !prevAqui()) return { goal: { x: 622, y: 706 }, pose: 'sleep' };  // de noche duerme en medio del pasillo, bien visible
   const i = Math.floor(nowMs / CAT_SEG);
   const r = rnd(i, 29, 3);
-  if (r < 0.30) return { goal: { x: (F.xlTop + F.xrTop) / 2 + (rnd(i, 31, 7) - 0.5) * 80, y: F.yTop + 130 + rnd(i, 37, 1) * 80 }, pose: 'sleep' };  // siesta al solcito
+  // Siesta al solcito. El tope es F.yBot - 40: en el balcón yTop+130+80 llegaba
+  // a 670 en una escena de 656 y el gato se quedaba con los pies bajo el borde.
+  const ys = Math.min(F.yTop + 130 + rnd(i, 37, 1) * 80, F.yBot - 40);
+  if (r < 0.30) return { goal: { x: (F.xlTop + F.xrTop) / 2 + (rnd(i, 31, 7) - 0.5) * 80, y: ys }, pose: 'sleep' };
   const y = lerp(F.yTop + 130, F.yBot - 110, rnd(i, 17, 9));
   const t2 = (y - F.yTop) / (F.yBot - F.yTop);
   const xl = lerp(F.xlTop, F.xlBot, t2) + 46;
@@ -5476,7 +5487,11 @@ function render() {
     if (p.bubble && now < p.bubbleUntil) drawBubble(ctx, p.bubble, p.x, ly - fs * 0.8, fs);
   }
   if (!catDibujado) drawCat(now, nocturno);
-  if (!poleDibujado) drawPole(now);
+  // Última chance de dibujarla (si nadie quedó por debajo del caño). Mismo gate
+  // que adentro del loop: si no, en la vista previa el fallback la dibuja en la
+  // escena nueva cuando Ger está por encima de POLE.y, contradiciendo el toast
+  // "La bailarina quedó en la oficina vieja".
+  if (!poleDibujado && !yoPrev) drawPole(now);
   // Fundido del cambio de escena (puerta oficina ⇄ balcón).
   if (prev.fade && now - prev.fade < 350) {
     ctx.fillStyle = `rgba(5,6,10,${(1 - (now - prev.fade) / 350).toFixed(2)})`;
