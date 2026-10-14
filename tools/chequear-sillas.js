@@ -36,28 +36,37 @@ function sacarConst(nombre) {
 
 const fallos = [];
 function fallar(msg) { console.error(`\n❌ ${msg}\n`); process.exit(1); }
-function ok(cond, msg) {
-  console.log(`  ${cond ? '✅' : '❌'} ${msg}`);
+function ok(cond, msg, extra) {
+  console.log(`  ${cond ? '✅' : '❌'} ${msg}${extra && !cond ? ` — ${extra}` : ''}`);
   if (!cond) fallos.push(msg);
 }
 
+// escenaId es un `let` del juego y las funciones de abajo lo leen: hay que
+// declararlo en el mismo script o se van de scope.
 const piezas = [
-  sacarConst('VW'), sacarConst('FLOOR'), sacarConst('SEATS'), sacarConst('PRESENCIA_MS'),
-  sacarConst('ESC_NUEVA'), sacarConst('PISO_OFI'), sacarConst('PISO_BAL'), sacarConst('SILLAS_OFI'),
-  sacarConst('prev'),
-  sacarFuncion('lerp'), sacarFuncion('clamp'), sacarFuncion('enPoli'), sacarFuncion('prevAqui'),
-  sacarFuncion('piso'), sacarFuncion('sillas'), sacarFuncion('dimW'), sacarFuncion('dimH'), sacarFuncion('mitadX'),
-  sacarFuncion('walkable'),
+  sacarConst('ESCENAS'),
+  `let escenaId = 'ofi'; let escenaFade = 0;`,
+  sacarConst('PRESENCIA_MS'),
+  sacarFuncion('escena'), sacarFuncion('piso'), sacarFuncion('sillas'),
+  sacarFuncion('dimW'), sacarFuncion('dimH'), sacarFuncion('mitadX'),
+  sacarFuncion('escalaFigura'), sacarFuncion('depthScale'), sacarFuncion('sitScale'),
+  sacarFuncion('pisoAncho'),
+  sacarFuncion('lerp'), sacarFuncion('clamp'), sacarFuncion('enPoli'), sacarFuncion('walkable'),
   sacarFuncion('presente'), sacarFuncion('seatOwner'), sacarFuncion('seatFor'), sacarFuncion('puntoDePie'),
 ].join('\n');
 
 const caja = { state: { players: new Map(), myId: 'yo' }, performance: { now: () => 100000 }, console };
 vm.createContext(caja);
-vm.runInContext(piezas + '\nthis.api = { SEATS, FLOOR, SILLAS_OFI, seatFor, puntoDePie, walkable, piso, sillas, prev };', caja);
-const { SEATS, FLOOR, SILLAS_OFI, seatFor, puntoDePie, walkable, piso, sillas, prev } = caja.api;
+vm.runInContext(
+  piezas + '\nthis.api = { ESCENAS, escenaId: null, setEscena: (v) => { escenaId = v; }, seatFor, puntoDePie, walkable, piso, sillas, dimW, dimH, escalaFigura, sitScale, depthScale, pisoAncho, escena };',
+  caja,
+);
+const api = caja.api;
+const { ESCENAS, seatFor, puntoDePie, walkable, piso, sillas, dimW, dimH, escalaFigura, sitScale, depthScale, pisoAncho, escena } = api;
 
 const jugadores = caja.state.players;
 const NOW = 100000;
+const SEATS = ESCENAS.ofi.sillas;
 const sentar = (id, i) => jugadores.set(id, { id, name: id, seated: true, x: SEATS[i].x, y: SEATS[i].y, seen: NOW });
 const parar = (id, x, y) => jugadores.set(id, { id, name: id, seated: false, x, y, seen: NOW });
 
@@ -105,18 +114,45 @@ console.log('\nLa pantalla avisa');
 ok(/Los cuatro escritorios están ocupados/.test(src), 'se le explica por chat al que entra de pie');
 ok(/no quedan puestos: quedás de pie/.test(src), 'y también si lo levantan de un puesto ya tomado');
 
-console.log('\nVista previa (sólo Ger, mundo nuevo)');
+console.log('\nEscala de la figura en cada escena');
+// Cada escena acota su alto de cabeza a pies en `fig`. No hay un número
+// "correcto" universal (cada cuadro tiene su cámara), pero hay rangos sanos:
+// si alguien pone 5 o 5000 por un typos, el chibi queda microscópico o se come
+// la pantalla. La rampa además tiene que crecer de atrás hacia adelante.
+for (const [k, E] of Object.entries(ESCENAS)) {
+  const [a, b] = E.piso.fig;
+  ok(a > 60 && a < E.h * 0.6, `${k}: el alto al fondo del piso es razonable`, `fig[0]=${a} alto=${E.h}`);
+  ok(b > a && b < E.h * 0.9, `${k}: el alto al frente del piso es razonable y crece`, `fig=[${a},${b}] alto=${E.h}`);
+  const razon = b / a;
+  ok(razon > 1.6 && razon < 4.5, `${k}: la rampa de perspectiva es creíble`, `fig crece ${razon.toFixed(2)}x`);
+}
+
+// En cada escena, la figura crece de atrás hacia adelante y el sentado mide
+// menos que el parado al mismo pie.
+for (const k of Object.keys(ESCENAS)) {
+  api.setEscena(k);
+  const yFondo = piso().yTop + 40, yFrente = piso().yBot - 20;
+  ok(escalaFigura(yFondo) < escalaFigura(yFrente), `${k}: la figura crece al acercarse`);
+  ok(sitScale(yFrente) < escalaFigura(yFrente), `${k}: el sentado mide menos que el parado`);
+  ok(depthScale(yFondo) < depthScale(yFrente), `${k}: la velocidad también crece al acercarse`);
+  ok(walkable(ESCENAS[k].spawn.x, ESCENAS[k].spawn.y), `${k}: el spawn es caminable`);
+  ok(ESCENAS[k].sillas.every((s) => walkable(s.x, s.y)), `${k}: las sillas no quedan dentro de un mueble`);
+  // La puerta se cruza en los dos sentidos: la zona tiene que ser alcanzable en
+  // ESTA escena y el punto de llegada, caminable en la OTRA.
+  const pu = ESCENAS[k].puerta;
+  const otra = ESCENAS[pu.hacia];
+  api.setEscena(pu.hacia);
+  ok(walkable(pu.ax, pu.ay), `${k}: el punto de llegada de la puerta es caminable`);
+  api.setEscena(k);
+  ok(!!otra && otra.puerta.hacia === k, `${k}: la puerta va y vuelve (${k} ⇄ ${pu.hacia})`);
+}
+
+console.log('\nLa terraza no tiene escritorios');
+api.setEscena('terr');
 jugadores.clear();
-jugadores.set('yo', { id: 'yo', name: 'Ger', char: 'ger', seated: false, x: 821, y: 600, seen: NOW });
-prev.on = true;
-ok(sillas().length === 4 && sillas() !== SEATS, 'en la oficina nueva hay otros 4 puestos');
-ok(sillas() === SILLAS_OFI, 'las sillas salen de la tabla nueva');
-ok(piso() !== FLOOR, 'el piso es el de la oficina nueva');
-ok(seatFor({ seat: 0 }) === SILLAS_OFI[0], 'el reparto funciona en el mundo nuevo');
-const dp = puntoDePie();
-ok(walkable(dp.x, dp.y), 'el punto de pie cae en el mundo nuevo');
-prev.on = false;
-ok(sillas() === SEATS, 'al apagar vuelve el mundo viejo');
+ok(sillas().length === 0, 'la terraza no reparte sillas (no hay escritorios)');
+const dt = puntoDePie();
+ok(walkable(dt.x, dt.y) && dt.x === ESCENAS.terr.spawn.x, 'el que entra a la terraza cae en su punto de aparición');
 
 if (fallos.length) {
   console.error(`\n❌ ${fallos.length} problema(s) en el reparto de escritorios.\n`);

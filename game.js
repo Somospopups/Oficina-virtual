@@ -5,70 +5,110 @@
    ============================================================ */
 'use strict';
 
-// ---------- Espacio virtual = dimensiones del fondo ----------
-const VW = 1195, VH = 896;
 let viewScale = 1, viewOX = 0, viewOY = 0;
 
-// Rectángulo del ventanal (cielo dinámico)
-const WIN = { x: 484, y: 291, w: 255, h: 84 };
-
-// Piso caminable (trapecio en perspectiva, bien profundo)
-const FLOOR = { yTop: 460, yBot: 890, xlTop: 505, xrTop: 720, xlBot: 280, xrBot: 935 };
-
-// Los 4 puestos: marcados frente a cada teclado
-const SEATS = [
-  { x: 328, y: 683, face: 'left' },  // recalado: manos sobre el teclado delantero izq.
-  { x: 510, y: 518, face: 'left' },
-  { x: 710, y: 518, face: 'right' }, // recalado: manos sobre el teclado (el fondo no es simétrico)
-  { x: 861, y: 683, face: 'right' }, // recalado: manos sobre el teclado delantero der.
-];
-
-// ---------- Vista previa de las escenas nuevas (sólo Ger, privado) ----------
-// Oficina nueva + balcón (Oficina/v1.jpg y V2.jpg, verdes afuera). Mientras
-// Ger la mira, él ve este mundo y el resto lo ve a él como "👁 viendo lo
-// nuevo": nadie se pisa porque cada lado dibuja sólo su mundo.
-// Todo pasa por piso()/sillas()/dimW()/dimH()/mitadX(): el mundo viejo (FLOOR,
-// SEATS, VW/VH) queda intacto cuando la previa está apagada.
-const ESC_NUEVA = { w: 1642, h: 656 };
-// Límites de la oficina: polígono rojo del dueño (Oficina/v1rojo.jpg).
-// El balcón V2 (Oficina/V2.jpg) no tiene trazo rojo: su deck se midió píxel
-// por píxel (pendiente ±2.13 px/y, borde trasero y=465) con 30px de holgura
-// para que el chibi no meta medio cuerpo en la baranda.
-const PISO_OFI = {
-  yTop: 400, yBot: 650,
-  xlTop: 649, xrTop: 1025, xlBot: 294, xrBot: 1337,
-  poli: [[649, 402], [1025, 402], [1337, 656], [294, 656]],
-  // El estante y la compu del fondo apoyan en y≈400, igual que el borde del
-  // polígono. El piso de enfrente (y 410..448) es baldosa lisa y se camina,
-  // así que el mueble no llega hasta 448: ahí tapaba el fondo de la oficina.
-  obst: [
-    { x0: 640, x1: 1010, y0: 375, y1: 400 },   // mueble bajo la ventana
-  ],
+// ---------- Escenas ----------
+// Dos mundos pintados, cada uno con su lienzo, su piso caminable (polígono +
+// muebles), sus puestos, su puerta y su punto de aparición. Todo lo que
+// dibuja, colisiona o escala pasa por escena()/piso()/sillas()/dimW()/
+// dimH(): sumar un mundo nuevo es agregar una entrada acá.
+//
+// El polígono es el borde del piso visible; los `obst` son los muebles de
+// ENCIMA de ese piso (un rectángulo por bloque, generoso: mejor sobra un
+// pedacito de piso que un personaje clavado adentro de un sillón). Las
+// sillas NO son obstáculo, igual que siempre: el que se sienta ocupa la silla
+// y el que pasa caminando puede cruzar por delante.
+const ESCENAS = {
+  ofi: {
+    titulo: 'la oficina',
+    w: 1983, h: 793,
+    // El cielo está PINTADO en el arte: no se dibuja, se CRUZA entre variantes
+    // según la hora real (ver cieloPar/drawEscena). Cada stop es un archivo
+    // sprites/<base>.webp y su hora de entrada.
+    cielo: [{ h: 6.5, base: 'bg_ofi_dia' }, { h: 19, base: 'bg_ofi_noche' }],
+    piso: {
+      yTop: 348, yBot: 793,
+      poli: [[560, 348], [1310, 348], [1983, 480], [1983, 793], [0, 793], [0, 480]],
+      // Alto de cabeza a pies (px) al fondo y al frente del piso. Medido contra
+      // el arte: la silla de oficina del fondo mide ~100 px y una persona
+      // parada al lado le queda ~1.7x, que es la proporción real. La rampa
+      // crece lineal en y, como proyecta la perspectiva.
+      fig: [115, 350],
+      obst: [
+        { x0: 0, x1: 70, y0: 290, y1: 793 },      // pared/ventanal y plantas del borde izquierdo
+        { x0: 55, x1: 320, y0: 295, y1: 590 },    // biblioteca + tele
+        { x0: 300, x1: 555, y0: 220, y1: 440 },   // escritorios y cajoneras de la izquierda
+        { x0: 515, x1: 570, y0: 235, y1: 330 },   // dispensador de agua
+        { x0: 650, x1: 1110, y0: 285, y1: 410 },  // mesa de reuniones, con sus sillas
+        { x0: 1350, x1: 1650, y0: 240, y1: 450 }, // escritorios de la derecha
+        { x0: 1645, x1: 1983, y0: 225, y1: 520 }, // heladera + mesada de cocina
+        { x0: 1920, x1: 1983, y0: 500, y1: 620 }, // planta de la cocina
+        { x0: 560, x1: 665, y0: 455, y1: 665 },   // planta grande al lado del sofá
+        { x0: 645, x1: 1235, y0: 475, y1: 650 },  // sofá
+        { x0: 795, x1: 1030, y0: 595, y1: 700 },  // mesa centro
+        { x0: 600, x1: 725, y0: 605, y1: 745 },   // puf naranja
+        { x0: 1060, x1: 1240, y0: 595, y1: 745 }, // puf gris
+        { x0: 0, x1: 100, y0: 575, y1: 680 },     // puf gris del rincón
+        { x0: 145, x1: 290, y0: 555, y1: 685 },   // puf gris del medio
+        { x0: 5, x1: 170, y0: 600, y1: 760 },     // puf naranja del rincón
+        { x0: 90, x1: 195, y0: 645, y1: 730 },    // mesita auxiliar
+      ],
+    },
+    // Los 4 puestos: los pies de la silla, medidos sobre el arte y corridos un
+    // poco hacia adelante para quedar FUERA de las cajoneras (si no, el chibi
+    // parado ahí se metía adentro del mueble). El sprite sentado trae su silla
+    // adentro, así que tapa la del cuadro.
+    sillas: [
+      { x: 401, y: 470, face: 'left' },
+      { x: 485, y: 462, face: 'left' },
+      { x: 1395, y: 470, face: 'right' },
+      { x: 1487, y: 480, face: 'right' },
+    ],
+    spawn: { x: 990, y: 745 },
+    // Puerta de vidrio del fondo: zona que dispara el cruce + a qué mundo te
+    // lleva y dónde caés del otro lado (ax/ay).
+    puerta: { x0: 1125, x1: 1270, y0: 320, y1: 375, hacia: 'terr', ax: 1020, ay: 660 },
+  },
+  terr: {
+    titulo: 'la terraza',
+    w: 2039, h: 771,
+    cielo: [
+      { h: 7, base: 'bg_terraza_dia' },
+      { h: 17, base: 'bg_terraza_atardecer' },
+      { h: 19.5, base: 'bg_terraza_noche' },
+    ],
+    piso: {
+      yTop: 435, yBot: 771,
+      poli: [[0, 435], [2039, 435], [2039, 771], [0, 771]],
+      fig: [210, 450],
+      obst: [
+        { x0: 0, x1: 150, y0: 300, y1: 585 },     // dispensadora, planta y farol de la izquierda
+        { x0: 125, x1: 580, y0: 325, y1: 530 },   // sofá (el L completo, con el chaise)
+        { x0: 305, x1: 495, y0: 435, y1: 528 },   // mesa de centro
+        { x0: 578, x1: 618, y0: 380, y1: 455 },   // farol de la derecha
+        { x0: 1540, x1: 1730, y0: 295, y1: 465 }, // macetas grandes
+        { x0: 1745, x1: 2039, y0: 320, y1: 505 }, // parrilla y mesada
+      ],
+    },
+    // En la terraza no hay escritorios: se viene a caminar y a mirar la ciudad.
+    sillas: [],
+    spawn: { x: 1020, y: 660 },
+    // No hay puerta dibujada: se vuelve adentro saliendo por el borde de
+    // abajo, al centro (la 🚪 marca el lugar).
+    puerta: { x0: 880, x1: 1160, y0: 690, y1: 765, hacia: 'ofi', ax: 1200, ay: 400 },
+  },
 };
-const PISO_BAL = {
-  yTop: 460, yBot: 650,
-  xlTop: 435, xrTop: 1216, xlBot: 29, xrBot: 1623,
-  poli: [[435, 465], [1216, 465], [1623, 656], [29, 656]],
-  obst: [],
-};
-const SILLAS_OFI = [
-  { x: 420, y: 600, face: 'left' },
-  { x: 580, y: 570, face: 'left' },
-  { x: 1060, y: 570, face: 'right' },
-  { x: 1240, y: 600, face: 'right' },
-];
-// Puerta: zona que dispara el cambio + dónde se aparece del otro lado.
-// En el balcón no hay puerta dibujada: se entra/sale por abajo al centro
-// (la 🚪 marca el lugar).
-const PUERTA_OFI = { x0: 990, x1: 1100, y0: 450, y1: 505, ax: 821, ay: 590 };
-const PUERTA_BAL = { x0: 750, x1: 900, y0: 560, y1: 620, ax: 1080, ay: 535 };
-const SPAWN_OFI = { x: 821, y: 600 };
-const prev = { on: false, escena: 'ofi', fade: 0, vuelta: null };
-function prevAqui() { const me = state.players.get(state.myId); return !!(prev.on && me && me.char === 'ger'); }
-function piso() { return prevAqui() ? (prev.escena === 'balcon' ? PISO_BAL : PISO_OFI) : FLOOR; }
-function sillas() { return prevAqui() ? (prev.escena === 'balcon' ? [] : SILLAS_OFI) : SEATS; }
-function dimW() { return prevAqui() ? ESC_NUEVA.w : VW; }
-function dimH() { return prevAqui() ? ESC_NUEVA.h : VH; }
+// Mundo en el que está cada uno. Viaja en el estado (myPublic/upsertRemote):
+// cada persona dibuja sólo a la gente de SU escena, así la oficina y la
+// terraza conviven sin pisarse — el mismo truco de la vista previa vieja, sin
+// el gate de Ger.
+let escenaId = 'ofi';
+let escenaFade = 0;
+function escena() { return ESCENAS[escenaId] || ESCENAS.ofi; }
+function piso() { return escena().piso; }
+function sillas() { return escena().sillas; }
+function dimW() { return escena().w; }
+function dimH() { return escena().h; }
 function mitadX() { return dimW() / 2; }
 
 const SPEED = 320;
@@ -101,79 +141,94 @@ function lerpColor(a, b, t) {
 // de los degradados del sentado: cada superficie se modela con su tono, sus
 // luces y sus sombras, igual que en los PNG de referencia.
 function tone(hex, t) { return lerpColor(hex, t > 0 ? '#ffffff' : '#000000', Math.abs(t)); }
-function depthScale(y) { const F = piso(); return lerp(3.1, 20, clamp((y - F.yTop) / (F.yBot - F.yTop), 0, 1)); }
-// Mismo contrato que depthScale (s tal que el alto dibujado = 44*s), pero con
-// el rango propio de cada escena NUEVA de la vista previa. Esas escenas miden
-// 656 px de alto contra los 896 de la oficina vieja y su piso es mucho más
-// corto (250 y 190 px contra 430), así que la rampa vieja se pasaba por arriba
-// y por abajo: en el frente el chibi quedaba clavado en 487 px —tres cuartos
-// de pantalla, la cabeza rozando el alféizar de los leds— y al llegar a la
-// baranda del balcón bajaba a 156 px, más bajo que el antepecho (el riel mide
-// 125 px de riel a base). Cada escena acota su alto de cabeza a pies, lineal
-// en y, que es como proyecta la perspectiva real: el horizonte del balcón cae
-// en y≈281 y el riel de 1.10 m da 195 px, así que 195 es el piso físico y 215
-// el piso legible; al frente la física pide 390-400. La VELOCIDAD de caminar
-// sigue midiéndose con depthScale para no cambiar el paso de siempre.
+// Cuánto crece el personaje al acercarse. S tal que el alto dibujado = 44*s.
+// Cada escena acota su alto de cabeza a pies en `fig` (lineal en y, que es
+// como proyecta la perspectiva real); el tope de escala del sprite propio
+// (baseH/44) corta el tramo de adelante, igual que siempre.
 function escalaFigura(y) {
-  if (!prevAqui()) return depthScale(y);
   const F = piso();
   const t = clamp((y - F.yTop) / (F.yBot - F.yTop), 0, 1);
-  const E = prev.escena === 'balcon' ? [215, 400] : [140, 390];
-  return lerp(E[0], E[1], t) / 44;
+  return lerp(F.fig[0], F.fig[1], t) / 44;
 }
-// Altura del sentado (la silla viene adentro del dibujo). El mundo viejo está
-// calibrado contra y 560..750, que son las y de SEATS; en la vista previa hay
-// que salirla de la MISMA rampa de la escena, o las sillas nuevas (y 570/600)
-// quedaban más altas que el chibi parado al lado.
-function sitScale(y) {
-  if (!prevAqui()) return lerp(4.8, 9.8, clamp((y - 560) / 190, 0, 1));
-  // 0.82 = lo que mide sentado contra parado en la oficina vieja (0.97 atrás,
-  // 0.78 adelante).
-  return escalaFigura(y) * 44 * 0.82 / 48;
+// La VELOCIDAD de caminar se mide con otra rampa (la de siempre) para no
+// cambiar el paso que ya se conoce: de 0.35x al fondo a 1.6x al frente.
+function depthScale(y) { const F = piso(); return lerp(3.1, 20, clamp((y - F.yTop) / (F.yBot - F.yTop), 0, 1)); }
+// Altura del sentado (la silla viene adentro del dibujo). Sale de la MISMA
+// rampa de la escena, o los puestos quedaban a otro tamaño que el chibi
+// parado al lado. 0.82 = lo que mide sentado contra parado.
+function sitScale(y) { return escalaFigura(y) * 44 * 0.82 / 48; }
+// Extremos del polígono del piso a una altura dada: sirve para tirar destinos
+// al azar (el gato) sin salirse del mundo.
+function pisoAncho(y) {
+  const poli = piso().poli;
+  if (!poli) { const F = piso(); const t = (y - F.yTop) / (F.yBot - F.yTop); return [lerp(F.xlTop, F.xlBot, t), lerp(F.xrTop, F.xrBot, t)]; }
+  let a = Infinity, b = -Infinity;
+  for (let i = 0, j = poli.length - 1; i < poli.length; j = i++) {
+    const xi = poli[i][0], yi = poli[i][1], xj = poli[j][0], yj = poli[j][1];
+    if ((yi > y) !== (yj > y)) {
+      const x = ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+      if (x < a) a = x;
+      if (x > b) b = x;
+    }
+  }
+  return a > b ? null : [a, b];
 }
 
 // ---------- Ciclo día/noche (hora real) ----------
-const SKY_STOPS = [
-  { h: 0,   top: '#070b1e', bot: '#141c33', star: 1,   patch: '#39456b', patchA: 0.25, amb: 0.34 },
-  { h: 5,   top: '#070b1e', bot: '#141c33', star: 1,   patch: '#39456b', patchA: 0.25, amb: 0.34 },
-  { h: 6.5, top: '#ff8f5c', bot: '#ffd9a0', star: 0.2, patch: '#ffcf9e', patchA: 0.40, amb: 0.12 },
-  { h: 9,   top: '#5ab6f0', bot: '#a8dcf6', star: 0,   patch: '#fff6d6', patchA: 0.30, amb: 0 },
-  { h: 15,  top: '#4aa3e8', bot: '#9ed4f2', star: 0,   patch: '#fff2c8', patchA: 0.30, amb: 0 },
-  { h: 18.5,top: '#ff7b4f', bot: '#ffc46b', star: 0.1, patch: '#ffd9a0', patchA: 0.40, amb: 0.10 },
-  { h: 20,  top: '#070b1e', bot: '#141c33', star: 1,   patch: '#39456b', patchA: 0.25, amb: 0.34 },
-  { h: 24,  top: '#070b1e', bot: '#141c33', star: 1,   patch: '#39456b', patchA: 0.25, amb: 0.34 },
+// El cielo ya NO se pinta: está pintado en el arte de cada escena y lo único
+// que cambia es cuál variante se mira, con un fundido alrededor de cada
+// cambio (ver cieloPar y drawEscena). Acá sólo queda cuánta oscuridad
+// ambiental hay, que usa el gato para decidir dónde dormir.
+const NOCHE = [
+  { h: 0, amb: 0.34 }, { h: 5, amb: 0.34 }, { h: 6.5, amb: 0.12 },
+  { h: 9, amb: 0 }, { h: 15, amb: 0 }, { h: 18.5, amb: 0.10 },
+  { h: 20, amb: 0.34 }, { h: 24, amb: 0.34 },
 ];
 function skyNow(hf) {
-  let a = SKY_STOPS[0], b = SKY_STOPS[SKY_STOPS.length - 1];
-  for (let i = 0; i < SKY_STOPS.length - 1; i++) {
-    if (hf >= SKY_STOPS[i].h && hf <= SKY_STOPS[i + 1].h) { a = SKY_STOPS[i]; b = SKY_STOPS[i + 1]; break; }
+  let a = NOCHE[0], b = NOCHE[NOCHE.length - 1];
+  for (let i = 0; i < NOCHE.length - 1; i++) {
+    if (hf >= NOCHE[i].h && hf <= NOCHE[i + 1].h) { a = NOCHE[i]; b = NOCHE[i + 1]; break; }
   }
   const t = b.h === a.h ? 0 : (hf - a.h) / (b.h - a.h);
-  return {
-    top: lerpColor(a.top, b.top, t), bot: lerpColor(a.bot, b.bot, t),
-    star: lerp(a.star, b.star, t), patch: lerpColor(a.patch, b.patch, t),
-    patchA: lerp(a.patchA, b.patchA, t), amb: lerp(a.amb, b.amb, t),
-  };
-}
-function phaseName(h) {
-  if (h >= 5 && h < 8) return '🌅 Amanecer';
-  if (h >= 8 && h < 13) return '☀️ Mañana';
-  if (h >= 13 && h < 19) return '🌇 Tarde';
-  return '🌙 Noche';
+  return { amb: lerp(a.amb, b.amb, t) };
 }
 
-// Skyline del ventanal
-const BUILDINGS = [];
-(function () {
-  let x = 0, i = 0;
-  while (x < WIN.w + 20) {
-    const w = 10 + Math.floor(rnd(i, 7, 1) * 16);
-    const h = 16 + Math.floor(rnd(i, 3, 2) * 50);
-    BUILDINGS.push({ x, w, h, brick: rnd(i, 11, 3) > 0.72 });
-    x += w + 1 + Math.floor(rnd(i, 9, 5) * 4);
-    i++;
-  }
-})();
+// Fondos de las escenas: WebP liviano con caída a JPG, en baja prioridad y
+// DESPUÉS de los dibujos (igual que las tandas de café), para no robarle el
+// caño a lo importante mientras cargan los 13 MB.
+const fondos = new Map();
+function fondoPedir(base) {
+  let f = fondos.get(base);
+  if (f) return f;
+  f = { im: new Image(), ok: false };
+  fondos.set(base, f);
+  f.im.onload = () => { f.ok = true; backdropDirty = true; };
+  f.im.onerror = () => { f.im.onerror = null; f.im.src = urlAsset(`sprites/${base}.jpg`); };
+  if ('fetchPriority' in f.im) f.im.fetchPriority = 'low';
+  f.im.src = urlAsset(`sprites/${base}.webp`);
+  return f;
+}
+function fondoDe(base) {
+  const f = fondos.get(base);
+  return f && f.ok && f.im.complete && f.im.naturalWidth ? f.im : null;
+}
+function fondosDe(esc) {
+  (esc.cielo || []).forEach((c) => fondoPedir(c.base));
+  return esc.cielo.map((c) => fondoDe(c.base)).filter(Boolean);
+}
+// Las dos variantes vecinas de la hora actual y cuánto pesa la segunda.
+// Las stops están ordenadas por hora y la última vuelva a la primera
+// cruzando la medianoche.
+const FONDO_ANCHO = 0.7;   // horas de fundido alrededor de cada cambio
+function cieloPar(hf, stops) {
+  const n = stops.length;
+  let i = n - 1;
+  for (let k = 0; k < n; k++) if (hf >= stops[k].h) i = k;
+  const a = stops[i], b = stops[(i + 1) % n];
+  const d = i === n - 1 ? (24 - a.h) + b.h : b.h - a.h;
+  const desde = i === n - 1 ? (hf >= a.h ? hf - a.h : hf + 24 - a.h) : hf - a.h;
+  return { a: a.base, b: b.base, t: clamp((desde - (d - FONDO_ANCHO)) / FONDO_ANCHO, 0, 1) };
+}
 
 // ---------- Roster del equipo (ingreso por DNI) ----------
 // Guardamos el SHA-256 de (ROSTER_DNI_SALT + dni), nunca el DNI en crudo: este
@@ -1937,70 +1992,42 @@ let spectatorFailures = 0, spectatorLockUntil = 0, spectatorCheckBusy = false;
 const keys = {};
 let lastSend = 0, lastSeatState = null, audioCtx = null;
 
-const bgImg = new Image();
-let bgReady = false;
-const bgCv = document.createElement('canvas');
 const wideBackdropCv = document.createElement('canvas');
 let backdropDirty = true;
-function pxAt(g, x, y) { const d = g.getImageData(x, y, 1, 1).data; return `rgb(${d[0]},${d[1]},${d[2]})`; }
-bgImg.onload = () => {
-  bgCv.width = bgImg.width; bgCv.height = bgImg.height;
-  const g = bgCv.getContext('2d');
-  g.drawImage(bgImg, 0, 0);
-  const PEGS = [[472, 664, 28, 56], [743, 664, 28, 56], [421, 778, 30, 60], [794, 778, 30, 60], [608, 592, 20, 22]];
-  for (const [x, y, w, h] of PEGS) {
-    const gh = g.createLinearGradient(x, 0, x + w, 0);
-    gh.addColorStop(0, pxAt(g, x - 4, y + (h >> 1)));
-    gh.addColorStop(1, pxAt(g, x + w + 4, y + (h >> 1)));
-    g.fillStyle = gh; g.fillRect(x, y, w, h);
-    const gv = g.createLinearGradient(0, y, 0, y + h);
-    gv.addColorStop(0, pxAt(g, x + (w >> 1), y - 4));
-    gv.addColorStop(1, pxAt(g, x + (w >> 1), y + h + 4));
-    g.globalAlpha = 0.5; g.fillStyle = gv; g.fillRect(x, y, w, h); g.globalAlpha = 1;
-  }
-  bgReady = true;
-  backdropDirty = true;
-};
-bgImg.src = urlAsset('bg_deep2.png');
-
-// Fondos de la vista previa (sólo Ger): se piden en WebP liviano con caída
-// a PNG, en baja prioridad y DESPUÉS de la oficina (igual que las tandas).
-const bgOfi = { im: new Image(), ok: false };
-const bgBal = { im: new Image(), ok: false };
-function prevFondoCargar(c, base) {
-  c.im.onload = () => { c.ok = true; };
-  c.im.onerror = () => { c.im.onerror = null; c.im.src = urlAsset(`sprites/${base}.png`); };
-  if ('fetchPriority' in c.im) c.im.fetchPriority = 'low';
-  c.im.src = urlAsset(`sprites/${base}.webp`);
-}
-(function prevFondos() {
-  if (typeof assetsReady !== 'undefined' && !assetsReady) { setTimeout(prevFondos, 1000); return; }
-  prevFondoCargar(bgOfi, 'bg_ofi');
-  prevFondoCargar(bgBal, 'bg_balcon');
+// El fondo de cada escena YA está pintado con su cielo: acá sólo se piden los
+// archivos y se dibujan. bgReady se prende cuando llegó el de la escena
+// actual, que es lo que mira la pantalla de carga.
+let bgReady = false;
+(function fondosArrancar() {
+  if (typeof assetsReady !== 'undefined' && !assetsReady) { setTimeout(fondosArrancar, 1000); return; }
+  Object.values(ESCENAS).forEach((E) => (E.cielo || []).forEach((c) => fondoPedir(c.base)));
 })();
-// Escena nueva: cielo COMPLETO atrás (los verdes son transparencia: sol,
-// nubes, lluvia, nieve y rayos se ven por las ventanas) y la imagen encima.
-function drawPrevEscena(now, hf, sky) {
-  const DW = dimW(), DH = dimH();
-  pintarCielo(ctx, DW, DH, now, hf, sky);
-  const sc = prev.escena === 'balcon' ? bgBal : bgOfi;
-  if (sc.ok && sc.im.complete && sc.im.naturalWidth) {
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(sc.im, 0, 0, DW, DH);
-  }
-  drawPrevMarcas();
-  if (sky.amb > 0.01) {
-    ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
-    ctx.fillRect(0, 0, DW, DH);
-  }
+// La escena entera: la variante de cielo que toca según la hora real, con
+// fundido alrededor del cambio. Sin ventanal, sin nubes dibujadas, sin lluvia
+// viva: el clima se muestra en el reloj y nada más.
+let fondoActualIm = null;   // la variante que se está dibujando (sirve para el relleno lateral)
+function drawEscena(hf) {
+  const E = escena(), DW = E.w, DH = E.h;
+  const par = cieloPar(hf, E.cielo);
+  const ia = fondoDe(par.a), ib = fondoDe(par.b);
+  bgReady = !!ia;
+  fondoActualIm = ia;
+  ctx.fillStyle = '#0b0d14';
+  ctx.fillRect(0, 0, DW, DH);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  if (ia) ctx.drawImage(ia, 0, 0, DW, DH);
+  if (ib && par.t > 0.001) { ctx.globalAlpha = par.t; ctx.drawImage(ib, 0, 0, DW, DH); ctx.globalAlpha = 1; }
+  drawMarcas();
 }
-// En la previa sólo queda la 🚪 de la puerta (la del balcón no se ve en el
-// dibujo): las líneas de debug ya cumplieron y molestan.
-function drawPrevMarcas() {
-  const puerta = prev.escena === 'balcon' ? PUERTA_BAL : PUERTA_OFI;
+// La 🚪 marca el lugar que se cruza con la E (en la terraza no hay puerta
+// dibujada: la marca indica por dónde se vuelve adentro).
+function drawMarcas() {
+  const pu = escena().puerta;
+  if (!pu) return;
   ctx.save();
   ctx.font = '30px serif'; ctx.textAlign = 'center';
-  ctx.fillText('🚪', (puerta.x0 + puerta.x1) / 2, puerta.y1 + 34);
+  ctx.fillText('🚪', (pu.x0 + pu.x1) / 2, pu.y1 + 34);
   ctx.restore();
 }
 
@@ -2033,7 +2060,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v176 · 03/10/2026';
+const VERSION = 'v177 · 14/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -2100,7 +2127,7 @@ function myPublic() {
   if (!me) return null;
   return {
     id: me.id, name: me.name, char: me.char, color: me.color, x: me.x, y: me.y, dir: me.dir,
-    moving: me.moving, seated: me.seated, status: me.status, fightMode: !!me.fightMode, poleOn: !!me.poleOn, preview: !!(prev.on && me.char === 'ger'), joinTs: state.joinTs || 0,
+    moving: me.moving, seated: me.seated, status: me.status, fightMode: !!me.fightMode, escena: escenaId, joinTs: state.joinTs || 0,
     bubble: me.bubble, bubbleUntil: me.bubbleUntil, emote: me.emote, emoteUntil: me.emoteUntil,
   };
 }
@@ -2581,7 +2608,6 @@ function handleMsg(msg) {
       break;
     }
     case 'left':
-      { const sali = state.players.get(msg.id); if (sali && sali.char === 'ger') poleFijar(false); }
       state.players.delete(msg.id);
       // Se cuelga la conexión con ese par: si no, el <audio> sigue vivo ocupando
       // banda y el mic sigue marcado como conectado en la lista.
@@ -2592,7 +2618,7 @@ function handleMsg(msg) {
       break;
     case 'bye': {
       const p = state.players.get(msg.id);
-      if (p) { if (p.char === 'ger') poleFijar(false); state.players.delete(msg.id); addChat(null, `${p.name} salió de la oficina`, 'system'); notify('joinleave', p.name, 'salió de la oficina', p.char, 'leave'); renderPlayerList(); }
+      if (p) { state.players.delete(msg.id); addChat(null, `${p.name} salió de la oficina`, 'system'); notify('joinleave', p.name, 'salió de la oficina', p.char, 'leave'); renderPlayerList(); }
       break;
     }
     case 'system': addChat(null, msg.text, 'system'); break;
@@ -2619,7 +2645,6 @@ function handleMsg(msg) {
     case 'cat-pet': catAplicarMimo(msg.id); break;
     case 'cafe': cafeAplicar(msg.id); break;
     case 'anim': animAplicar(msg.id, msg.anim); break;
-    case 'pole': poleAplicar(msg.id, msg.active); break;
     case 'fight-mode': fightModoAplicar(msg.id, msg.active); break;
     case 'fight-hit': fightGolpeAplicar(msg.id, msg.hit); break;
     case 'nudge': {
@@ -2656,12 +2681,13 @@ function upsertRemote(p, snap) {
   cur.joinTs = p.joinTs || cur.joinTs;
   cur.name = p.name; cur.char = p.char || cur.char; cur.color = p.color; cur.dir = p.dir;
   cur.moving = p.moving; cur.status = p.status; cur.seated = !!p.seated; cur.fightMode = !!p.fightMode;
-  cur.preview = !!p.preview;
-  // La bailarina viaja en el estado para el que entra tarde (flanco cuidado
-  // en poleFijar: el estado llega 20 veces por segundo).
-  if (p.char === 'ger' && p.poleOn !== undefined) poleFijar(!!p.poleOn);
+  // La escena viaja en el estado: si alguien cruzó la puerta, su x/y saltaron
+  // al otro mundo y no hay que arrastrarlo interpolando por el mapa.
+  const escenaNueva = p.escena || 'ofi';
+  const cambioEscena = cur.escena !== escenaNueva;
+  cur.escena = escenaNueva;
   cur.tx = p.x; cur.ty = p.y;
-  if (snap || p.seated) { cur.x = p.x; cur.y = p.y; }
+  if (snap || p.seated || cambioEscena) { cur.x = p.x; cur.y = p.y; }
   if (p.bubble && cur.bubble !== p.bubble) { cur.bubble = p.bubble; cur.bubbleUntil = performance.now() + 5000; }
   resolveSeatConflict();
 }
@@ -3870,7 +3896,7 @@ function renderPlayerList() {
       if (abierto) cls.push('abierta');
       return `<div class="${cls.join(' ')}" data-id="${p.id || ''}" data-char="${p.char || ''}" title="Tocá para ver cuándo entró y cuánto estuvo">` +
         `<span class="dot" style="background:${(CHAR_DEF[p.char] || CHAR_DEF.ger).dot}"></span>${esc(p.name)}` +
-        `<span class="pl-flecha">${abierto ? '▾' : '▸'}</span>${p.seated ? ' 🪑' : ''}${p.preview ? ' 👁' : ''} ` +
+        `<span class="pl-flecha">${abierto ? '▾' : '▸'}</span>${p.seated ? ' 🪑' : ''}${(p.escena || 'ofi') === 'terr' ? ' 🌴' : ''} ` +
         `<span class="pl-status">${st.emoji} ${st.label}</span>` +
         (abierto ? histDetalle(p.char) : '') + '</div>';
     }).join('') +
@@ -3948,7 +3974,7 @@ function seatOwner(s, exceptId) {
 // Dónde pararse al entrar cuando no quedan puestos: en la entrada del pasillo,
 // corriéndose al costado si ya hay alguien justo ahí (que no se amontonen).
 function puntoDePie() {
-  const bx = mitadX(), by = prevAqui() ? (prev.escena === 'balcon' ? 600 : 610) : 820;
+  const sp = escena().spawn, bx = sp ? sp.x : mitadX(), by = sp ? sp.y : dimH() - 20;
   const libre = (x, y) => {
     if (!walkable(x, y)) return false;
     for (const p of state.players.values()) {
@@ -4232,22 +4258,23 @@ let lastT = performance.now();
 function rebuildWideBackdrop() {
   backdropDirty = false;
   const W = canvas.width, H = canvas.height;
-  if (!bgReady || W <= 900 || W / H <= 1.45) {
+  const bg = fondoActualIm;
+  if (!bg || W <= 900 || W / H <= 1.45) {
     wideBackdropCv.width = 0; wideBackdropCv.height = 0;
     return;
   }
-  // Rellena las franjas laterales del monitor con la misma oficina, suavizada.
+  // Rellena las franjas laterales del monitor con la misma escena, suavizada.
   // La escena central y los sprites siguen usando su escala original, sin estirarse.
   const bw = Math.max(1, Math.ceil(W / 4)), bh = Math.max(1, Math.ceil(H / 4));
   wideBackdropCv.width = bw; wideBackdropCv.height = bh;
   const g = wideBackdropCv.getContext('2d');
   g.imageSmoothingEnabled = true;
   g.fillStyle = '#10131a'; g.fillRect(0, 0, bw, bh);
-  const scale = Math.max(bw / bgCv.width, bh / bgCv.height);
-  const dw = bgCv.width * scale, dh = bgCv.height * scale;
+  const scale = Math.max(bw / bg.width, bh / bg.height);
+  const dw = bg.width * scale, dh = bg.height * scale;
   g.save();
   g.filter = 'blur(8px)';
-  g.drawImage(bgCv, (bw - dw) / 2, (bh - dh) / 2, dw, dh);
+  g.drawImage(bg, (bw - dw) / 2, (bh - dh) / 2, dw, dh);
   g.restore();
   g.fillStyle = 'rgba(8,10,18,0.34)'; g.fillRect(0, 0, bw, bh);
 }
@@ -4443,9 +4470,7 @@ function layoutMobile() {
 }
 window.addEventListener('resize', resize);
 
-const skyCv = document.createElement('canvas');
-skyCv.width = WIN.w; skyCv.height = WIN.h;
-// ---------- Clima real de Córdoba en el ventanal ----------
+// ---------- Clima real de Córdoba (sólo para el reloj) ----------
 // Open-Meteo: gratis, sin API key y con CORS abierto. Se consulta cada 10
 // minutos; si falla, el ventanal queda como siempre (despejado). Como todos
 // consultan el mismo clima, todos ven lo mismo sin mensajes de por medio.
@@ -4517,127 +4542,6 @@ function climaEmoji() {
   return '';
 }
 
-function drawSky(now, hf, sky) {
-  const g = skyCv.getContext('2d');
-  const W = WIN.w, H = WIN.h;
-  pintarCielo(g, W, H, now, hf, sky);
-  g.fillStyle = '#e8e8ec';
-  g.fillRect(0, 0, W, 3); g.fillRect(0, H - 4, W, 4);
-  g.fillRect(W / 3 - 2, 0, 4, H); g.fillRect(2 * W / 3 - 2, 0, 4, H);
-}
-// El mismo cielo del ventanal, pero sobre cualquier tamaño: en la vista
-// previa se pinta a pantalla completa detrás de las escenas nuevas, así las
-// ventanas muestran sol, nubes, lluvia, nieve y rayos de verdad.
-function pintarCielo(g, W, H, now, hf, sky) {
-  const grad = g.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, sky.top); grad.addColorStop(1, sky.bot);
-  g.fillStyle = grad; g.fillRect(0, 0, W, H);
-  if (sky.star > 0.02) {
-    for (let i = 0; i < 60; i++) {
-      const sx = rnd(i, 1, 2) * W, sy = rnd(i, 2, 3) * (H * 0.5);
-      const tw = 0.5 + 0.5 * Math.sin(now * 0.003 + i * 2.1);
-      g.fillStyle = `rgba(255,255,255,${(sky.star * tw * 0.9).toFixed(2)})`;
-      g.fillRect(sx, sy, 1, 1);
-    }
-  }
-  if (hf >= 6 && hf <= 19) {
-    const t = (hf - 6) / 13;
-    const sx = t * W, sy = H * 0.75 - Math.sin(Math.PI * t) * H * 0.55;
-    // Con cielo cubierto el sol apenas se adivina detrás de las nubes
-    g.globalAlpha = clima.ok ? Math.max(0.06, 1 - clima.nubes * 0.92) : 1;
-    g.fillStyle = 'rgba(255,215,106,0.35)'; g.beginPath(); g.arc(sx, sy, 8, 0, 7); g.fill();
-    g.fillStyle = '#ffd76a'; g.beginPath(); g.arc(sx, sy, 4, 0, 7); g.fill();
-    g.globalAlpha = 1;
-  } else {
-    const hn = (hf >= 19 ? hf - 19 : hf + 5) / 11;
-    const mx = hn * W, my = H * 0.7 - Math.sin(Math.PI * hn) * H * 0.5;
-    g.fillStyle = '#e8ecf2'; g.beginPath(); g.arc(mx, my, 5, 0, 7); g.fill();
-    g.fillStyle = '#c9cfda'; g.fillRect(mx - 2, my - 2, 2, 2);
-  }
-  const cloudA = 0.85 - sky.star * 0.6;
-  for (let i = 0; i < 4; i++) {
-    const cx = ((now * 0.004 * (1 + i * 0.3) + i * 73) % (W + 40)) - 20;
-    const cy = 8 + i * 10;
-    g.fillStyle = `rgba(255,255,255,${cloudA.toFixed(2)})`;
-    g.fillRect(cx, cy, 24, 4); g.fillRect(cx + 4, cy - 2, 14, 2); g.fillRect(cx + 6, cy + 4, 12, 2);
-  }
-  // Cielo encapotado: velo gris sobre cielo y sol según la cobertura REAL de
-  // nubes; con lluvia/tormenta el gris es más oscuro y plomizo.
-  if (clima.ok && clima.nubes > 0.25) {
-    const tw = climaTipo();
-    const plomizo = tw === 'tormenta' || tw === 'lluvia' || tw === 'llovizna';
-    const a = clima.nubes * (plomizo ? 0.72 : 0.55) * (1 - sky.star * 0.55);
-    g.fillStyle = plomizo ? `rgba(86,94,110,${a.toFixed(2)})` : `rgba(150,158,170,${a.toFixed(2)})`;
-    g.fillRect(0, 0, W, H);
-  }
-  const night = sky.star;
-  pintarEdificios(g, W, H, night);
-  // ---- Clima real por encima del skyline (y debajo del marco) ----
-  if (clima.ok) {
-    const tipo = climaTipo();
-    const extra = Math.round(clima.nubes * 10);
-    const oscura = tipo === 'tormenta' || tipo === 'lluvia' || tipo === 'llovizna';
-    for (let i = 0; i < extra; i++) {
-      const cx = ((now * (0.005 + i * 0.0012) + i * 53) % (W + 80)) - 40;
-      const cy = 3 + rnd(i, 51, 8) * (H * 0.5);
-      g.fillStyle = oscura ? 'rgba(64,72,88,0.8)' : `rgba(214,220,230,${(0.5 + clima.nubes * 0.3).toFixed(2)})`;
-      g.fillRect(cx, cy, 44, 6); g.fillRect(cx + 7, cy - 3, 28, 3); g.fillRect(cx + 10, cy + 6, 24, 3);
-    }
-    if (tipo === 'niebla') {
-      g.fillStyle = 'rgba(190,198,208,0.30)'; g.fillRect(0, 0, W, H);
-      g.fillStyle = 'rgba(190,198,208,0.40)'; g.fillRect(0, H * 0.4, W, H * 0.6);
-    }
-    if (tipo === 'lluvia' || tipo === 'llovizna' || tipo === 'tormenta') {
-      const nGotas = tipo === 'llovizna' ? 26 : 60;
-      g.strokeStyle = tipo === 'llovizna' ? 'rgba(190,210,235,0.35)' : 'rgba(170,195,230,0.55)';
-      g.lineWidth = 1;
-      g.beginPath();
-      for (let i = 0; i < nGotas; i++) {
-        const rx = (rnd(i, 61, 4) * W + now * (0.12 + rnd(i, 67, 2) * 0.1)) % W;
-        const ry = (rnd(i, 71, 6) * H + now * (0.25 + rnd(i, 73, 3) * 0.15)) % H;
-        g.moveTo(rx, ry); g.lineTo(rx - 1.5, ry + 5);
-      }
-      g.stroke();
-    }
-    if (tipo === 'nieve') {
-      g.fillStyle = 'rgba(255,255,255,0.85)';
-      for (let i = 0; i < 34; i++) {
-        const rx = (rnd(i, 81, 4) * W + Math.sin(now * 0.001 + i) * 6 + now * 0.01) % W;
-        const ry = (rnd(i, 83, 6) * H + now * (0.02 + rnd(i, 87, 3) * 0.02)) % H;
-        g.fillRect(rx, ry, 1.5, 1.5);
-      }
-    }
-    if (tipo === 'tormenta') {
-      // Relámpago: destello local, no hace falta sincronizarlo (es ambiente)
-      if (now > clima.rayo && Math.random() < 0.005) clima.rayo = now + 160;
-      if (now < clima.rayo) {
-        g.fillStyle = `rgba(240,245,255,${(0.5 + Math.random() * 0.3).toFixed(2)})`;
-        g.fillRect(0, 0, W, H);
-      }
-    }
-  }
-}
-
-// Skyline en mosaico: la tabla BUILDINGS cubre un ventanal (WIN.w + 20); acá
-// se repite a lo ancho para fondos grandes. En el ventanal da una sola tira,
-// idéntico a antes.
-function pintarEdificios(g, W, H, night) {
-  for (let ox = 0; ox < W; ox += WIN.w + 20) {
-    for (const b of BUILDINGS) {
-      const bx = b.x + ox;
-      if (bx + b.w < 0 || bx > W) continue;
-      g.fillStyle = night > 0.5 ? '#1c2438' : (b.brick ? '#b07860' : '#9aa0a8');
-      g.fillRect(bx, H - b.h, b.w, b.h);
-      for (let wy = H - b.h + 3; wy < H - 3; wy += 4) {
-        for (let wx = bx + 2; wx < bx + b.w - 2; wx += 3) {
-          const on = rnd(wx, wy, 21) > 0.45;
-          if (night > 0.4) { if (on) { g.fillStyle = `rgba(255,215,106,${(0.4 + night * 0.6).toFixed(2)})`; g.fillRect(wx, wy, 1, 2); } }
-          else { g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(wx, wy, 1, 2); }
-        }
-      }
-    }
-  }
-}
 
 function update(dt) {
   const now = performance.now();
@@ -4722,9 +4626,8 @@ function update(dt) {
     hintBox.innerHTML = `Cerca de <b>${esc(near.name)}</b> — <span class="key">/w ${esc(near.name)} msg</span> susurrar`;
     hintBox.classList.add('show');
   } else if (state.joined && puertaCerca()) {
-    hintBox.innerHTML = prev.escena === 'balcon'
-      ? `🚪 <b>Puerta</b> — <span class="key">E</span> volver a la oficina`
-      : `🚪 <b>Puerta</b> — <span class="key">E</span> salir al balcón`;
+    const otro = escena().puerta.hacia === 'terr' ? 'la terraza' : 'la oficina';
+    hintBox.innerHTML = `🚪 <b>Puerta</b> — <span class="key">E</span> ir a ${otro}`;
     hintBox.classList.add('show');
   } else if (state.joined && cafeCerca()) {
     const soyMilo = (state.players.get(state.myId) || {}).char === 'milo';
@@ -4745,46 +4648,50 @@ function update(dt) {
 }
 
 // ---------- Cafetera: un cafecito da energía (velocidad) por un rato ----------
-// Apoyada sobre la credenza, a la derecha de la biblioteca. Con E cerca de
-// ella tomás un café: buff de velocidad por 25 s y tacita al lado del
-// personaje. El evento 'cafe' viaja por el bus para que todos vean el buff
-// ajeno y la máquina preparando.
-const CAFE = { x: 512, y: 465, brewUntil: 0 };
+// La máquina está PINTADA en el arte de la oficina (sobre la mesada de la
+// cocina, a la derecha). La E cerca de la zona de pie prepara el café: buff de
+// velocidad por 25 s. El evento 'cafe' viaja por el bus para que todos vean el
+// buff ajeno y el vapor de la máquina.
 const CAFE_MS = 25000;
 function cafeCerca() {
-  // Radio chico a propósito: hay que pegarse BIEN a la cafetera (muy atrás,
-  // contra el ventanal) para que la E no le robe la acción al escritorio cercano.
-  if (prevAqui()) return false;   // la cafetera quedó en la oficina vieja
+  if (escenaId !== 'ofi') return false;   // la cafetera vive sólo en la oficina
   const me = state.players.get(state.myId);
-  return me && Math.hypot(me.x - CAFE.x, me.y - CAFE.y) < 48;
+  return me && Math.hypot(me.x - CAFE.x, me.y - CAFE.y) < CAFE.r;
 }
-// Puerta oficina ⇄ balcón con la E (sólo vista previa): parado cerca de la
-// puerta, la E cruza con fundido. Nada de cruzar caminando: era fácil
-// atravesarla sin querer y el rearme confundía.
+// Puerta oficina ⇄ terraza con la E: parado cerca de la puerta, la E cruza con
+// fundido. Nada de cruzar caminando: era fácil atravesarla sin querer y el
+// rearme confundía.
 function puertaCerca() {
-  if (!prevAqui()) return null;
+  const puerta = escena().puerta;
+  if (!puerta) return null;
   const me = state.players.get(state.myId);
   if (!me || me.seated) return null;
-  const puerta = prev.escena === 'balcon' ? PUERTA_BAL : PUERTA_OFI;
   const cx = (puerta.x0 + puerta.x1) / 2, cy = (puerta.y0 + puerta.y1) / 2;
   return Math.hypot(me.x - cx, me.y - cy) < 120 ? puerta : null;
 }
+// Cruza de mundo: te aparecés en el otro lado y el resto te sigue viendo
+// (la escena viaja en el estado). Al cruzar se baja de la silla y se manda
+// el estado de una, o queda la mitad del equipo esperándote en el aire.
 function cruzarPuerta() {
   const me = state.players.get(state.myId);
-  if (!me || !puertaCerca()) return;
-  prev.escena = prev.escena === 'balcon' ? 'ofi' : 'balcon';
-  const dest = prev.escena === 'balcon' ? { x: PUERTA_OFI.ax, y: PUERTA_OFI.ay } : { x: PUERTA_BAL.ax, y: PUERTA_BAL.ay };
+  const puerta = puertaCerca();
+  if (!me || !puerta) return;
+  const destino = ESCENAS[puerta.hacia];
+  if (!destino) return;
+  escenaId = puerta.hacia;
+  escenaFade = performance.now();
+  backdropDirty = true;
+  fondosDe(destino);   // pedir el fondo del destino ahora, sin esperar a mirarlo
   me.seated = false; me.moving = false;
-  me.x = me.tx = dest.x; me.y = me.ty = dest.y;
-  prev.fade = performance.now();
-  toast(prev.escena === 'balcon' ? '🚪 Saliste al balcón' : '🚪 Volviste a la oficina');
+  me.x = me.tx = puerta.ax; me.y = me.ty = puerta.ay;
+  toast(`🚪 ${puerta.hacia === 'terr' ? 'Saliste a la terraza' : 'Volviste a la oficina'}`);
   sendMoveNow();
 }
 // Botón de acción (tecla E en PC, botón redondo en el celu).
-// Prioridad: puerta (vista previa) > cafetera > escritorio > Michi.
+// Prioridad: puerta > cafetera > escritorio > Michi.
 function accionE() {
   if (!state.joined) return;
-  if (prevAqui() && puertaCerca()) { cruzarPuerta(); return; }
+  if (puertaCerca()) { cruzarPuerta(); return; }
   if (cafeCerca()) { cafeTomar(); return; }
   // Sentarse conserva prioridad: aun en modo pelea, al acercarse a cualquier PC
   // la E usa la silla. Lejos de un escritorio, la misma E tira el golpe siguiente.
@@ -4922,125 +4829,24 @@ function animPedir(nombre) {
   animAplicar(state.myId, nombre);
 }
 
-// ---------- Bailarina del caño (sólo Ger la prende, todos la ven) ----------
-// Prop de fondo en loop hasta que Ger la apaga. Los PNG salen de
-// tools/procesar-bailarina.py con el caño en la MISMA x de lienzo, así que
-// dibujando los 6 sobre el mismo ancla el caño queda clavado y sólo se
-// mueve ella. Viaja como el modo pelea: aviso discreto para el cambio
-// instantáneo + bandera en el estado para el que entra tarde. El servidor
-// sólo se lo cree a Ger.
-const POLE = { x: 610, y: 535, h: 300, cuadros: 6, cada: 500, xRel: 284 / 669 };
-const poleImgs = [];
-let poleBajando = false;
-const pole = { on: false, t0: 0 };
-// Livianos (~85 KB los 6 en WebP): se piden al arrancar, de a uno y con
-// prioridad baja, igual que las tandas de café/birra.
-function poleCargar() {
-  if (poleImgs.length) return;
-  if (!assetsReady || poleBajando) { setTimeout(poleCargar, 500); return; }
-  poleBajando = true;
-  const siguiente = (i) => {
-    if (i > POLE.cuadros) { poleBajando = false; return; }
-    const im = new Image();
-    if ('fetchPriority' in im) im.fetchPriority = 'low';
-    let proboPng = false;
-    im.onload = () => siguiente(i + 1);
-    im.onerror = () => {
-      if (!proboPng) { proboPng = true; im.src = urlAsset(`sprites/pole${i}.png`); }
-      else siguiente(i + 1);
-    };
-    im.src = urlAsset(`sprites/pole${i}.webp`);
-    poleImgs.push(im);
-  };
-  siguiente(1);
-}
-poleCargar();
-function poleLista() {
-  return poleImgs.length === POLE.cuadros && poleImgs.every((im) => im.complete && im.naturalWidth);
-}
-// El t0 sólo se arma en el flanco apagado→prendido: el estado llega 20
-// veces por segundo y si no, el loop se reiniciaría sin parar.
-function poleFijar(active) {
-  if (active && !pole.on) pole.t0 = performance.now();
-  pole.on = !!active;
-}
-function poleAplicar(id, active) {
-  const p = state.players.get(id);
-  if (!p || p.char !== 'ger') return;   // sólo Ger la maneja
-  if (id === state.myId) p.poleOn = !!active;
-  poleFijar(!!active);
-  toast(active ? '💃 ¡Bailarina en la oficina!' : '💃 Se fue la bailarina');
-}
-// Va en el menú del propio Ger PARADO, junto al modo pelea.
-function polePedir() {
-  const me = state.players.get(state.myId);
-  if (!me || me.char !== 'ger') return;
-  if (prevAqui()) { toast('💃 La bailarina quedó en la oficina vieja'); return; }
-  if (me.seated) { toast('💃 Esto es parado: levantate con WASD'); return; }
-  if (!poleLista()) {
-    setTimeout(() => { if (!poleLista()) toast('⏳ Bajando la bailarina…'); }, 400);
-  }
-  const next = !pole.on;
-  send({ type: 'pole', id: state.myId, active: next });
-  poleAplicar(state.myId, next);
-}
-// Vista previa de las escenas nuevas: privada y sólo Ger. Al prenderla se
-// guarda dónde estaba (para volver igual) y aparece en la oficina nueva; al
-// apagarla vuelve a su lugar. El resto lo ve como 👁 en la lista.
-function prevPedir() {
-  const me = state.players.get(state.myId);
-  if (!me || me.char !== 'ger') return;
-  if (!prev.on) {
-    prev.vuelta = { x: me.x, y: me.y, seated: me.seated, dir: me.dir };
-    prev.on = true; prev.escena = 'ofi';
-    me.seated = false; me.moving = false;
-    me.x = me.tx = SPAWN_OFI.x; me.y = me.ty = SPAWN_OFI.y;
-    resize();
-    toast(bgOfi.ok ? '👁 Vista previa: caminá a la puerta de vidrio para salir al balcón' : '⏳ Bajando la oficina nueva…');
-  } else {
-    prev.on = false;
-    const v = prev.vuelta;
-    if (v) { me.seated = !!v.seated; me.moving = false; me.x = me.tx = v.x; me.y = me.ty = v.y; if (v.dir) me.dir = v.dir; }
-    resize();
-    toast('👁 Vista previa apagada');
-  }
-  sendMoveNow();
-}
-function drawPole(now) {
-  if (!pole.on || !poleLista()) return;
-  const im = poleImgs[Math.floor((now - pole.t0) / POLE.cada) % POLE.cuadros];
-  const h = POLE.h, w = h * (im.width / im.height);
-  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(im, POLE.x - w * POLE.xRel, POLE.y - h, w, h);
-}
-
 const miloToma = new Image();
 miloToma.src = urlAsset('sprites/milo_toma.png');
-const cafeImg = new Image();
-cafeImg.src = urlAsset('sprites/cafetera.png');
+// La máquina de café está PINTADA en el arte de la oficina (sobre la mesada de
+// la cocina): acá sólo queda el vapor que sale de arriba. CAFE es la zona de
+// pie, en el piso frente a la mesada, donde te parás con la E.
+const CAFE = { x: 1795, y: 575, r: 80, mq: { x: 1788, y: 258 }, brewUntil: 0 };
 function drawCafetera(now) {
   const g = ctx;
-  const bx = CAFE.x, by = 389;  // sobre el sill del ventanal, donde estaba la maceta
+  const bx = CAFE.mq.x, by = CAFE.mq.y;
   const brewing = performance.now() < CAFE.brewUntil;
-  if (cafeImg.complete && cafeImg.naturalWidth) {
-    const h = 40, w = h * (cafeImg.naturalWidth / cafeImg.naturalHeight);
-    const sm = g.imageSmoothingEnabled;
-    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-    g.drawImage(cafeImg, bx - w / 2, by - h, w, h);
-    g.imageSmoothingEnabled = sm;
-  } else {
-    // Fallback mientras carga el sprite
-    g.fillStyle = '#232833'; g.fillRect(bx - 11, by - 26, 22, 26);
-    g.fillStyle = '#2f3644'; g.fillRect(bx - 11, by - 26, 22, 4);
-  }
-  g.fillStyle = brewing ? '#ff5a5a' : '#54d16e';                      // LED de estado
-  if (!brewing || Math.floor(now / 220) % 2) g.fillRect(bx + 11, by - 38, 2, 2);
-  const puffs = brewing ? 3 : (Math.floor(now / 4000) % 3 === 0 ? 1 : 0);  // vapor
+  // Vapor: sólo se anima cuando se está preparando, más una gotita cada tanto
+  // para que la máquina se vea viva aunque no haya nadie tomando.
+  const puffs = brewing ? 4 : (Math.floor(now / 4000) % 3 === 0 ? 1 : 0);
   g.fillStyle = 'rgba(235,240,248,0.6)';
   for (let i = 0; i < puffs; i++) {
     const t = ((now * 0.001 + i * 0.4) % 1.2) / 1.2;
-    g.globalAlpha = 0.55 * (1 - t);
-    g.fillRect(bx - 2 + Math.sin((t * 4 + i) * 3) * 2.5, by - 42 - t * 10, 2, 2);
+    g.globalAlpha = 0.5 * (1 - t);
+    g.fillRect(bx - 2 + Math.sin((t * 4 + i) * 3) * 3, by - t * 26, 2, 2);
   }
   g.globalAlpha = 1;
 }
@@ -5051,21 +4857,41 @@ function drawCafetera(now) {
 // lugar para todos SIN mandar mensajes. Lo único que viaja por el bus es la
 // caricia ('cat-pet'), que lo pone a seguir un rato al que lo mimó.
 const CAT_SEG = 26000;
-const cat = { x: 612, y: 560, dir: 1, petBy: null, petUntil: 0, heartsUntil: 0, lastMiau: 0 };
-function catPlan(nowMs, nocturno) {
+// Su rincón de dormir de noche, en la oficina (medido en el piso libre frente
+// al escritorio izquierdo).
+const CAT_SLEEP_OFI = { x: 480, y: 620 };
+const cat = { x: 480, y: 620, dir: 1, petBy: null, petUntil: 0, heartsUntil: 0, lastMiau: 0 };
+// Un punto caminable al azar de la escena: tira una y dentro del piso, mira
+// qué deja libre el polígono a esa altura y prueba candidatos hasta que alguno
+// no caiga adentro de un mueble. Así el gato se adapta solo a cualquier
+// escena nueva sin tocar más nada.
+function catPunto(u, v, margen) {
   const F = piso();
-  if (nocturno && !prevAqui()) return { goal: { x: 622, y: 706 }, pose: 'sleep' };  // de noche duerme en medio del pasillo, bien visible
+  const y = clamp(lerp(F.yTop + 90, F.yBot - 90, u), F.yTop + 90, F.yBot - 90);
+  const ab = pisoAncho(y);
+  if (!ab) return null;
+  const xl = ab[0] + margen, xr = ab[1] - margen;
+  if (xl >= xr) return null;
+  for (let k = 0; k < 6; k++) {
+    const x = lerp(xl, xr, (v + k * 0.37) % 1);
+    if (walkable(x, y)) return { x, y };
+  }
+  return null;
+}
+function catPlan(nowMs, nocturno) {
+  // De noche duerme siempre en su rincón, bien visible.
+  if (nocturno && escenaId === 'ofi' && walkable(CAT_SLEEP_OFI.x, CAT_SLEEP_OFI.y)) {
+    return { goal: CAT_SLEEP_OFI, pose: 'sleep' };
+  }
   const i = Math.floor(nowMs / CAT_SEG);
   const r = rnd(i, 29, 3);
-  // Siesta al solcito. El tope es F.yBot - 40: en el balcón yTop+130+80 llegaba
-  // a 670 en una escena de 656 y el gato se quedaba con los pies bajo el borde.
-  const ys = Math.min(F.yTop + 130 + rnd(i, 37, 1) * 80, F.yBot - 40);
-  if (r < 0.30) return { goal: { x: (F.xlTop + F.xrTop) / 2 + (rnd(i, 31, 7) - 0.5) * 80, y: ys }, pose: 'sleep' };
-  const y = lerp(F.yTop + 130, F.yBot - 110, rnd(i, 17, 9));
-  const t2 = (y - F.yTop) / (F.yBot - F.yTop);
-  const xl = lerp(F.xlTop, F.xlBot, t2) + 46;
-  const xr = lerp(F.xrTop, F.xrBot, t2) - 46;
-  return { goal: { x: lerp(xl, xr, rnd(i, 13, 5)), y }, pose: r < 0.55 ? 'sit' : 'idle' };
+  // Siesta al solcito.
+  if (r < 0.30) {
+    const p = catPunto(rnd(i, 37, 1), rnd(i, 31, 7), 60);
+    if (p) return { goal: p, pose: 'sleep' };
+  }
+  const p = catPunto(rnd(i, 17, 9), rnd(i, 13, 5), 46);
+  return { goal: p || { x: CAT_SLEEP_OFI.x, y: CAT_SLEEP_OFI.y }, pose: r < 0.55 ? 'sit' : 'idle' };
 }
 function catFrame(nocturno) {
   let goal = null, pose = 'idle';
@@ -5340,59 +5166,23 @@ function render() {
   const hf = d.getHours() + d.getMinutes() / 60;
   const sky = skyNow(hf);
 
-  if (prevAqui()) {
-    drawPrevEscena(now, hf, sky);
-  } else {
-  if (bgReady) ctx.drawImage(bgCv, 0, 0, VW, VH);
-  else { ctx.fillStyle = '#20242e'; ctx.fillRect(0, 0, VW, VH); }
-
-  drawSky(now, hf, sky);
-  ctx.drawImage(skyCv, WIN.x, WIN.y);
-
-  if (sky.patchA > 0.02) {
-    ctx.globalAlpha = sky.patchA;
-    ctx.fillStyle = sky.patch;
-    ctx.beginPath();
-    ctx.moveTo(509, 458); ctx.lineTo(719, 458); ctx.lineTo(820, 700); ctx.lineTo(410, 700);
-    ctx.closePath(); ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-
-  if (!prevAqui()) drawCafetera(now);
-  if (sky.amb > 0.01) {
-    ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
-    ctx.fillRect(0, 0, VW, VH);
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = `rgba(90,140,255,${(0.10 * sky.amb * 3).toFixed(2)})`;
-    ctx.fillRect(19, 345, 245, 140); ctx.fillRect(341, 345, 98, 75);
-    ctx.fillRect(775, 345, 98, 75); ctx.fillRect(962, 345, 210, 140);
-    ctx.fillStyle = `rgba(59,130,246,${(0.14 * sky.amb * 3).toFixed(2)})`;
-    ctx.fillRect(0, 209, 318, 51); ctx.fillRect(327, 262, 140, 33);
-    ctx.fillRect(757, 262, 140, 33); ctx.fillRect(906, 209, 289, 51);
-    for (const [lx, ly] of [[313, 51], [878, 51], [420, 158], [789, 158], [477, 205], [733, 205]]) {
-      const rg = ctx.createRadialGradient(lx, ly, 3, lx, ly, 70);
-      rg.addColorStop(0, `rgba(255,224,160,${(0.5 * sky.amb * 2).toFixed(2)})`);
-      rg.addColorStop(1, 'rgba(255,224,160,0)');
-      ctx.fillStyle = rg; ctx.fillRect(lx - 70, ly - 70, 140, 140);
-    }
-    ctx.globalCompositeOperation = 'source-over';
-  }
-  }
+  // El fondo YA trae su cielo pintado: no hay velo de noche encima, la noche
+  // es otra variante de la misma escena. sky.amb sólo decide a dónde duerme el
+  // gato y qué emoji marca el reloj.
+  drawEscena(hf);
+  if (escenaId === 'ofi') drawCafetera(now);
 
   const nocturno = sky.amb > 0.24;
   let catDibujado = false;
-  let poleDibujado = false;   // la bailarina ordena por y como todos: el que pasa por detrás queda detrás
-  const yoPrev = prevAqui();
-  // Vista previa privada: Ger ve sólo su mundo nuevo; el resto no lo dibuja
-  // (lo ve como 👁 en la lista) y él no dibuja al resto.
+  // Cada uno ve sólo a la gente de su propia escena: la oficina y la terraza
+  // conviven sin pisarse.
   const list = [...state.players.values()]
-    .filter((p) => (yoPrev ? p.id === state.myId : !p.preview))
+    .filter((p) => (p.escena || 'ofi') === escenaId)
     .sort((a, b) => a.y - b.y);
   for (const p of list) {
     if (!p.name) continue;
     if (p.status === 'ausente') continue; // 🏃 ¡Ya vengo!: el personaje se va de la escena (sigue en la lista y su puesto queda reservado)
     if (!catDibujado && cat.y < p.y) { drawCat(now, nocturno); catDibujado = true; }
-    if (!poleDibujado && POLE.y < p.y) { if (!yoPrev) drawPole(now); poleDibujado = true; }
     let topY, shR, fs;
     if (p.seated) {
       const ss = sitScale(p.y);
@@ -5505,16 +5295,12 @@ function render() {
     if (p.bubble && now < p.bubbleUntil) drawBubble(ctx, p.bubble, p.x, ly - fs * 0.8, fs);
   }
   if (!catDibujado) drawCat(now, nocturno);
-  // Última chance de dibujarla (si nadie quedó por debajo del caño). Mismo gate
-  // que adentro del loop: si no, en la vista previa el fallback la dibuja en la
-  // escena nueva cuando Ger está por encima de POLE.y, contradiciendo el toast
-  // "La bailarina quedó en la oficina vieja".
-  if (!poleDibujado && !yoPrev) drawPole(now);
-  // Fundido del cambio de escena (puerta oficina ⇄ balcón).
-  if (prev.fade && now - prev.fade < 350) {
-    ctx.fillStyle = `rgba(5,6,10,${(1 - (now - prev.fade) / 350).toFixed(2)})`;
+  // Fundido del cambio de escena (oficina ⇄ terraza): tapa la costura mientras
+  // aparece el fondo del otro lado.
+  if (escenaFade && now - escenaFade < 350) {
+    ctx.fillStyle = `rgba(5,6,10,${(1 - (now - escenaFade) / 350).toFixed(2)})`;
     ctx.fillRect(0, 0, dimW(), dimH());
-  } else prev.fade = 0;
+  } else escenaFade = 0;
 
   const ce = climaEmoji();
   // El reloj muestra sólo hora · clima · versión (sin fase ni satélite).
@@ -5850,17 +5636,9 @@ function init() {
           // Las animaciones aparecen sólo cuando estás sentado: los dibujos
           // traen la silla adentro, de pie no habría qué mostrar.
           if (p.seated) for (const n of animDe(p.char)) items.push({ t: ANIMS[n].titulo, f: () => animPedir(n) });
-          if (!p.seated && p.char === 'ger' && !prev.on) items.push({
+          if (!p.seated && p.char === 'ger') items.push({
             t: p.fightMode ? '🕊️ Desactivar pelea' : '🥊 Activar modo pelea',
             f: fightModoPedir,
-          });
-          if (!p.seated && p.char === 'ger' && !prev.on) items.push({
-            t: pole.on ? '💃 Apagar bailarina' : '💃 Bailarina',
-            f: polePedir,
-          });
-          if (p.char === 'ger') items.push({
-            t: prev.on ? '👁 Salir de vista previa' : '👁 Vista previa',
-            f: prevPedir,
           });
           items.push({ t: '💨 Zumbido', f: doZumbido });
           accAbrir(items, p.name, e.clientX, e.clientY);

@@ -71,7 +71,7 @@ cambiá la otra.
 | `Z X C V B N` | Emotes: 👋 😂 🎉 👍 🤔 🔥 |
 | `H` | Mostrar/ocultar la ayuda |
 | Click en la cabeza de un compañero | Menú radial: 👋 Saludar · 💬 Susurrar · 💨 Zumbido |
-| Click en tu propia cabeza | Estados, animaciones (si estás sentado 🪑), 🥊 modo pelea y 💃 bailarina (solo Ger parado), 💨 zumbido |
+| Click en tu propia cabeza | Estados, animaciones (si estás sentado 🪑), 🥊 modo pelea y 💨 zumbido |
 | 📷 / 🖥️ (columna derecha) | Prender cámara · compartir pantalla (uno a la vez) |
 | Reloj (hora · clima · versión) | Hora: 📡 panel de la red · Versión: busca actualización y vuelve a entrar solo |
 | 🔔 (barra de arriba) | Notificaciones estilo Messenger (vienen prendidas): clic apagada→prende · clic prendida→opciones |
@@ -81,17 +81,24 @@ cambiá la otra.
 atajos de letras son `WASD`/flechas, `E`, `Enter`, `H`, `P`, `M`, `1`–`4` y
 `Z X C V B N`.
 
-## 🗺️ La oficina (réplica del local real)
+## 🗺️ La oficina y la terraza (réplica del local real)
 
-El mapa está calcado de la foto del espacio del equipo, en versión pixel art cenital:
+Hay **dos mundos pintados** y cada uno tiene todo lo suyo. Vas de uno a otro
+por la puerta de vidrio, con la **`E`** parado cerca (con un fundido). Todos
+ven lo mismo: no hay "modo especial" ni vista previa.
 
-- **Ventanal** al fondo con vista a la ciudad (skyline generado por código) y
-  parches de sol reflejados sobre el piso.
-- **Porcelanato beige brillante** con juntas de pastillas grandes y paredes blancas.
-- **Counter bajo la ventana**: estantes de madera abiertos + gabinete blanco.
-- **Puestos de trabajo** blancos con canto de madera y monitor con terminal
-  verde 💚: pararte en la silla te pone "codeando".
-- Lamparitas colgantes, spots embutidos y entrada con felpudo.
+- **La oficina**: porcelanato beige con juntas grandes, paredes blancas,
+  ventanal al fondo, puestos de trabajo con monitor verde 💚 (pararte en la
+  silla te pone "codeando"), biblioteca, zona de sofá con pufs, rincón con
+  mesita, heladera y **café de máquina** (la cafetera está pintada en el cuadro).
+- **La terraza**: deck de madera, barandas, plantas, macetas, farol y parrilla.
+  No hay escritorios: es el lugar para charlar.
+- **El cielo se pinta con la hora real**: la oficina tiene día y noche; la
+  terraza tiene día, atardecer y noche. No es un filtro por encima: son cuadros
+  distintos y el juego va cruzando uno con el otro alrededor del cambio, así
+  que el atardecer pasa de a poco.
+- **Cada uno está en SU escena** y sólo se dibujan los que están en la misma;
+  la lista de la derecha te muestra 🌴 a los que se fueron a la terraza.
 - Burbujas de chat sobre la cabeza, nombres con emoji de estado, lista de
   compañeros online, sonidos sutiles y reconexión automática.
 - **🔔 Notificaciones estilo Messenger (MSN)**: carteles del sistema operativo en

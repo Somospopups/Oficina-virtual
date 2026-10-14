@@ -281,36 +281,49 @@ de ítems** (`rx`), que con siete pastillas en el radio fijo de antes se
 pisaban entre ellas. La prueba `e2e/animaciones.js` compara los rectángulos y
 falla si se superponen.
 
-## 💃 Bailarina del caño (sólo Ger)
+## 🏢 Escenas: dos mundos pintados (la oficina y la terraza)
 
-Prop de fondo en loop (6 poses, `sprites/pole1..6.png` + `.webp`) que prende
-y apaga sólo Ger desde su menú **parado**, pero la ven todos. Los 6 lienzos
-miden lo mismo con el caño en la misma x —los genera
-`tools/procesar-bailarina.py` desde la hoja `bailarina.png` (fondo verde
-afuera, caño detectado y clavado por cuadro): si un cuadro mide distinto, el
-caño salta y `checlear-boton-e.js` falla. Viaja como el modo pelea (aviso
-`pole` + bandera `poleOn` en el estado para el que entra tarde, y se apaga
-si Ger se va); `server.js` sólo se lo cree a Ger.
+No hay una sola oficina: hay dos mundos y cada uno tiene todo lo suyo en la
+tabla `ESCENAS` (`game.js`):
 
-## 👁 Vista previa de escenas (sólo Ger, privada)
+```js
+ESCENAS = {
+  ofi: { titulo, w, h, cielo: [{h, base}], piso: { yTop, yBot, poli, fig, obst },
+         sillas, spawn: {x,y}, puerta: {x0,x1,y0,y1, hacia, ax, ay} },
+  terr: { ... },
+}
+```
 
-Oficina nueva + balcón (`sprites/bg_ofi/bg_balcon`, verdes afuera para el
-cielo dinámico, hechos con `tools/procesar-escenas.py`). Ger la prende de su
-menú y camina lo nuevo ÉL SOLO: el resto lo ve como 👁 en la lista y no lo
-dibuja (ni él a ellos). La puerta de vidrio del fondo cruza ofi ⇄ balcón con
-la E parado cerca (`puertaCerca` + `cruzarPuerta`, con fundido; nada de
-cruzar caminando). El límite de la oficina es el polígono rojo del dueño
-(`Oficina/v1rojo.jpg`) tal cual en `poli`; el balcón (`Oficina/V2.jpg`, que no
-lleva trazo rojo) se midió píxel por píxel con 30px de holgura. El único
-`obst` es el mueble del fondo de la oficina y apoya en y=400, justo sobre el
-borde del polígono: el piso de enfrente (y 410..448) sí se camina, porque
-taparlo hacía que "la oficina no llegara al final". Todo lo nuevo pasa por
-`piso()`/`sillas()`/`dimW()`/
-`dimH()`/`mitadX()`: con la previa apagada devuelven el mundo viejo intacto.
-El cielo es el mismo de siempre (`pintarCielo`, con sol, nubes, lluvia, nieve
-y rayos) pintado a pantalla completa detrás de cada escena. En la previa
-sólo queda la 🚪 (`drawPrevMarcas`). Al abrirlo a todos: sacar
-el gate de Ger y sincronizar la escena.
+- **`cielo`** son las variantes pintadas del mismo cuadro (dia/atardecer/noche)
+  y la hora a la que entra cada una. El cielo **no se dibuja**: `drawEscena()`
+  cruza dos variantes vecinas según la hora real (`cieloPar`, con `FONDO_ANCHO`
+  horas de fundido alrededor del cambio). Archivos
+  `sprites/bg_<escena>_<variante>.webp` con caída a `.jpg`, pedidos con
+  prioridad baja. Se generan con `tools/procesar-escenas.py` desde los JPG
+  maestros de `Oficina/`.
+- **`piso.poli`** es el borde del piso visible (ray casting con `enPoli`);
+  **`piso.obst`** son los muebles de ENCIMA de ese piso, un rectángulo por
+  bloque y generoso. Las sillas **no** son obstáculo: el que se sienta ocupa la
+  silla y el que pasa caminando cruza por delante.
+- **`piso.fig`** es el alto de cabeza a pies (px) al fondo y al frente del piso.
+  De ahí sale `escalaFigura(y)`; la VELOCIDAD de caminar usa otra rampa
+  (`depthScale`) para no cambiar el paso de siempre. El tope de escala sigue
+  saliendo del alto de figura del sprite propio (`baseH / 44`).
+- **`puerta`** es la zona que dispara el cruce con la E (`puertaCerca` +
+  `cruzarPuerta`, con fundido; nada de cruzar caminando), a qué mundo lleva
+  (`hacia`) y dónde caés del otro lado (`ax`/`ay`).
+
+**Cada uno está en SU escena y sólo se dibujan los de la misma.** La escena
+viaja en el estado (`escena` en `myPublic()`/`publicState()`), el servidor la
+valida con lista blanca y al cruzar se baja de la silla y se manda el estado
+de una. Así la oficina y la terraza conviven sin pisarse — el mismo truco de la
+vista previa vieja, sin el gate de Ger.
+
+Para sumar un mundo nuevo: agregar una entrada en `ESCENAS` con sus fondos
+generados, y listo — todo (colisión, escala, puerta, chequeos) lo lee de ahí.
+`chequear-sillas.js` valida que spawn, sillas y puertas sean pisables y que las
+variantes de cielo midan igual; `checlear-boton-e.js` valida que cada puerta se
+cruza en los dos sentidos y que la cafetera tenga zona de pie.
 
 ## 🚶 El dibujo de pie (`sprites/<char>.png`)
 

@@ -2,12 +2,16 @@
  * Un hash distinto por dibujo: si el archivo cambia, la URL cambia y el
  * navegador deja de mostrar la versión vieja. */
 window.ASSETS = {
-  "bg_deep2.png": "v=6cc8f410",
-  "sprites/bg_balcon.png": "v=0c28a3f5",
-  "sprites/bg_balcon.webp": "v=db0e67c3",
-  "sprites/bg_ofi.png": "v=c4ead3fe",
-  "sprites/bg_ofi.webp": "v=978e0636",
-  "sprites/cafetera.png": "v=361ec975",
+  "sprites/bg_ofi_dia.jpg": "v=24633d6a",
+  "sprites/bg_ofi_dia.webp": "v=f0c48718",
+  "sprites/bg_ofi_noche.jpg": "v=aa011f23",
+  "sprites/bg_ofi_noche.webp": "v=989e57a2",
+  "sprites/bg_terraza_atardecer.jpg": "v=f87e9c1e",
+  "sprites/bg_terraza_atardecer.webp": "v=189e5039",
+  "sprites/bg_terraza_dia.jpg": "v=eaf699dd",
+  "sprites/bg_terraza_dia.webp": "v=9a521985",
+  "sprites/bg_terraza_noche.jpg": "v=ae0d72f4",
+  "sprites/bg_terraza_noche.webp": "v=3fac2c83",
   "sprites/cat/happy.png": "v=fa0009a4",
   "sprites/cat/sit.png": "v=9cb22d9d",
   "sprites/cat/sleep.png": "v=2c2ddec4",
@@ -130,17 +134,5 @@ window.ASSETS = {
   "sprites/ovni_wu1.png": "v=8a59e40c",
   "sprites/ovni_wu2.png": "v=7940014c",
   "sprites/ovni_wu3.png": "v=42c807ce",
-  "sprites/ovni_wu4.png": "v=3d8d8b0c",
-  "sprites/pole1.png": "v=65ca4ddd",
-  "sprites/pole1.webp": "v=b5dbcf29",
-  "sprites/pole2.png": "v=d4b4cc40",
-  "sprites/pole2.webp": "v=ed06b190",
-  "sprites/pole3.png": "v=18185181",
-  "sprites/pole3.webp": "v=4df43dda",
-  "sprites/pole4.png": "v=11a9d9e5",
-  "sprites/pole4.webp": "v=30c81986",
-  "sprites/pole5.png": "v=d23f0670",
-  "sprites/pole5.webp": "v=1b54a421",
-  "sprites/pole6.png": "v=457628a9",
-  "sprites/pole6.webp": "v=2ae08a0d"
+  "sprites/ovni_wu4.png": "v=3d8d8b0c"
 };

@@ -374,123 +374,58 @@ const anims = [];
   ok(faltan.length === 0, 'cada cuadro de animación tiene su WebP liviano',
      faltan.length ? 'faltan: ' + faltan.join(', ') : '');
 }
-// La bailarina del caño (sólo Ger): 6 cuadros en PNG + WebP. Tienen que estar
-// los 12 y medir exactamente lo mismo: el caño queda clavado sólo si los 6
-// lienzos son idénticos.
+
+// La bailarina del caño se sacó: ni los dibujos en sprites/, ni el código en
+// game.js, ni el caso en el servidor.
 {
-  const faltan = [];
+  const quedan = [];
   for (let i = 1; i <= 6; i++) for (const ext of ['png', 'webp']) {
-    if (!fs.existsSync(path.join(raiz, 'sprites', `pole${i}.${ext}`))) faltan.push(`pole${i}.${ext}`);
+    const f = path.join(raiz, 'sprites', `pole${i}.${ext}`);
+    if (fs.existsSync(f)) quedan.push(`pole${i}.${ext}`);
   }
-  ok(faltan.length === 0, 'están los 12 dibujos de la bailarina (PNG + WebP)',
-     faltan.length ? 'faltan: ' + faltan.join(', ') : '');
+  ok(quedan.length === 0, 'no quedan dibujos de la bailarina en sprites/',
+     quedan.length ? 'quedan: ' + quedan.join(', ') : '');
 }
-{
-  const tams = new Set();
-  for (let i = 1; i <= 6; i++) {
-    try {
-      const b = fs.readFileSync(path.join(raiz, 'sprites', `pole${i}.png`));
-      tams.add(b.readUInt32BE(16) + 'x' + b.readUInt32BE(20));   // ancho x alto del IHDR
-    } catch {}
-  }
-  ok(tams.size === 1, 'los 6 cuadros de la bailarina miden lo mismo (el caño no salta)',
-     [...tams].join(', '));
-}
-// El caño queda clavado porque POLE.xRel apunta a su columna real: si se
-// reprocesa la hoja y el caño cae en otra x, el juego lo dibujaría corrido.
-// Se decodifica el PNG (zlib propio, sin dependencias) y se busca la banda
-// gris vertical en cada cuadro.
-{
-  const leerPng = (f) => {
-    const b = fs.readFileSync(path.join(raiz, 'sprites', f));
-    if (b.readUInt32BE(0) !== 0x89504e47) throw new Error('no es PNG');
-    const w = b.readUInt32BE(16), h = b.readUInt32BE(20);
-    const tipo = b[25], prof = b[24];
-    if (prof !== 8 || (tipo !== 2 && tipo !== 6)) throw new Error('sólo RGB(A) 8 bits');
-    const ch = tipo === 6 ? 4 : 3;
-    let pos = 33, datos = [];
-    while (pos < b.length) {
-      const n = b.readUInt32BE(pos), tipoC = b.toString('ascii', pos + 4, pos + 8);
-      if (tipoC === 'IDAT') datos.push(b.subarray(pos + 8, pos + 8 + n));
-      pos += 12 + n;
-    }
-    const crudo = zlib.inflateSync(Buffer.concat(datos));
-    const px = Buffer.alloc(w * h * ch);
-    const fila = w * ch;
-    let p = 0;
-    for (let y = 0; y < h; y++) {
-      const filtro = crudo[p++];
-      for (let x = 0; x < fila; x++) {
-        const izq = x >= ch ? px[y * fila + x - ch] : 0;
-        const arr = y > 0 ? px[(y - 1) * fila + x] : 0;
-        const dia = (x >= ch && y > 0) ? px[(y - 1) * fila + x - ch] : 0;
-        let v = crudo[p++];
-        if (filtro === 1) v += izq;
-        else if (filtro === 2) v += arr;
-        else if (filtro === 3) v += (izq + arr) >> 1;
-        else if (filtro === 4) {
-          const q = arr + izq - dia, pa = Math.abs(q - izq), pb = Math.abs(q - arr), pc = Math.abs(q - dia);
-          v += pa <= pb && pa <= pc ? izq : (pb <= pc ? arr : dia);
-        }
-        px[y * fila + x] = v & 255;
-      }
-    }
-    return { w, h, ch, px };
-  };
-  const esGris = (r, g, b2, a) => a > 16 && (Math.max(r, g, b2) - Math.min(r, g, b2)) < 36 && ((r + g + b2) / 3) > 45 && ((r + g + b2) / 3) < 225;
-  const centros = [];
-  for (let i = 1; i <= 6; i++) {
-    const { w, h, ch, px } = leerPng(`pole${i}.png`);
-    const todas = [];
-    for (let x = 0; x < w; x++) {
-      let n = 0;
-      for (let y = 0; y < h; y++) {
-        const o = (y * w + x) * ch;
-        if (esGris(px[o], px[o + 1], px[o + 2], ch === 4 ? px[o + 3] : 255)) n++;
-      }
-      todas.push(n > h * 0.28);
-    }
-    let ini = -1, anchas = [];
-    for (let x = 0; x <= w; x++) {
-      if (x < w && todas[x]) { if (ini < 0) ini = x; }
-      else { if (ini >= 0) { anchas.push([ini, x - 1]); ini = -1; } }
-    }
-    anchas.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
-    centros.push(anchas.length ? (anchas[0][0] + anchas[0][1]) / 2 / w : -1);
-  }
-  const m = js.match(/xRel:\s*([\d.]+)\s*\/\s*([\d.]+)/);
-  const xRel = m ? (Number(m[1]) / Number(m[2])) : NaN;
-  const iguales = centros.every((c) => Math.abs(c - centros[0]) * 669 < 1.5);
-  ok(centros.every((c) => c > 0) && iguales,
-     'el caño está en la misma columna en los 6 cuadros',
-     centros.map((c) => (c * 669).toFixed(1)).join(', '));
-  ok(Number.isFinite(xRel) && Math.abs(xRel - centros[0]) * 669 < 1.5,
-     'POLE.xRel apunta a la columna real del caño',
-     `juego=${m ? m[0] : '?'} real=${(centros[0] * 669).toFixed(1)}/669`);
-}
-ok(/case 'pole'/.test(srv) && /p\.char !== 'ger'/.test(srv),
-   'el servidor sólo le cree la bailarina a Ger');
-ok(/Bailarina/.test(js) && /polePedir/.test(js),
-   'la bailarina está en el menú (sólo Ger, parado)');
-// Vista previa de escenas nuevas (sólo Ger, privada): la puerta se cruza con
-// la E en los dos sentidos y el resto lo ve como 👁 sin dibujarlo ni dibujarse.
-ok(/PISO_OFI/.test(js) && /PISO_BAL/.test(js) && /SILLAS_OFI/.test(js),
-   'las escenas nuevas tienen piso y sillas propios');
-ok(/function prevPedir/.test(js) && /Vista previa/.test(js),
-   'la vista previa está en el menú de Ger');
-ok(/PUERTA_OFI/.test(js) && /PUERTA_BAL/.test(js) && /function cruzarPuerta/.test(js) && /function puertaCerca/.test(js),
-   'la puerta se cruza con la E (ida y vuelta)');
-ok(/preview: !!\(prev\.on/.test(js) && /p\.preview/.test(srv),
-   'la previa viaja en el estado (los demás no dibujan a Ger)');
-// Geometría de las escenas nuevas (leída del juego, no duplicada): las sillas,
-// el spawn, la zona de puerta y su destino tienen que ser pisables y estar
-// fuera de los muebles. Sin esto en la terraza se vuela o no se llega.
+ok(!/polePedir|drawPole|poleFijar|poleAplicar|case 'pole'/.test(js),
+   'game.js ya no tiene código de la bailarina');
+ok(!/case 'pole'/.test(srv), 'el servidor ya no reenvía la bailarina');
+
+// ---------- Escenas: dos mundos pintados, cada uno con lo suyo ----------
+// La geometría se LEE del juego, nunca se duplica acá: un chequeo que copia
+// números deja de avisar justo cuando más falta hace.
 {
   const prov = [];
+  // Ancho x alto de un archivo, sin dependencias: PNG (IHDR), JPEG (SOF) o
+  // WebP (VP8X / VP8 / VP8L), que es como entrega PIL.
+  const medir = (f) => {
+    const b = fs.readFileSync(f);
+    if (b.readUInt32BE(0) === 0x89504e47) return `${b.readUInt32BE(16)}x${b.readUInt32BE(20)}`;
+    if (b[0] === 0xff && b[1] === 0xd8) {
+      let p = 2;
+      while (p < b.length - 9) {
+        if (b[p] !== 0xff) { p++; continue; }
+        const m = b[p + 1];
+        if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+          return `${b.readUInt16BE(p + 7)}x${b.readUInt16BE(p + 5)}`;
+        }
+        p += 2 + b.readUInt16BE(p + 2);
+      }
+      return '?';
+    }
+    if (b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') {
+      const tag = b.toString('ascii', 12, 16);
+      if (tag === 'VP8X') return `${b.readUIntLE(24, 3) + 1}x${b.readUIntLE(27, 3) + 1}`;
+      if (tag === 'VP8 ') return `${b.readUInt16LE(26) & 0x3fff}x${b.readUInt16LE(28) & 0x3fff}`;
+      if (tag === 'VP8L') { const n = b.readUInt32LE(21); return `${(n & 0x3fff) + 1}x${((n >> 14) & 0x3fff) + 1}`; }
+    }
+    return '?';
+  };
   const tomar = (n) => {
     const ini = js.indexOf(`const ${n} = `);
     if (ini < 0) { prov.push(`sin ${n}`); return null; }
-    let j = ini + `const ${n} = `.length, prof = 0, fin = -1;
+    let j = ini + `const ${n} = `.length;
+    while (j < js.length && /\s/.test(js[j])) j++;
+    let prof = 0, fin = -1;
     for (let k = j; k < js.length && fin < 0; k++) {
       const c = js[k];
       if (c === '{' || c === '[') prof++;
@@ -498,10 +433,10 @@ ok(/preview: !!\(prev\.on/.test(js) && /p\.preview/.test(srv),
     }
     if (fin < 0) { prov.push(`${n} ilegible`); return null; }
     try { return Function(`return (${js.slice(j, fin + 1)});`)(); }
-    catch { prov.push(`${n} ilegible`); return null; }
+    catch (e) { prov.push(`${n} ilegible: ${e.message}`); return null; }
   };
-  const F = tomar('PISO_OFI');
-  const FB = tomar('PISO_BAL');
+  const E = tomar('ESCENAS');
+  ok(!!E && !!E.ofi && !!E.terr, 'ESCENAS tiene la oficina y la terraza');
   const enPoli = (poli, x, y) => {
     let dentro = false;
     for (let i = 0, j = poli.length - 1; i < poli.length; j = i++) {
@@ -510,43 +445,53 @@ ok(/preview: !!\(prev\.on/.test(js) && /p\.preview/.test(srv),
     }
     return dentro;
   };
-  const enPiso = (FF, x, y) => {
-    if (!FF) return false;
-    if (y < FF.yTop + 10 || y > FF.yBot - 6) return false;
-    if (FF.poli && !enPoli(FF.poli, x, y)) return false;
-    if (!FF.poli) {
-      const t = (y - FF.yTop) / (FF.yBot - FF.yTop);
-      if (x < (FF.xlTop + (FF.xlBot - FF.xlTop) * t + 24) || x > (FF.xrTop + (FF.xrBot - FF.xrTop) * t - 24)) return false;
-    }
-    return !(FF.obst || []).some((o) => x >= o.x0 && x <= o.x1 && y >= o.y0 && y <= o.y1);
+  const enPiso = (F, x, y) => {
+    if (!F) return false;
+    if (y < F.yTop + 10 || y > F.yBot - 6) return false;
+    if (F.poli && !enPoli(F.poli, x, y)) return false;
+    return !(F.obst || []).some((o) => x >= o.x0 && x <= o.x1 && y >= o.y0 && y <= o.y1);
   };
-  const S = tomar('SILLAS_OFI') || [];
-  S.forEach((s, i) => { if (!enPiso(F, s.x, s.y)) prov.push(`silla${i + 1} en mueble/fuera`); });
-  const SP = tomar('SPAWN_OFI');
-  if (SP && !enPiso(F, SP.x, SP.y)) prov.push('spawn no pisables');
-  // Cada puerta: zona alcanzable en su escena y destino pisables en la otra.
-  for (const [pn, pfn, pfd] of [['PUERTA_OFI', 'ofi', 'bal'], ['PUERTA_BAL', 'bal', 'ofi']]) {
-    const PU = tomar(pn);
-    if (!PU) continue;
-    const FA = pfn === 'ofi' ? F : FB, FB2 = pfd === 'ofi' ? F : FB;
+  for (const [k, E2] of Object.entries(E || {})) {
+    if (!E2.w || !E2.h || !E2.piso || !E2.spawn || !E2.puerta) { prov.push(`${k}: le falta piso/spawn/puerta`); continue; }
+    if (!Array.isArray(E2.piso.poli) || !Array.isArray(E2.piso.fig)) prov.push(`${k}: piso sin polígono ni fig`);
+    if (!Array.isArray(E2.cielo) || E2.cielo.length < 2) prov.push(`${k}: menos de 2 variantes de cielo`);
+    // Las variantes de cielo miden lo mismo o el fundido del cambio de hora
+    // salta de tamaño. Se mira el .webp, que es el que se sirve.
+    const tams = new Set();
+    for (const c of E2.cielo || []) {
+      const fw = path.join(raiz, 'sprites', c.base + '.webp');
+      const fj = path.join(raiz, 'sprites', c.base + '.jpg');
+      if (!fs.existsSync(fw)) prov.push(`falta sprites/${c.base}.webp`);
+      if (!fs.existsSync(fj)) prov.push(`falta sprites/${c.base}.jpg`);
+      if (fs.existsSync(fw)) tams.add(medir(fw) + '/' + E2.w + 'x' + E2.h);
+    }
+    if (tams.size > 1) prov.push(`${k}: las variantes miden distinto (${[...tams].join(', ')})`);
+    (E2.sillas || []).forEach((s, i) => { if (!enPiso(E2.piso, s.x, s.y)) prov.push(`${k} silla${i + 1} en mueble/fuera`); });
+    if (!enPiso(E2.piso, E2.spawn.x, E2.spawn.y)) prov.push(`${k}: spawn no pisables`);
+    // La puerta: su zona tiene que ser alcanzable caminando en ESTA escena y su
+    // destino pisables en la OTRA. Sin esto no se vuelve o se cae al vacío.
+    const otra = E[E2.puerta.hacia];
+    if (!otra) { prov.push(`${k}: la puerta va hacia "${E2.puerta.hacia}", que no existe`); continue; }
     let entra = false;
-    for (let x = PU.x0; x <= PU.x1 && !entra; x += 10) for (let y = PU.y0; y <= PU.y1 && !entra; y += 10) entra = enPiso(FA, x, y);
-    if (!entra) prov.push(`a ${pn} no se llega`);
-    if (!enPiso(FB2, PU.ax, PU.ay)) prov.push(`destino de ${pn} no pisables`);
+    for (let x = E2.puerta.x0; x <= E2.puerta.x1 && !entra; x += 10) {
+      for (let y = E2.puerta.y0; y <= E2.puerta.y1 && !entra; y += 10) entra = enPiso(E2.piso, x, y);
+    }
+    if (!entra) prov.push(`a la puerta de ${k} no se llega caminando`);
+    if (!enPiso(otra.piso, E2.puerta.ax, E2.puerta.ay)) prov.push(`el destino de la puerta de ${k} no es pisable`);
   }
-  ok(!prov.length, 'sillas, spawn y puerta de la oficina nueva son pisables', prov.join(', '));
+  // La cafetera: la máquina está pintada en el arte, pero la zona de pie tiene
+  // que ser pisables y no caer adentro de un mueble.
+  const cafe = js.match(/const CAFE = \{[^}]*?x:\s*(\d+),\s*y:\s*(\d+),/);
+  if (!cafe) prov.push('sin CAFE');
+  else if (E && E.ofi && !enPiso(E.ofi.piso, Number(cafe[1]), Number(cafe[2]))) prov.push('la zona de pie de la cafetera no es pisable');
+  ok(!prov.length, 'escenas, cielos, puertas y cafetera cuadran entre sí', prov.join(', '));
 }
-ok(/preview: !!\(prev\.on/.test(js) && /p\.preview/.test(srv),
-   'la previa viaja en el estado (los demás no dibujan a Ger)');
-{
-  const faltanPrev = [];
-  for (const f of ['bg_ofi.png', 'bg_ofi.webp', 'bg_balcon.png', 'bg_balcon.webp']) {
-    if (!fs.existsSync(path.join(raiz, 'sprites', f))) faltanPrev.push(f);
-  }
-  ok(faltanPrev.length === 0, 'están los fondos de las escenas nuevas',
-     faltanPrev.length ? 'faltan: ' + faltanPrev.join(', ') : '');
-}
-// El alto en pantalla es fijo y el ancho sale de la proporcion del PNG: si un
+ok(/escena: escenaId/.test(js) && /escena: p\.escena \|\| 'ofi'/.test(srv),
+   'la escena de cada uno viaja en el estado (oficina y terraza no se pisan)');
+ok(/msg\.escena === 'ofi'/.test(srv) && /msg\.escena === 'terr'/.test(srv),
+   'el servidor valida la escena con lista blanca');
+ok(!/prevAqui|prevPedir|bg_ofi\.png|bg_balcon\.png|\bSPAWN_OFI\b|\bPISO_OFI\b/.test(js),
+   'ya no quedan restos de la vista previa ni del mundo viejo');
 // cuadro no mide lo mismo que el _sit.png, el personaje salta al animarse.
 {
   const malos = [];

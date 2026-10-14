@@ -136,7 +136,7 @@ function publicState() {
   return [...players.values()].filter((p) => p.authed).map((p) => ({
     id: p.id, name: p.name, char: p.char, color: p.color, joinTs: p.joinTs,
     x: p.x, y: p.y, dir: p.dir, moving: p.moving, seated: !!p.seated,
-    status: p.status, fightMode: !!p.fightMode, poleOn: !!p.poleOn, preview: !!p.preview, bubble: p.bubble, bubbleUntil: p.bubbleUntil,
+    status: p.status, fightMode: !!p.fightMode, escena: p.escena || 'ofi', bubble: p.bubble, bubbleUntil: p.bubbleUntil,
     emote: p.emote, emoteUntil: p.emoteUntil, wave: p.wave, waveUntil: p.waveUntil,
   }));
 }
@@ -151,7 +151,9 @@ wss.on('connection', (ws) => {
   // Nuevo jugador aparece en la entrada (spawn)
   const player = {
     id, name: 'Anónimo', char: null, authed: false, color: 0, joinTs: Date.now(),
-    x: 597, y: 820, // spawn: centro del pasillo, coords virtuales del fondo
+    // Spawn de la oficina nueva (ESCENAS.ofi.spawn en game.js): el hueco libre
+    // del piso frente al sofá.
+    x: 990, y: 745, escena: 'ofi',
     dir: 'down', moving: false, seated: false,
     status: 'disponible',
     bubble: null, bubbleUntil: 0,
@@ -210,7 +212,9 @@ wss.on('connection', (ws) => {
         p.moving = !!msg.moving;
         p.seated = !!msg.seated;
         p.fightMode = !!msg.fightMode;
-        if (p.char === 'ger') { p.poleOn = !!msg.poleOn; p.preview = !!msg.preview; }   // la bailarina y la previa son sólo de Ger
+        // En qué mundo está: viaja en el estado para que cada uno dibuje sólo
+        // a los de su escena. Lista blanca: nadie manda un mundo inventado.
+        if (msg.escena === 'ofi' || msg.escena === 'terr') p.escena = msg.escena;
         p.lastMove = Date.now();
         break;
       }
@@ -248,13 +252,6 @@ wss.on('connection', (ws) => {
       case 'fight-mode': {
         p.fightMode = !!msg.active;
         broadcast({ type: 'fight-mode', id, active: p.fightMode });
-        break;
-      }
-      // Bailarina del caño: la prende y apaga sólo Ger; el resto la ve.
-      case 'pole': {
-        if (p.char !== 'ger') break;
-        p.poleOn = !!msg.active;
-        broadcast({ type: 'pole', id, active: p.poleOn });
         break;
       }
       case 'fight-hit': {
