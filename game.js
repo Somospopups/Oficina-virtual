@@ -66,8 +66,10 @@ const ESCENAS = {
     ],
     spawn: { x: 990, y: 745 },
     // Puerta de vidrio del fondo: zona que dispara el cruce + a qué mundo te
-    // lleva y dónde caés del otro lado (ax/ay).
-    puerta: { x0: 1125, x1: 1270, y0: 320, y1: 375, hacia: 'terr', ax: 1020, ay: 660 },
+    // lleva y dónde caés del otro lado (ax/ay). El punto de caída en la terraza
+    // está a ~168 px de la puerta de vuelta: con menos, la E te rebotaba de
+    // ida y vuelta apenas llegabas (el radio de detección es 120).
+    puerta: { x0: 1125, x1: 1270, y0: 320, y1: 375, hacia: 'terr', ax: 1020, ay: 560 },
   },
   terr: {
     titulo: 'la terraza',
@@ -94,8 +96,10 @@ const ESCENAS = {
     sillas: [],
     spawn: { x: 1020, y: 660 },
     // No hay puerta dibujada: se vuelve adentro saliendo por el borde de
-    // abajo, al centro (la 🚪 marca el lugar).
-    puerta: { x0: 880, x1: 1160, y0: 690, y1: 765, hacia: 'ofi', ax: 1200, ay: 400 },
+    // abajo, al centro (la 🚪 marca el lugar). Al volver caés en el pasillo
+    // libre entre el sofá (x≤1235) y los escritorios de la derecha (x≥1350),
+    // a ~162 px de la puerta para que la E no te devuelva a la terraza.
+    puerta: { x0: 880, x1: 1160, y0: 690, y1: 765, hacia: 'ofi', ax: 1290, ay: 480 },
   },
 };
 // Mundo en el que está cada uno. Viaja en el estado (myPublic/upsertRemote):
@@ -2060,7 +2064,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v177 · 14/10/2026';
+const VERSION = 'v178 · 14/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -4182,6 +4186,11 @@ async function join() {
     id: state.myId || 'me', name: entry.name, char: entry.char, color: 0,
     x: sx, y: sy, tx: sx, ty: sy,
     dir: seat ? seat.face : 'up', moving: false, seated: !!seat,
+    // Se entra SIEMPRE en la oficina. Este campo es el que mira el filtro del
+    // render (p.escena === escenaId): sin él, el que cruza la puerta desaparece
+    // de su propia pantalla hasta que el server le devuelva el estado — y como
+    // el broadcast ('state') excluye a myId, nunca se lo devuelve.
+    escena: 'ofi',
     status: seat ? 'codeando' : 'disponible',
     bubble: null, bubbleUntil: 0, emote: null, emoteUntil: 0, wave: false, waveUntil: 0,
   };
@@ -4683,6 +4692,11 @@ function cruzarPuerta() {
   backdropDirty = true;
   fondosDe(destino);   // pedir el fondo del destino ahora, sin esperar a mirarlo
   me.seated = false; me.moving = false;
+  // La escena del que cruza se cambia ACÁ, en el cliente. El server la manda
+  // a los demás, pero a uno no le devuelve su propio estado: si no, el filtro
+  // del render sigue creyendo que estás en la oficina y te deja fuera de la
+  // lista de dibujo (invisible en tu propia pantalla).
+  me.escena = puerta.hacia;
   me.x = me.tx = puerta.ax; me.y = me.ty = puerta.ay;
   toast(`🚪 ${puerta.hacia === 'terr' ? 'Saliste a la terraza' : 'Volviste a la oficina'}`);
   sendMoveNow();
@@ -5175,9 +5189,11 @@ function render() {
   const nocturno = sky.amb > 0.24;
   let catDibujado = false;
   // Cada uno ve sólo a la gente de su propia escena: la oficina y la terraza
-  // conviven sin pisarse.
+  // conviven sin pisarse. Vos SIEMPRE te ves a vos mismo aunque el campo
+  // escena quede desfasado un instante: invisible en tu propia pantalla es
+  // "se rompió el juego", no un detalle de rendering.
   const list = [...state.players.values()]
-    .filter((p) => (p.escena || 'ofi') === escenaId)
+    .filter((p) => p.id === state.myId || (p.escena || 'ofi') === escenaId)
     .sort((a, b) => a.y - b.y);
   for (const p of list) {
     if (!p.name) continue;
