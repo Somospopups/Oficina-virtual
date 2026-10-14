@@ -2,6 +2,8 @@
  * Un hash distinto por dibujo: si el archivo cambia, la URL cambia y el
  * navegador deja de mostrar la versión vieja. */
 window.ASSETS = {
+  "sprites/bg_ofi_atardecer.jpg": "v=06462776",
+  "sprites/bg_ofi_atardecer.webp": "v=c97bcf56",
   "sprites/bg_ofi_dia.jpg": "v=24633d6a",
   "sprites/bg_ofi_dia.webp": "v=f0c48718",
   "sprites/bg_ofi_noche.jpg": "v=aa011f23",

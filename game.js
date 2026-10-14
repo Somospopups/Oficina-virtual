@@ -25,7 +25,11 @@ const ESCENAS = {
     // El cielo está PINTADO en el arte: no se dibuja, se CRUZA entre variantes
     // según la hora real (ver cieloPar/drawEscena). Cada stop es un archivo
     // sprites/<base>.webp y su hora de entrada.
-    cielo: [{ h: 6.5, base: 'bg_ofi_dia' }, { h: 19, base: 'bg_ofi_noche' }],
+    cielo: [
+      { h: 7, base: 'bg_ofi_dia' },
+      { h: 17, base: 'bg_ofi_atardecer' },
+      { h: 19.5, base: 'bg_ofi_noche' },
+    ],
     piso: {
       yTop: 348, yBot: 793,
       poli: [[560, 348], [1310, 348], [1983, 480], [1983, 793], [0, 793], [0, 480]],
@@ -2089,7 +2093,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v179 · 14/10/2026';
+const VERSION = 'v180 · 14/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
