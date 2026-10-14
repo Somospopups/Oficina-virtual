@@ -76,6 +76,10 @@ paso('chequear-sillas.js (reparto de puestos)', node, [path.join('tools', 'chequ
 // 6. Frames de caminata mirando todos para el mismo lado.
 paso('chequear-caminata.js (frames de caminata)', node, [path.join('tools', 'chequear-caminata.js')]);
 
+// 6b. Alturas de cada ciclo, sentido de los perfiles del parado y restos de
+//     fondo. Es lo que agarra una hoja de personaje mal cortada.
+paso('chequear-personaje.js (alturas, perfiles, limpieza)', node, [path.join('tools', 'chequear-personaje.js')]);
+
 // 7. git: nada de espacios/sobrantes en las líneas, y el árbol sin cambios
 //    sueltos que se nos hayan pasado por alto.
 if (sinGit) { console.log('\n\x1b[33m⚠️  git no está disponible: se saltean los chequeos de git\x1b[0m'); salteados++; }

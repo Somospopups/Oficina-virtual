@@ -1,0 +1,478 @@
+{
+  "descripcion": "Layout de la hoja de German.png. Medido a mano: esa hoja no sigue la plantilla.",
+  "lienzo": {
+    "w": 1536,
+    "h": 1024
+  },
+  "fondo": "casi blanco",
+  "celdas": [
+    {
+      "id": "parado_frente",
+      "seccion": "parado",
+      "orientacion": "down",
+      "x": 588,
+      "y": 40,
+      "w": 37,
+      "h": 103
+    },
+    {
+      "id": "parado_espalda",
+      "seccion": "parado",
+      "orientacion": "up",
+      "x": 677,
+      "y": 41,
+      "w": 41,
+      "h": 102
+    },
+    {
+      "id": "parado_izq",
+      "seccion": "parado",
+      "orientacion": "left",
+      "x": 769,
+      "y": 40,
+      "w": 38,
+      "h": 103
+    },
+    {
+      "id": "parado_der",
+      "seccion": "parado",
+      "orientacion": "right",
+      "x": 865,
+      "y": 40,
+      "w": 35,
+      "h": 104
+    },
+    {
+      "id": "caminata_frente_1",
+      "seccion": "caminata",
+      "orientacion": "down",
+      "x": 91,
+      "y": 40,
+      "w": 35,
+      "h": 88
+    },
+    {
+      "id": "caminata_frente_2",
+      "seccion": "caminata",
+      "orientacion": "down",
+      "x": 143,
+      "y": 40,
+      "w": 35,
+      "h": 88
+    },
+    {
+      "id": "caminata_frente_3",
+      "seccion": "caminata",
+      "orientacion": "down",
+      "x": 193,
+      "y": 40,
+      "w": 35,
+      "h": 88
+    },
+    {
+      "id": "caminata_frente_4",
+      "seccion": "caminata",
+      "orientacion": "down",
+      "x": 244,
+      "y": 40,
+      "w": 35,
+      "h": 88
+    },
+    {
+      "id": "caminata_espalda_1",
+      "seccion": "caminata",
+      "orientacion": "up",
+      "x": 91,
+      "y": 139,
+      "w": 35,
+      "h": 91
+    },
+    {
+      "id": "caminata_espalda_2",
+      "seccion": "caminata",
+      "orientacion": "up",
+      "x": 144,
+      "y": 139,
+      "w": 35,
+      "h": 91
+    },
+    {
+      "id": "caminata_espalda_3",
+      "seccion": "caminata",
+      "orientacion": "up",
+      "x": 194,
+      "y": 139,
+      "w": 35,
+      "h": 91
+    },
+    {
+      "id": "caminata_espalda_4",
+      "seccion": "caminata",
+      "orientacion": "up",
+      "x": 245,
+      "y": 139,
+      "w": 35,
+      "h": 91
+    },
+    {
+      "id": "caminata_izq_1",
+      "seccion": "caminata",
+      "orientacion": "left",
+      "x": 89,
+      "y": 240,
+      "w": 41,
+      "h": 93
+    },
+    {
+      "id": "caminata_izq_2",
+      "seccion": "caminata",
+      "orientacion": "left",
+      "x": 141,
+      "y": 240,
+      "w": 41,
+      "h": 93
+    },
+    {
+      "id": "caminata_izq_3",
+      "seccion": "caminata",
+      "orientacion": "left",
+      "x": 191,
+      "y": 240,
+      "w": 41,
+      "h": 93
+    },
+    {
+      "id": "caminata_izq_4",
+      "seccion": "caminata",
+      "orientacion": "left",
+      "x": 240,
+      "y": 240,
+      "w": 41,
+      "h": 93
+    },
+    {
+      "id": "caminata_der_1",
+      "seccion": "caminata",
+      "orientacion": "right",
+      "x": 87,
+      "y": 346,
+      "w": 45,
+      "h": 98
+    },
+    {
+      "id": "caminata_der_2",
+      "seccion": "caminata",
+      "orientacion": "right",
+      "x": 140,
+      "y": 346,
+      "w": 45,
+      "h": 98
+    },
+    {
+      "id": "caminata_der_3",
+      "seccion": "caminata",
+      "orientacion": "right",
+      "x": 192,
+      "y": 346,
+      "w": 45,
+      "h": 98
+    },
+    {
+      "id": "caminata_der_4",
+      "seccion": "caminata",
+      "orientacion": "right",
+      "x": 240,
+      "y": 346,
+      "w": 45,
+      "h": 98
+    },
+    {
+      "id": "silla_frente",
+      "seccion": "silla",
+      "orientacion": "down",
+      "x": 92,
+      "y": 518,
+      "w": 35,
+      "h": 84
+    },
+    {
+      "id": "silla_espalda",
+      "seccion": "silla",
+      "orientacion": "up",
+      "x": 91,
+      "y": 614,
+      "w": 37,
+      "h": 78
+    },
+    {
+      "id": "silla_izq",
+      "seccion": "silla",
+      "orientacion": "left",
+      "x": 93,
+      "y": 703,
+      "w": 35,
+      "h": 74
+    },
+    {
+      "id": "silla_der",
+      "seccion": "silla",
+      "orientacion": "right",
+      "x": 93,
+      "y": 786,
+      "w": 33,
+      "h": 68
+    },
+    {
+      "id": "sofa_frente",
+      "seccion": "sofa",
+      "orientacion": "down",
+      "x": 1099,
+      "y": 508,
+      "w": 42,
+      "h": 86
+    },
+    {
+      "id": "sofa_espalda",
+      "seccion": "sofa",
+      "orientacion": "up",
+      "x": 1099,
+      "y": 609,
+      "w": 40,
+      "h": 72
+    },
+    {
+      "id": "sofa_izq",
+      "seccion": "sofa",
+      "orientacion": "left",
+      "x": 1103,
+      "y": 695,
+      "w": 41,
+      "h": 71
+    },
+    {
+      "id": "sofa_der",
+      "seccion": "sofa",
+      "orientacion": "right",
+      "x": 1103,
+      "y": 778,
+      "w": 39,
+      "h": 75
+    },
+    {
+      "id": "mesa_frente",
+      "seccion": "mesa",
+      "orientacion": "down",
+      "x": 612,
+      "y": 517,
+      "w": 56,
+      "h": 79
+    },
+    {
+      "id": "mesa_espalda",
+      "seccion": "mesa",
+      "orientacion": "up",
+      "x": 611,
+      "y": 609,
+      "w": 57,
+      "h": 77
+    },
+    {
+      "id": "mesa_izq",
+      "seccion": "mesa",
+      "orientacion": "left",
+      "x": 620,
+      "y": 699,
+      "w": 47,
+      "h": 71
+    },
+    {
+      "id": "mesa_der",
+      "seccion": "mesa",
+      "orientacion": "right",
+      "x": 620,
+      "y": 780,
+      "w": 47,
+      "h": 72
+    },
+    {
+      "id": "acc_cafe",
+      "seccion": "interaccion",
+      "orientacion": "down",
+      "x": 984,
+      "y": 41,
+      "w": 55,
+      "h": 94
+    },
+    {
+      "id": "acc_celular",
+      "seccion": "interaccion",
+      "orientacion": "down",
+      "x": 1120,
+      "y": 42,
+      "w": 58,
+      "h": 93
+    },
+    {
+      "id": "acc_pensar",
+      "seccion": "interaccion",
+      "orientacion": "down",
+      "x": 1252,
+      "y": 40,
+      "w": 48,
+      "h": 96
+    },
+    {
+      "id": "acc_saludar",
+      "seccion": "interaccion",
+      "orientacion": "down",
+      "x": 1374,
+      "y": 40,
+      "w": 67,
+      "h": 96
+    },
+    {
+      "id": "acc_pantalla",
+      "seccion": "interaccion",
+      "orientacion": "down",
+      "x": 982,
+      "y": 172,
+      "w": 72,
+      "h": 93
+    },
+    {
+      "id": "acc_escribir",
+      "seccion": "interaccion",
+      "orientacion": "down",
+      "x": 1119,
+      "y": 173,
+      "w": 71,
+      "h": 92
+    },
+    {
+      "id": "acc_relajado",
+      "seccion": "interaccion",
+      "orientacion": "down",
+      "x": 1378,
+      "y": 171,
+      "w": 46,
+      "h": 97
+    },
+    {
+      "id": "sentarse_1",
+      "seccion": "transicion",
+      "orientacion": "down",
+      "x": 977,
+      "y": 356,
+      "w": 42,
+      "h": 99
+    },
+    {
+      "id": "sentarse_2",
+      "seccion": "transicion",
+      "orientacion": "down",
+      "x": 1033,
+      "y": 356,
+      "w": 44,
+      "h": 98
+    },
+    {
+      "id": "sentarse_3",
+      "seccion": "transicion",
+      "orientacion": "down",
+      "x": 1090,
+      "y": 361,
+      "w": 43,
+      "h": 94
+    },
+    {
+      "id": "sentarse_4",
+      "seccion": "transicion",
+      "orientacion": "down",
+      "x": 1148,
+      "y": 360,
+      "w": 41,
+      "h": 95
+    },
+    {
+      "id": "levantarse_1",
+      "seccion": "transicion",
+      "orientacion": "down",
+      "x": 1265,
+      "y": 361,
+      "w": 43,
+      "h": 95
+    },
+    {
+      "id": "levantarse_2",
+      "seccion": "transicion",
+      "orientacion": "down",
+      "x": 1320,
+      "y": 356,
+      "w": 47,
+      "h": 100
+    },
+    {
+      "id": "levantarse_3",
+      "seccion": "transicion",
+      "orientacion": "down",
+      "x": 1378,
+      "y": 346,
+      "w": 39,
+      "h": 111
+    },
+    {
+      "id": "levantarse_4",
+      "seccion": "transicion",
+      "orientacion": "down",
+      "x": 1430,
+      "y": 341,
+      "w": 35,
+      "h": 111
+    },
+    {
+      "id": "expr_2",
+      "seccion": "expresion",
+      "orientacion": "down",
+      "x": 1252,
+      "y": 915,
+      "w": 48,
+      "h": 58
+    },
+    {
+      "id": "expr_3",
+      "seccion": "expresion",
+      "orientacion": "down",
+      "x": 1311,
+      "y": 915,
+      "w": 45,
+      "h": 58
+    },
+    {
+      "id": "expr_4",
+      "seccion": "expresion",
+      "orientacion": "down",
+      "x": 1366,
+      "y": 915,
+      "w": 44,
+      "h": 58
+    },
+    {
+      "id": "expr_5",
+      "seccion": "expresion",
+      "orientacion": "down",
+      "x": 1418,
+      "y": 915,
+      "w": 45,
+      "h": 58
+    },
+    {
+      "id": "expr_6",
+      "seccion": "expresion",
+      "orientacion": "down",
+      "x": 1472,
+      "y": 915,
+      "w": 43,
+      "h": 58
+    }
+  ]
+}

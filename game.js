@@ -360,6 +360,21 @@ function detailStand(g, c, dir, frame) {
 // resolución. Al reducirse en pantalla usan smoothing; el fallback por código sí
 // conserva la grilla y el nearest-neighbor.
 const charAssets = {};   // charKey -> { down, left, right, up, sit }
+// Hoja de sprites de cada personaje: los archivos que hay en sprites/, sin la
+// extensión. Lo que falte se deriva del de frente: la espalda es el frente
+// apagado y el perfil es el frente espejado. Cada personaje es UNA entrada acá;
+// meter uno nuevo es agregar una línea. Los que se cortaron con la plantilla de
+// tools/generar-plantilla-personaje.py ya vienen con izq y der dibujados, y
+// también con sit_left / sit_right / sit_up / sit_down (se dejan sin cablear
+// hasta que la hoja traiga además los cuadros de las animaciones sentado, que
+// tienen que medir lo mismo que el sentado base).
+const CHAR_SPRITES = {
+  ger:  { up: 'ger_up',  izq: 'ger_izq',  der: 'ger_der' },
+  facu: {},
+  ovni: { up: 'ovni_up' },
+  milo: { up: 'milo_up' },
+  ove:  { up: 'ove_up' },
+};
 // Las poses sentadas de referencia nacen en estas orientaciones; se espejan
 // automáticamente cuando alguien ocupa un puesto del lado opuesto.
 const SIT_BASE_FACE = { ger: 'left', facu: 'right', ovni: 'right', milo: 'right', ove: 'left' };
@@ -1433,7 +1448,7 @@ function loadCharAssets() {
         res();
       };
       sit.onerror = () => res(); // el sentado anterior queda como fallback
-      sit.src = urlAsset(`sprites/${k}_sit.png`);
+      sit.src = urlAsset(`sprites/${(CHAR_SPRITES[k] && CHAR_SPRITES[k].sit) || `${k}_sit`}.png`);
     };
     // Los de pie son recortes de "Oficina Virtual/De pie.jpg": el diseño aprobado
     // (chibi, cuerpo entero, sneakers a la vista). Antes se cargaba primero un
@@ -1448,30 +1463,40 @@ function loadCharAssets() {
       const base = normalizarFigura(im);
       const r = flipCanvas(base.img);
       charAssets[k] = { down: base.img, left: r, right: r, up: oscurecer(base.img), baseH: base.alto };
-      if (k === 'milo' || k === 'ger' || k === 'ovni' || k === 'ove') {
-        // Milo, Ger y Ovni tienen espalda REAL dibujada (no la silueta
-        // oscurecida). Ovni la gano en la v101: hasta la v100 su pose de "arriba"
-        // era el propio frente apagado, asi que se alejaba de vos y te miraba.
-        const esp = new Image();
-        esp.onload = () => { charAssets[k].up = normalizarFigura(esp, base.alto).img; };
-        esp.src = urlAsset(`sprites/${k}_up.png`);
-      }
-      // Si el personaje tiene hoja propia con las 4 direcciones, sus PNG se
-      // normalizan contra su sprite de frente. Si no, se arma la caminata
-      // muneco-de-papel desde su unico PNG: el frente sale bien, pero de espaldas
-      // es la silueta oscurecida y de perfil el frente espejado, asi que camina
-      // mirando al reves. Desde la v176 Ovni entra en el primer grupo.
-      if (walkSources[k]) {
-        normalizarCaminata(k, base.alto);
-      } else {
-        walkAssets[k] = {
-          down: buildPasoFrames(base.img),
-          up: buildPasoFrames(charAssets[k].up),
-          left: buildPasoFrames(r),
-          right: buildPasoFrames(r),
-        };
-      }
-      loadSeat();
+      // La hoja manda sobre los derivados. Cada archivo que exista pisa lo que
+      // acabamos de armar por código; el que no cargue se queda con el
+      // derivado y el juego sigue andando igual que antes. Se esperan antes de
+      // dar por listo el personaje, para que no aparezca un instante caminando
+      // con el perfil del frente espejado.
+      const hoja = CHAR_SPRITES[k] || {};
+      const traer = (campo, archivo) => new Promise((ok) => {
+        const png = new Image();
+        png.onload = () => { charAssets[k][campo] = normalizarFigura(png, base.alto).img; ok(); };
+        png.onerror = ok;   // sigue el derivado
+        png.src = urlAsset(`sprites/${archivo}.png`);
+      });
+      const hojaPendiente = [];
+      if (hoja.up)  hojaPendiente.push(traer('up',    hoja.up));
+      if (hoja.izq) hojaPendiente.push(traer('left',  hoja.izq));
+      if (hoja.der) hojaPendiente.push(traer('right', hoja.der));
+      Promise.all(hojaPendiente).then(() => {
+        // Si el personaje tiene hoja propia con las 4 direcciones, sus PNG se
+        // normalizan contra su sprite de frente. Si no, se arma la caminata
+        // muneco-de-papel desde su unico PNG: el frente sale bien, pero de espaldas
+        // es la silueta oscurecida y de perfil el frente espejado, asi que camina
+        // mirando al reves.
+        if (walkSources[k]) {
+          normalizarCaminata(k, base.alto);
+        } else {
+          walkAssets[k] = {
+            down: buildPasoFrames(base.img),
+            up: buildPasoFrames(charAssets[k].up),
+            left: buildPasoFrames(r),
+            right: buildPasoFrames(r),
+          };
+        }
+        loadSeat();
+      });
     };
     im.onerror = () => { loadSeat(); }; // los sprites por código siguen disponibles
     im.src = urlAsset(`sprites/${k}.png`);
@@ -2064,7 +2089,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v178 · 14/10/2026';
+const VERSION = 'v179 · 14/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
