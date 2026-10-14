@@ -136,7 +136,7 @@ function publicState() {
   return [...players.values()].filter((p) => p.authed).map((p) => ({
     id: p.id, name: p.name, char: p.char, color: p.color, joinTs: p.joinTs,
     x: p.x, y: p.y, dir: p.dir, moving: p.moving, seated: !!p.seated,
-    status: p.status, fightMode: !!p.fightMode, escena: p.escena || 'ofi', bubble: p.bubble, bubbleUntil: p.bubbleUntil,
+    status: p.status, escena: p.escena || 'ofi', bubble: p.bubble, bubbleUntil: p.bubbleUntil,
     emote: p.emote, emoteUntil: p.emoteUntil, wave: p.wave, waveUntil: p.waveUntil,
   }));
 }
@@ -211,7 +211,6 @@ wss.on('connection', (ws) => {
         if (['up', 'down', 'left', 'right'].includes(msg.dir)) p.dir = msg.dir;
         p.moving = !!msg.moving;
         p.seated = !!msg.seated;
-        p.fightMode = !!msg.fightMode;
         // En qué mundo está: viaja en el estado para que cada uno dibuje sólo
         // a los de su escena. Lista blanca: nadie manda un mundo inventado.
         if (msg.escena === 'ofi' || msg.escena === 'terr') p.escena = msg.escena;
@@ -245,20 +244,6 @@ wss.on('connection', (ws) => {
       }
       // Animaciones de personaje (hoy: el cafecito en la silla). Se reenvía
       // tal cual, con lista blanca de nombres para que nadie invente una.
-      case 'anim': {
-        if (['cafe', 'birra', 'coca'].includes(msg.anim)) broadcast({ type: 'anim', id, anim: msg.anim });
-        break;
-      }
-      case 'fight-mode': {
-        p.fightMode = !!msg.active;
-        broadcast({ type: 'fight-mode', id, active: p.fightMode });
-        break;
-      }
-      case 'fight-hit': {
-        const hit = Math.max(1, Math.min(5, Number(msg.hit) || 1));
-        broadcast({ type: 'fight-hit', id, hit });
-        break;
-      }
       case 'wave': {
         p.wave = true;
         p.waveUntil = Date.now() + 1500;

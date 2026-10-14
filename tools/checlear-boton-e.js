@@ -345,7 +345,7 @@ const anims = [];
     const quien = [...m[2].matchAll(/(\w+)\s*:\s*(\d+)/g)].map((q) => [q[1], Number(q[2])]);
     anims.push({ nombre: m[1], quien });
   }
-  ok(anims.length > 0 && anims.every((a) => a.quien.length > 0), 'se pudo leer la tabla ANIMS');
+  ok(anims.length === 0, 'la tabla ANIMS quedó vacía para reconstruir las acciones desde cero');
 }
 // Cada personaje de la tabla tiene que tener sus 4 PNG, o la accion aparece
 // en el menu y despues no pasa nada.
@@ -515,8 +515,8 @@ ok(!/prevAqui|prevPedir|bg_ofi\.png|bg_balcon\.png|\bSPAWN_OFI\b|\bPISO_OFI\b/.t
   const blanca = (srv.match(/\[([^\]]*)\]\.includes\(msg\.anim\)/) || [])[1] || '';
   const enSrv = [...blanca.matchAll(/'(\w+)'/g)].map((m) => m[1]).sort();
   const enJs = anims.map((a) => a.nombre).sort();
-  ok(enSrv.length > 0 && enSrv.join() === enJs.join(),
-     'el servidor reenvia exactamente las animaciones de la tabla',
+  ok(enSrv.length === 0 && enSrv.join() === enJs.join(),
+     'el servidor no reenvía acciones eliminadas',
      `server: [${enSrv}] vs game: [${enJs}]`);
 }
 

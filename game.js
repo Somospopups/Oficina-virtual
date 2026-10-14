@@ -2093,7 +2093,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v180 · 14/10/2026';
+const VERSION = 'v181 · 14/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -2160,7 +2160,7 @@ function myPublic() {
   if (!me) return null;
   return {
     id: me.id, name: me.name, char: me.char, color: me.color, x: me.x, y: me.y, dir: me.dir,
-    moving: me.moving, seated: me.seated, status: me.status, fightMode: !!me.fightMode, escena: escenaId, joinTs: state.joinTs || 0,
+    moving: me.moving, seated: me.seated, status: me.status, escena: escenaId, joinTs: state.joinTs || 0,
     bubble: me.bubble, bubbleUntil: me.bubbleUntil, emote: me.emote, emoteUntil: me.emoteUntil,
   };
 }
@@ -2677,9 +2677,6 @@ function handleMsg(msg) {
     case 'emote': { const p = state.players.get(msg.id); if (p) { p.emote = msg.emote; p.emoteUntil = performance.now() + 3000; } break; }
     case 'cat-pet': catAplicarMimo(msg.id); break;
     case 'cafe': cafeAplicar(msg.id); break;
-    case 'anim': animAplicar(msg.id, msg.anim); break;
-    case 'fight-mode': fightModoAplicar(msg.id, msg.active); break;
-    case 'fight-hit': fightGolpeAplicar(msg.id, msg.hit); break;
     case 'nudge': {
       if (dedupe(msg)) break;
       localZumb(msg.from || 'Alguien', false, msg.id);
@@ -2713,7 +2710,7 @@ function upsertRemote(p, snap) {
   cur.seen = performance.now();
   cur.joinTs = p.joinTs || cur.joinTs;
   cur.name = p.name; cur.char = p.char || cur.char; cur.color = p.color; cur.dir = p.dir;
-  cur.moving = p.moving; cur.status = p.status; cur.seated = !!p.seated; cur.fightMode = !!p.fightMode;
+  cur.moving = p.moving; cur.status = p.status; cur.seated = !!p.seated;
   // La escena viaja en el estado: si alguien cruzó la puerta, su x/y saltaron
   // al otro mundo y no hay que arrastrarlo interpolando por el mapa.
   const escenaNueva = p.escena || 'ofi';
@@ -4739,8 +4736,6 @@ function accionE() {
   // Sentarse conserva prioridad: aun en modo pelea, al acercarse a cualquier PC
   // la E usa la silla. Lejos de un escritorio, la misma E tira el golpe siguiente.
   if (sentarseE()) return;
-  const me = state.players.get(state.myId);
-  if (me && me.fightMode && !me.seated) { fightGolpePedir(); return; }
   catMimar();
 }
 function cafeTomar() {
@@ -4765,11 +4760,7 @@ function cafeAplicar(id) {
 // Para sumar una animación: dejar los `sprites/<char>_<nombre>1..4.png`
 // (preparados con preparar-animacion.py, que los alinea contra el sentado) y
 // agregar la entrada acá. Nada más.
-const ANIMS = {
-  cafe:  { titulo: '☕ Tomar un café',   quien: { ger: 4, ovni: 4 } },
-  birra: { titulo: '🍺 Tomar una birra', quien: { ger: 4, ovni: 4 } },
-  coca:  { titulo: '🥤 Tomar una coca',  quien: { ovni: 4 } },
-};
+const ANIMS = {}; // Las acciones se reconstruyen desde cero a partir de v181.
 // Guion compartido: [qué dibujo, cuánto dura].
 const ANIM_GUION = [[1, 520], [2, 440], [3, 700], [2, 340], [4, 940]];
 const ANIM_MS = ANIM_GUION.reduce((t, [, ms]) => t + ms, 0);
@@ -4979,24 +4970,20 @@ function catAplicarMimo(id) {
 // vuelva a mentir. Se verifica con: node tools/chequear-caminata.js
 const walkAssets = {};
 const walkSources = {};
-// Secuencia de pelea de Ger: guardia, golpes y patada. Se carga con los demás
-// movimientos y sólo se dibuja mientras dura la acción.
-const fightFrames = [];
 {
   // El ?v= se sube cada vez que cambia el CONTENIDO de un PNG con este nombre, o
   // el navegador sigue mostrando el viejo desde su caché. Al intercambiar
   // ger_wl2.png y ger_wr2.png cambiaron de contenido: el hash de assets.js se
   // encarga solo, ya no hay que subir un ?v= a mano
   const img = (n) => { const i = new Image(); i.src = urlAsset(`sprites/${n}.png`); return i; };
-  for (let i = 1; i <= 6; i++) fightFrames.push(img(`ger_pelea${i}`));
   const g2 = img('ger_walk2'), g3 = img('ger_walk3'), g4 = img('ger_walk4');
   const gl1 = img('ger_wl1'), gl2 = img('ger_wl2'), gl3 = img('ger_wl3');
   const gr1 = img('ger_wr1'), gr2 = img('ger_wr2'), gr3 = img('ger_wr3');
   walkSources.ger = {
-    down: [g2, g3, g4, g3],
-    up: [img('ger_wu1'), img('ger_wu2')],
-    left: [gl1, gl2, gl3, gl2],
-    right: [gr1, gr2, gr3, gr2],
+    down: [img('ger_walk1'), g2, g3, g4],
+    up: [img('ger_wu1'), img('ger_wu2'), img('ger_wu3'), img('ger_wu4')],
+    left: [gl1, gl2, gl3, img('ger_wl4')],
+    right: [gr1, gr2, gr3, img('ger_wr4')],
   };
   const l1 = img('milo_wl1'), l2 = img('milo_wl2'), l3 = img('milo_wl3');
   const r1 = img('milo_wr1'), r2 = img('milo_wr2'), r3 = img('milo_wr3');
@@ -5045,50 +5032,6 @@ function normalizarCaminata(k, alto) {
       else im.addEventListener('load', aplicar, { once: true });
     });
   }
-}
-
-const FIGHT_FRAME_MS = 180;
-const FIGHT_HIT_MS = 360;
-function fightModoAplicar(id, activo) {
-  const p = state.players.get(id);
-  if (!p || p.char !== 'ger') return;
-  p.fightMode = !!activo;
-  if (!p.fightMode) { p.fightIni = 0; p.fightHit = 0; }
-}
-function fightModoPedir() {
-  const me = state.players.get(state.myId);
-  if (!me || me.char !== 'ger') return;
-  if (me.seated) { toast('🥊 Primero levantate de la silla'); return; }
-  const activo = !me.fightMode;
-  send({ type: 'fight-mode', id: state.myId, active: activo });
-  fightModoAplicar(state.myId, activo);
-  toast(activo ? '🥊 Modo pelea activado · E para golpear' : '🕊️ Modo pelea desactivado');
-}
-function fightGolpeAplicar(id, golpe) {
-  const p = state.players.get(id);
-  if (!p || p.char !== 'ger' || !p.fightMode || p.seated) return;
-  p.fightHit = Math.max(1, Math.min(5, Number(golpe) || 1));
-  p.fightIni = performance.now();
-}
-function fightGolpePedir() {
-  const me = state.players.get(state.myId);
-  if (!me || !me.fightMode || me.seated) return;
-  // Recorre puñetazos, guardia alta, patada y golpe largo en cada toque de E.
-  const golpe = ((me.fightNext || 0) % 5) + 1;
-  me.fightNext = golpe;
-  send({ type: 'fight-hit', id: state.myId, hit: golpe });
-  fightGolpeAplicar(state.myId, golpe);
-}
-function fightSprite(p, now) {
-  if (!p || p.char !== 'ger' || !p.fightMode || p.seated) return null;
-  let idx = 0; // guardia permanente mientras el modo está activado
-  if (p.fightIni) {
-    const t = now - p.fightIni;
-    if (t >= 0 && t < FIGHT_HIT_MS) idx = p.fightHit || 1;
-    else if (t >= FIGHT_HIT_MS) p.fightIni = 0;
-  }
-  const im = fightFrames[Math.max(0, Math.min(5, idx))];
-  return im && im.complete && im.naturalWidth ? im : null;
 }
 
 // Sprites de Michi (hoja del usuario, recortada y con fondo transparente)
@@ -5278,8 +5221,8 @@ function render() {
       // Ciclo de caminata real si el personaje tiene frames: zancada derecha →
       // paso → zancada izquierda → paso. El tamaño (s) sale del sprite base
       // para que no cambie la altura al arrancar o frenar.
-      let dspr = fightSprite(p, now) || spr;
-      const peleando = dspr !== spr;
+      let dspr = spr;
+      const peleando = false;
       const wa = walkAssets[p.char || 'ger'];
       if (!peleando && p.moving && wa) {
         const arr = wa[p.dir] || wa.down;
@@ -5681,10 +5624,6 @@ function init() {
           // Las animaciones aparecen sólo cuando estás sentado: los dibujos
           // traen la silla adentro, de pie no habría qué mostrar.
           if (p.seated) for (const n of animDe(p.char)) items.push({ t: ANIMS[n].titulo, f: () => animPedir(n) });
-          if (!p.seated && p.char === 'ger') items.push({
-            t: p.fightMode ? '🕊️ Desactivar pelea' : '🥊 Activar modo pelea',
-            f: fightModoPedir,
-          });
           items.push({ t: '💨 Zumbido', f: doZumbido });
           accAbrir(items, p.name, e.clientX, e.clientY);
         } else {
