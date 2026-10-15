@@ -64,10 +64,10 @@ const ESCENAS = {
     // adentro, así que tapa la del cuadro.
     sillas: [
       // PCs / sillas gamer
-      { x: 489, y: 361, face: 'left',  tipo: 'pc' },
-      { x: 403, y: 390, face: 'left',  tipo: 'pc' },
-      { x: 1387, y: 354, face: 'right', tipo: 'pc' },
-      { x: 1495, y: 387, face: 'right', tipo: 'pc' },
+      { x: 489, y: 361, face: 'right', tipo: 'pc' },
+      { x: 403, y: 390, face: 'right', tipo: 'pc' },
+      { x: 1387, y: 354, face: 'left',  tipo: 'pc' },
+      { x: 1495, y: 387, face: 'left',  tipo: 'pc' },
       // Mesa de reuniones
       { x: 752, y: 349, face: 'up',   tipo: 'reunion' },
       { x: 840, y: 353, face: 'up',   tipo: 'reunion' },
@@ -2130,7 +2130,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v183 · 14/10/2026';
+const VERSION = 'v184 · 14/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -4002,6 +4002,23 @@ function enPoli(poli, x, y) {
   }
   return dentro;
 }
+function puntoAlLevantarse(x, y) {
+  // Los puntos sentados viven encima del mueble dibujado. Al levantarse hay que
+  // caer en piso libre, nunca dentro de su rectángulo de colisión.
+  const candidatos = [];
+  for (const r of [55, 80, 110, 145, 185, 230]) {
+    for (let i = 0; i < 16; i++) {
+      const a = (Math.PI * 2 * i) / 16;
+      candidatos.push({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r });
+    }
+  }
+  for (const q of candidatos) {
+    if (!walkable(q.x, q.y)) continue;
+    const ocupado = [...state.players.values()].some((p) => p.id !== state.myId && presente(p) && Math.hypot(p.x - q.x, p.y - q.y) < 55);
+    if (!ocupado) return q;
+  }
+  return puntoDePie();
+}
 function seatNear(x, y, r = 110) {
   let best = null, bd = r;
   for (const s of sillas()) { const d = Math.hypot(s.x - x, s.y - y); if (d < bd) { bd = d; best = s; } }
@@ -4636,12 +4653,8 @@ function update(dt) {
 
     if (me.seated && want) {
       me.seated = false;
-      const toward = me.x < mitadX() ? 1 : -1;
-      let nx = me.x + toward * 120, ny = me.y + 40;
-      const F = piso();
-      ny = clamp(ny, F.yTop + 12, F.yBot - 8);
-      if (!walkable(nx, ny)) nx = me.x + toward * 40;
-      me.x = nx; me.y = ny;
+      const salida = puntoAlLevantarse(me.x, me.y);
+      me.x = salida.x; me.y = salida.y;
       sendMoveNow();
       lastSend = performance.now();
     }
