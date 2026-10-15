@@ -1992,18 +1992,12 @@ function sitC(g, c, frame) {
 
 const poseSentadaImgs = {};
 function poseSentada(charKey, seat, frame = 0) {
-  if (!seat || seat.tipo === 'pc') return getSitSprite(charKey, seat ? seat.face : 'right', true, frame);
-  let suf = '';
-  if (seat.tipo === 'reunion') suf = seat.face === 'up' ? 'sit_up' : 'sit_down';
-  else if (seat.tipo === 'sofa') suf = `sofa${(frame % 2) + 1}`;
-  else if (seat.tipo === 'puf') suf = `puf${(frame % 2) + 1}`;
-  if (!suf || charKey === 'milo') return getSitSprite(charKey, seat.face, true, frame);
-  const k = `${charKey}_${suf}`;
+  // El fondo ya trae todos los muebles. Se dibuja únicamente el cuerpo sentado:
+  // nunca una segunda silla, sofá o puf encima del arte.
+  if (!seat || charKey === 'milo') return getSitSprite(charKey, seat ? seat.face : 'right', true, frame);
+  const k = `${charKey}_puf${(frame % 2) + 1}`; // pose sentada limpia, sin mueble
   if (!poseSentadaImgs[k]) { const im = new Image(); im.src = urlAsset(`sprites/${k}.png`); poseSentadaImgs[k] = im; }
-  const im = poseSentadaImgs[k];
-  // Nunca reemplazar sofá/puf/reunión por una silla gamer: si el dibujo aún
-  // está cargando, drawImage simplemente espera al próximo frame.
-  return im;
+  return poseSentadaImgs[k];
 }
 
 const sitCache = {};
@@ -2132,7 +2126,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v185 · 14/10/2026';
+const VERSION = 'v186 · 14/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
