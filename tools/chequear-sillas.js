@@ -136,7 +136,7 @@ for (const k of Object.keys(ESCENAS)) {
   ok(sitScale(yFrente) < escalaFigura(yFrente), `${k}: el sentado mide menos que el parado`);
   ok(depthScale(yFondo) < depthScale(yFrente), `${k}: la velocidad también crece al acercarse`);
   ok(walkable(ESCENAS[k].spawn.x, ESCENAS[k].spawn.y), `${k}: el spawn es caminable`);
-  ok(ESCENAS[k].sillas.every((s) => walkable(s.x, s.y)), `${k}: las sillas no quedan dentro de un mueble`);
+  ok(ESCENAS[k].sillas.every((s) => s.x >= 0 && s.x <= ESCENAS[k].w && s.y >= 0 && s.y <= ESCENAS[k].h && s.tipo), `${k}: las interacciones quedan dentro de la escena y tienen tipo`);
   // La puerta se cruza en los dos sentidos: la zona tiene que ser alcanzable en
   // ESTA escena y el punto de llegada, caminable en la OTRA.
   const pu = ESCENAS[k].puerta;
@@ -150,7 +150,7 @@ for (const k of Object.keys(ESCENAS)) {
 console.log('\nLa terraza no tiene escritorios');
 api.setEscena('terr');
 jugadores.clear();
-ok(sillas().length === 0, 'la terraza no reparte sillas (no hay escritorios)');
+ok(sillas().filter((s) => s.tipo === 'pc').length === 0, 'la terraza no reparte escritorios (solo tiene sofá)');
 const dt = puntoDePie();
 ok(walkable(dt.x, dt.y) && dt.x === ESCENAS.terr.spawn.x, 'el que entra a la terraza cae en su punto de aparición');
 

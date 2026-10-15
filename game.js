@@ -63,10 +63,28 @@ const ESCENAS = {
     // parado ahí se metía adentro del mueble). El sprite sentado trae su silla
     // adentro, así que tapa la del cuadro.
     sillas: [
-      { x: 401, y: 470, face: 'left' },
-      { x: 485, y: 462, face: 'left' },
-      { x: 1395, y: 470, face: 'right' },
-      { x: 1487, y: 480, face: 'right' },
+      // PCs / sillas gamer
+      { x: 489, y: 361, face: 'left',  tipo: 'pc' },
+      { x: 403, y: 390, face: 'left',  tipo: 'pc' },
+      { x: 1387, y: 354, face: 'right', tipo: 'pc' },
+      { x: 1495, y: 387, face: 'right', tipo: 'pc' },
+      // Mesa de reuniones
+      { x: 752, y: 349, face: 'up',   tipo: 'reunion' },
+      { x: 840, y: 353, face: 'up',   tipo: 'reunion' },
+      { x: 932, y: 357, face: 'up',   tipo: 'reunion' },
+      { x: 1022, y: 356, face: 'up',  tipo: 'reunion' },
+      { x: 771, y: 316, face: 'down', tipo: 'reunion' },
+      { x: 840, y: 318, face: 'down', tipo: 'reunion' },
+      { x: 913, y: 317, face: 'down', tipo: 'reunion' },
+      { x: 976, y: 318, face: 'down', tipo: 'reunion' },
+      // Sofá y pufs
+      { x: 767, y: 553, face: 'down', tipo: 'sofa' },
+      { x: 883, y: 559, face: 'down', tipo: 'sofa' },
+      { x: 998, y: 557, face: 'down', tipo: 'sofa' },
+      { x: 1136, y: 644, face: 'down', tipo: 'puf' },
+      { x: 688, y: 649, face: 'down', tipo: 'puf' },
+      { x: 258, y: 593, face: 'down', tipo: 'puf' },
+      { x: 97, y: 649, face: 'down', tipo: 'puf' },
     ],
     spawn: { x: 990, y: 745 },
     // Puerta de vidrio del fondo: zona que dispara el cruce + a qué mundo te
@@ -97,7 +115,12 @@ const ESCENAS = {
       ],
     },
     // En la terraza no hay escritorios: se viene a caminar y a mirar la ciudad.
-    sillas: [],
+    sillas: [
+      { x: 478, y: 377, face: 'down',  tipo: 'sofa' },
+      { x: 403, y: 378, face: 'down',  tipo: 'sofa' },
+      { x: 331, y: 375, face: 'down',  tipo: 'sofa' },
+      { x: 227, y: 396, face: 'right', tipo: 'sofa' },
+    ],
     spawn: { x: 1020, y: 660 },
     // No hay puerta dibujada: se vuelve adentro saliendo por el borde de
     // abajo, al centro (la 🚪 marca el lugar). Al volver caés en el pasillo
@@ -1967,6 +1990,20 @@ function sitC(g, c, frame) {
   }
 }
 
+const poseSentadaImgs = {};
+function poseSentada(charKey, seat, frame = 0) {
+  if (!seat || seat.tipo === 'pc') return getSitSprite(charKey, seat ? seat.face : 'right', true, frame);
+  let suf = '';
+  if (seat.tipo === 'reunion') suf = seat.face === 'up' ? 'sit_up' : 'sit_down';
+  else if (seat.tipo === 'sofa') suf = `sofa${(frame % 2) + 1}`;
+  else if (seat.tipo === 'puf') suf = `puf${(frame % 2) + 1}`;
+  if (!suf || charKey === 'milo') return getSitSprite(charKey, seat.face, true, frame);
+  const k = `${charKey}_${suf}`;
+  if (!poseSentadaImgs[k]) { const im = new Image(); im.src = urlAsset(`sprites/${k}.png`); poseSentadaImgs[k] = im; }
+  const im = poseSentadaImgs[k];
+  return im.complete && im.naturalWidth ? im : getSitSprite(charKey, seat.face, true, frame);
+}
+
 const sitCache = {};
 const sitFlipCache = {};
 function getSitSprite(charKey, face, occupied, frame = 0) {
@@ -2093,7 +2130,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v182 · 14/10/2026';
+const VERSION = 'v183 · 14/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -4145,7 +4182,7 @@ function dniError(msg) {
 // arriba de otro). Usa el mismo criterio que seatOwner: cuenta solo a los que
 // están realmente sentados y siguen conectados.
 function seatFor(entry) {
-  const SIL = sillas();
+  const SIL = sillas().filter((s) => s.tipo === 'pc');
   const pref = SIL[entry && entry.seat != null ? entry.seat : -1];
   if (pref && !seatOwner(pref, state.myId)) return pref;
   for (const s of SIL) if (!seatOwner(s, state.myId)) return s;
@@ -5148,8 +5185,9 @@ function render() {
     if (p.seated) {
       const ss = sitScale(p.y);
       const sframe = Math.floor(now / 280) % 2;
-      const face = p.x < mitadX() ? 'left' : 'right';
-      const spr = getSitSprite(p.char || 'ger', face, true, sframe);
+      const lugar = seatNear(p.x, p.y, 60);
+      const face = lugar ? lugar.face : (p.x < mitadX() ? 'left' : 'right');
+      const spr = poseSentada(p.char || 'ger', lugar, sframe);
       // Conserva la proporción natural de cada conjunto personaje + silla gamer.
       const h = 48 * ss * ((CHAR_DEF[p.char || 'ger'] || {}).kid ? 0.9 : 1), w = h * (spr.width / spr.height);
       ctx.imageSmoothingEnabled = true;              // sprites sentados de alta resolución

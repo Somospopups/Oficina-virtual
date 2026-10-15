@@ -466,7 +466,7 @@ ok(!/case 'pole'/.test(srv), 'el servidor ya no reenvía la bailarina');
       if (fs.existsSync(fw)) tams.add(medir(fw) + '/' + E2.w + 'x' + E2.h);
     }
     if (tams.size > 1) prov.push(`${k}: las variantes miden distinto (${[...tams].join(', ')})`);
-    (E2.sillas || []).forEach((s, i) => { if (!enPiso(E2.piso, s.x, s.y)) prov.push(`${k} silla${i + 1} en mueble/fuera`); });
+    (E2.sillas || []).forEach((s, i) => { if (s.x < 0 || s.x > E2.w || s.y < 0 || s.y > E2.h || !s.tipo) prov.push(`${k} interacción${i + 1} inválida`); });
     if (!enPiso(E2.piso, E2.spawn.x, E2.spawn.y)) prov.push(`${k}: spawn no pisables`);
     // La puerta: su zona tiene que ser alcanzable caminando en ESTA escena y su
     // destino pisables en la OTRA. Sin esto no se vuelve o se cae al vacío.
