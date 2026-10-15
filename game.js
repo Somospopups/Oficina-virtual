@@ -2001,7 +2001,9 @@ function poseSentada(charKey, seat, frame = 0) {
   const k = `${charKey}_${suf}`;
   if (!poseSentadaImgs[k]) { const im = new Image(); im.src = urlAsset(`sprites/${k}.png`); poseSentadaImgs[k] = im; }
   const im = poseSentadaImgs[k];
-  return im.complete && im.naturalWidth ? im : getSitSprite(charKey, seat.face, true, frame);
+  // Nunca reemplazar sofá/puf/reunión por una silla gamer: si el dibujo aún
+  // está cargando, drawImage simplemente espera al próximo frame.
+  return im;
 }
 
 const sitCache = {};
@@ -2130,7 +2132,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v184 · 14/10/2026';
+const VERSION = 'v185 · 14/10/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
