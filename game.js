@@ -33,58 +33,64 @@ const ESCENAS = {
     piso: {
       yTop: 348, yBot: 793,
       poli: [[560, 348], [1310, 348], [1983, 480], [1983, 793], [0, 793], [0, 480]],
-      // Alto de cabeza a pies (px) al fondo y al frente del piso. Medido contra
-      // el arte: la silla de oficina del fondo mide ~100 px y una persona
-      // parada al lado le queda ~1.7x, que es la proporción real. La rampa
-      // crece lineal en y, como proyecta la perspectiva.
-      fig: [115, 350],
+      // Alto de cabeza a pies (px) al fondo y al frente del piso.
+      //
+      // Medido contra el arte, no a ojo: el escritorio de la izquierda mide
+      // ~118 px por sus 75 cm reales, o sea que el cuadro está pintado a
+      // ~157 px/m. Una persona de 1,75 m al lado de ese escritorio tiene que
+      // medir ~275 px. Con el ramp anterior ([115, 350]) salía en ~160 px:
+      // un 40% más chica, y por eso los personajes parecían muñecos sueltos
+      // flotando entre los muebles. Con [190, 440] quedan a escala.
+      fig: [190, 440],
       obst: [
-        { x0: 0, x1: 70, y0: 290, y1: 793 },      // pared/ventanal y plantas del borde izquierdo
-        { x0: 55, x1: 320, y0: 295, y1: 590 },    // biblioteca + tele
-        { x0: 300, x1: 555, y0: 220, y1: 440 },   // escritorios y cajoneras de la izquierda
-        { x0: 515, x1: 570, y0: 235, y1: 330 },   // dispensador de agua
-        { x0: 650, x1: 1110, y0: 285, y1: 410 },  // mesa de reuniones, con sus sillas
-        { x0: 1350, x1: 1650, y0: 240, y1: 450 }, // escritorios de la derecha
-        { x0: 1645, x1: 1983, y0: 225, y1: 520 }, // heladera + mesada de cocina
-        { x0: 1920, x1: 1983, y0: 500, y1: 620 }, // planta de la cocina
-        { x0: 560, x1: 665, y0: 455, y1: 665 },   // planta grande al lado del sofá
-        { x0: 645, x1: 1235, y0: 475, y1: 650 },  // sofá
-        { x0: 795, x1: 1030, y0: 595, y1: 700 },  // mesa centro
-        { x0: 600, x1: 725, y0: 605, y1: 745 },   // puf naranja
-        { x0: 1060, x1: 1240, y0: 595, y1: 745 }, // puf gris
-        { x0: 0, x1: 100, y0: 575, y1: 680 },     // puf gris del rincón
-        { x0: 145, x1: 290, y0: 555, y1: 685 },   // puf gris del medio
-        { x0: 5, x1: 170, y0: 600, y1: 760 },     // puf naranja del rincón
+        { x0: 0, x1: 45, y0: 250, y1: 793, noOcluir: true }, // pared y puerta azul del borde izquierdo (bloquea el paso, nunca tapa)
+        { x0: 40, x1: 145, y0: 425, y1: 585 },    // biblioteca baja + planta
+        { id: 'escIzq', x0: 280, x1: 543, y0: 317, y1: 433 },   // escritorio de la izquierda, con monitores y cajoneras
+        { x0: 527, x1: 575, y0: 243, y1: 369 },   // dispensador de agua
+        { x0: 568, x1: 642, y0: 298, y1: 422 },   // planta grande al lado del sofá
+        { x0: 721, x1: 1132, y0: 298, y1: 366 },  // mesa de reuniones, con sus sillas
+        { id: 'escDer', x0: 1313, x1: 1660, y0: 274, y1: 389 }, // escritorio de la derecha, con monitores
+        { x0: 1660, x1: 1745, y0: 242, y1: 395 }, // heladera
+        { x0: 1745, x1: 1983, y0: 300, y1: 384 }, // mesada de cocina
+        { x0: 651, x1: 1228, y0: 393, y1: 550 },  // sofá
+        { x0: 805, x1: 1060, y0: 543, y1: 652 },  // mesa de centro
+        { x0: 25, x1: 135, y0: 590, y1: 690 },    // puf naranja del rincón
+        { x0: 176, x1: 282, y0: 550, y1: 650 },   // puf gris del rincón
+        { x0: 566, x1: 701, y0: 557, y1: 679 },   // puf naranja del sofá
+        { x0: 1107, x1: 1240, y0: 557, y1: 672 }, // puf gris de la derecha
         { x0: 90, x1: 195, y0: 645, y1: 730 },    // mesita auxiliar
       ],
     },
-    // Los 4 puestos: los pies de la silla, medidos sobre el arte y corridos un
-    // poco hacia adelante para quedar FUERA de las cajoneras (si no, el chibi
-    // parado ahí se metía adentro del mueble). El sprite sentado trae su silla
-    // adentro, así que tapa la del cuadro.
+    // Los puestos: los pies de la silla, medidos sobre el arte. La regla es
+    // "los pies donde el mueble toca el piso": el sprite sentado trae su silla
+    // adentro y las piernas cuelgan hasta los pies, así que con los pies en el
+    // borde de abajo del mueble el personaje queda apoyado de verdad.
+    // (Antes los puntos estaban sobre la superficie: el de la mesa de
+    // reuniones caía en el medio de la tapa y el del sofá en la alfombra.)
     sillas: [
       // PCs / sillas gamer
-      { x: 489, y: 361, face: 'right', tipo: 'pc' },
-      { x: 403, y: 390, face: 'right', tipo: 'pc' },
-      { x: 1387, y: 354, face: 'left',  tipo: 'pc' },
-      { x: 1495, y: 387, face: 'left',  tipo: 'pc' },
-      // Mesa de reuniones
-      { x: 752, y: 349, face: 'up',   tipo: 'reunion' },
-      { x: 840, y: 353, face: 'up',   tipo: 'reunion' },
-      { x: 932, y: 357, face: 'up',   tipo: 'reunion' },
-      { x: 1022, y: 356, face: 'up',  tipo: 'reunion' },
-      { x: 771, y: 316, face: 'down', tipo: 'reunion' },
-      { x: 840, y: 318, face: 'down', tipo: 'reunion' },
-      { x: 913, y: 317, face: 'down', tipo: 'reunion' },
-      { x: 976, y: 318, face: 'down', tipo: 'reunion' },
-      // Sofá y pufs
-      { x: 767, y: 553, face: 'down', tipo: 'sofa' },
-      { x: 883, y: 559, face: 'down', tipo: 'sofa' },
-      { x: 998, y: 557, face: 'down', tipo: 'sofa' },
-      { x: 1136, y: 644, face: 'down', tipo: 'puf' },
-      { x: 688, y: 649, face: 'down', tipo: 'puf' },
-      { x: 258, y: 593, face: 'down', tipo: 'puf' },
-      { x: 97, y: 649, face: 'down', tipo: 'puf' },
+      { x: 354, y: 410, face: 'right', tipo: 'pc', mueble: 'escIzq' },
+      { x: 438, y: 427, face: 'right', tipo: 'pc', mueble: 'escIzq' },
+      { x: 1413, y: 395, face: 'left',  tipo: 'pc', mueble: 'escDer' },
+      { x: 1518, y: 395, face: 'left',  tipo: 'pc', mueble: 'escDer' },
+      // Mesa de reuniones: sólo la fila del fondo, mirando hacia abajo. Quedan
+      // DETRÁS de la mesa: la oclusión les tapa las piernas y se ve el torso por
+      // encima de la tapa. (La fila de adelante no se usa: en el cuadro esas
+      // sillas quedan tapadas por el sofá y el personaje se veía flotando.)
+      { x: 780, y: 330, face: 'down', tipo: 'reunion' },
+      { x: 860, y: 330, face: 'down', tipo: 'reunion' },
+      { x: 940, y: 330, face: 'down', tipo: 'reunion' },
+      { x: 1020, y: 330, face: 'down', tipo: 'reunion' },
+      // Sofá: los pies quedan en la alfombra, delante del sofá, y el cuerpo se
+      // apoya en el asiento. La mesa de centro tapa las piernas del del medio.
+      { x: 740, y: 596, face: 'down', tipo: 'sofa' },
+      { x: 920, y: 596, face: 'down', tipo: 'sofa' },
+      { x: 1100, y: 596, face: 'down', tipo: 'sofa' },
+      // Pufs
+      { x: 80, y: 698, face: 'down', tipo: 'puf' },
+      { x: 229, y: 658, face: 'down', tipo: 'puf' },
+      { x: 633, y: 687, face: 'down', tipo: 'puf' },
+      { x: 1173, y: 680, face: 'down', tipo: 'puf' },
     ],
     spawn: { x: 990, y: 745 },
     // Puerta de vidrio del fondo: zona que dispara el cruce + a qué mundo te
@@ -1992,9 +1998,12 @@ function sitC(g, c, frame) {
 
 const poseSentadaImgs = {};
 function poseSentada(charKey, seat, frame = 0) {
-  // El fondo ya trae todos los muebles. Se dibuja únicamente el cuerpo sentado:
-  // nunca una segunda silla, sofá o puf encima del arte.
-  if (!seat || charKey === 'milo') return getSitSprite(charKey, seat ? seat.face : 'right', true, frame);
+  // En los puestos de escritorio se usa el dibujo con la silla gamer incluida:
+  // es la referencia del equipo (el sprite trae SU silla, a SU escala). En sofá,
+  // puf y mesa de reuniones se dibuja sólo el cuerpo, porque el mueble ya está
+  // pintado en el fondo y una segunda silla encima del sofá quedaba espantosa.
+  if (!seat) return getSitSprite(charKey, 'right', true, frame);
+  if (seat.tipo === 'pc' || charKey === 'milo') return getSitSprite(charKey, seat.face, true, frame);
   const k = `${charKey}_puf${(frame % 2) + 1}`; // pose sentada limpia, sin mueble
   if (!poseSentadaImgs[k]) { const im = new Image(); im.src = urlAsset(`sprites/${k}.png`); poseSentadaImgs[k] = im; }
   return poseSentadaImgs[k];
@@ -2072,6 +2081,7 @@ let bgReady = false;
 // fundido alrededor del cambio. Sin ventanal, sin nubes dibujadas, sin lluvia
 // viva: el clima se muestra en el reloj y nada más.
 let fondoActualIm = null;   // la variante que se está dibujando (sirve para el relleno lateral)
+let fondoActual = null;     // { a, b, t }: lo mismo, con el fundido, para la oclusión
 function drawEscena(hf) {
   const E = escena(), DW = E.w, DH = E.h;
   const par = cieloPar(hf, E.cielo);
@@ -2084,7 +2094,44 @@ function drawEscena(hf) {
   ctx.imageSmoothingQuality = 'high';
   if (ia) ctx.drawImage(ia, 0, 0, DW, DH);
   if (ib && par.t > 0.001) { ctx.globalAlpha = par.t; ctx.drawImage(ib, 0, 0, DW, DH); ctx.globalAlpha = 1; }
+  fondoActual = { a: ia, b: ib, t: par.t };
   drawMarcas();
+}
+// ---------- Oclusión: el mueble de delante tapa al personaje ----------
+// El fondo es UNA pintura: los muebles no son sprites, así que no hay nada que
+// dibujar "encima" del personaje. El truco es volver a pintar el trozo de fondo
+// que corresponde al mueble, por encima del personaje que quedó detrás. Como se
+// copia del mismo fondo y en el mismo lugar, el empalme es invisible.
+//
+// La regla: el mueble tapa desde su borde de arriba hasta los PIES del
+// personaje (+8 px, para llevarse también la sombrita). Si los pies están por
+// debajo del borde de abajo del mueble, el personaje está delante y no se toca
+// nada. Por eso los puestos están medidos con los pies AFUERA del mueble:
+// sentado en el sofá no te tapa el sofá, pero el de atrás de la mesa de
+// reuniones sí queda con el torso por encima de la tapa.
+function ocluirPorMuebles(p) {
+  const F = piso();
+  const fo = fondoActual;
+  if (!F.obst || !fo || !fo.a) return;
+  // Sentado en un puesto de escritorio el personaje queda DELANTE del mueble
+  // (la silla está de este lado), aunque sus pies caigan adentro del rectángulo
+  // de colisión. Sin este salteo, la oclusión le tapaba el cuerpo con el
+  // escritorio y quedaba una cabeza flotando sobre la mesada.
+  const propio = p.seated ? (seatNear(p.x, p.y, 50) || {}).mueble || null : null;
+  for (const o of F.obst) {
+    if (o.id && o.id === propio) continue;
+    if (o.noOcluir) continue;                 // pared del borde: el personaje siempre está delante
+    if (p.y >= o.y1) continue;                 // está delante del mueble
+    const y1 = Math.min(o.y1, p.y + 8);
+    if (y1 <= o.y0) continue;
+    const w = o.x1 - o.x0, h = y1 - o.y0;
+    ctx.drawImage(fo.a, o.x0, o.y0, w, h, o.x0, o.y0, w, h);
+    if (fo.b && fo.t > 0.001) {
+      ctx.globalAlpha = fo.t;
+      ctx.drawImage(fo.b, o.x0, o.y0, w, h, o.x0, o.y0, w, h);
+      ctx.globalAlpha = 1;
+    }
+  }
 }
 // La 🚪 marca el lugar que se cruza con la E (en la terraza no hay puerta
 // dibujada: la marca indica por dónde se vuelve adentro).
@@ -2126,7 +2173,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v187 · 15/10/2026';
+const VERSION = 'v188 · 24/11/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -5270,6 +5317,7 @@ function render() {
     }
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath(); ctx.ellipse(p.x, p.y + 4, shR, shR * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+    ocluirPorMuebles(p);
 
     ctx.font = `${fs}px "Press Start 2P", monospace`;
     ctx.textAlign = 'center';
