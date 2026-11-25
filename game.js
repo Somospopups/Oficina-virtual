@@ -476,17 +476,13 @@ const charAssets = {};   // charKey -> { down, left, right, up, sit }
 // Hoja de sprites de cada personaje: los archivos que hay en sprites/, sin la
 // extensión. Lo que falte se deriva del de frente: la espalda es el frente
 // apagado y el perfil es el frente espejado. Cada personaje es UNA entrada acá;
-// meter uno nuevo es agregar una línea. Los que se cortaron con la plantilla de
-// tools/generar-plantilla-personaje.py ya vienen con izq y der dibujados, y
-// también con sit_left / sit_right / sit_up / sit_down (se dejan sin cablear
-// hasta que la hoja traiga además los cuadros de las animaciones sentado, que
-// tienen que medir lo mismo que el sentado base).
+// meter uno nuevo es agregar una línea. El perfil no viene dibujado: se espeja
+// el frente, como siempre.
 const CHAR_SPRITES = {
-  ger:  { up: 'ger_up',  izq: 'ger_izq',  der: 'ger_der' },
-  facu: { up: 'facu_up', izq: 'facu_izq', der: 'facu_der' },
-  ovni: { up: 'ovni_up', izq: 'ovni_izq', der: 'ovni_der' },
+  ger:  { up: 'ger_up' },
+  ovni: { up: 'ovni_up' },
   milo: { up: 'milo_up' },
-  ove:  { up: 'ove_up',  izq: 'ove_izq',  der: 'ove_der' },
+  ove:  { up: 'ove_up' },
 };
 // Las poses sentadas de referencia nacen en estas orientaciones; se espejan
 // automáticamente cuando alguien ocupa un puesto del lado opuesto.
@@ -2288,7 +2284,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v189 · 24/11/2026';
+const VERSION = 'v190 · 24/11/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -5197,14 +5193,18 @@ function catAplicarMimo(id) {
 const walkAssets = {};
 const walkSources = {};
 {
+  // El hash de assets.js se encarga del cacheo: si cambia el contenido de un
+  // PNG, cambia la URL y el navegador deja de mostrar el viejo.
   const img = (n) => { const i = new Image(); i.src = urlAsset(`sprites/${n}.png`); return i; };
-  const hoja4 = (k) => ({
-    down: [1,2,3,4].map((i) => img(`${k}_walk${i}`)),
-    up: [1,2,3,4].map((i) => img(`${k}_wu${i}`)),
-    left: [1,2,3,4].map((i) => img(`${k}_wl${i}`)),
-    right: [1,2,3,4].map((i) => img(`${k}_wr${i}`)),
-  });
-  for (const k of ['ger', 'facu', 'ovni', 'ove']) walkSources[k] = hoja4(k);
+  const g2 = img('ger_walk2'), g3 = img('ger_walk3'), g4 = img('ger_walk4');
+  const gl1 = img('ger_wl1'), gl2 = img('ger_wl2'), gl3 = img('ger_wl3');
+  const gr1 = img('ger_wr1'), gr2 = img('ger_wr2'), gr3 = img('ger_wr3');
+  walkSources.ger = {
+    down: [g2, g3, g4, g3],
+    up: [img('ger_wu1'), img('ger_wu2')],
+    left: [gl1, gl2, gl3, gl2],
+    right: [gr1, gr2, gr3, gr2],
+  };
   const l1 = img('milo_wl1'), l2 = img('milo_wl2'), l3 = img('milo_wl3');
   const r1 = img('milo_wr1'), r2 = img('milo_wr2'), r3 = img('milo_wr3');
   walkSources.milo = {
@@ -5212,6 +5212,26 @@ const walkSources = {};
     up: [img('milo_wu1'), img('milo_wu2')],
     left: [l1, l2, l3, l2],
     right: [r1, r2, r3, r2],
+  };
+  // Ovni (hoja completa): el perfil del dibujo MIRA A LA DERECHA (wr) y la
+  // izquierda (wl) es su espejo.
+  const ol1 = img('ovni_wl1'), ol2 = img('ovni_wl2'), ol3 = img('ovni_wl3'), ol4 = img('ovni_wl4');
+  const or1 = img('ovni_wr1'), or2 = img('ovni_wr2'), or3 = img('ovni_wr3'), or4 = img('ovni_wr4');
+  walkSources.ovni = {
+    down: [img('ovni_walk1'), img('ovni_walk2'), img('ovni_walk3'), img('ovni_walk4')],
+    up: [img('ovni_wu1'), img('ovni_wu2'), img('ovni_wu3'), img('ovni_wu4')],
+    left: [ol1, ol2, ol3, ol4],
+    right: [or1, or2, or3, or4],
+  };
+  // Ove: hoja propia. El perfil de la hoja mira a la IZQUIERDA (wl) y el
+  // derecho es su espejo (wr).
+  const el1 = img('ove_wl1'), el2 = img('ove_wl2'), el3 = img('ove_wl3');
+  const er1 = img('ove_wr1'), er2 = img('ove_wr2'), er3 = img('ove_wr3');
+  walkSources.ove = {
+    down: [img('ove_walk1'), img('ove_walk2'), img('ove_walk3'), img('ove_walk2')],
+    up: [img('ove_wu1'), img('ove_wu2')],
+    left: [el1, el2, el3, el2],
+    right: [er1, er2, er3, er2],
   };
 }
 // Reescala todos los frames de caminata de un personaje al alto de su figura de
