@@ -2,6 +2,8 @@
  * Un hash distinto por dibujo: si el archivo cambia, la URL cambia y el
  * navegador deja de mostrar la versión vieja. */
 window.ASSETS = {
+  "sprites/bg_deep2.jpg": "v=3d56b665",
+  "sprites/bg_deep2.webp": "v=39d8cecd",
   "sprites/bg_ofi_atardecer.jpg": "v=da07d805",
   "sprites/bg_ofi_atardecer.webp": "v=33887b81",
   "sprites/bg_ofi_dia.jpg": "v=da07d805",
@@ -14,6 +16,8 @@ window.ASSETS = {
   "sprites/bg_terraza_dia.webp": "v=9a521985",
   "sprites/bg_terraza_noche.jpg": "v=ae0d72f4",
   "sprites/bg_terraza_noche.webp": "v=3fac2c83",
+  "sprites/cafetera.png": "v=361ec975",
+  "sprites/cafetera.webp": "v=1916e08f",
   "sprites/cat/happy.png": "v=fa0009a4",
   "sprites/cat/sit.png": "v=9cb22d9d",
   "sprites/cat/sleep.png": "v=2c2ddec4",

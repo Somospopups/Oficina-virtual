@@ -21,124 +21,40 @@ let viewScale = 1, viewOX = 0, viewOY = 0;
 const ESCENAS = {
   ofi: {
     titulo: 'la oficina',
-    w: 1983, h: 793,
-    // El cielo está PINTADO en el arte: no se dibuja, se CRUZA entre variantes
-    // según la hora real (ver cieloPar/drawEscena). Cada stop es un archivo
-    // sprites/<base>.webp y su hora de entrada.
-    cielo: [
-      { h: 7, base: 'bg_ofi_dia' },
-      { h: 17, base: 'bg_ofi_atardecer' },
-      { h: 19.5, base: 'bg_ofi_noche' },
-    ],
+    w: 1195, h: 896,
+    // Una sola variante: la oficina original no tiene versión de atardecer ni
+    // de noche pintada. Lo que cambia con la hora es el cielo del ventanal
+    // (drawSky) y la oscuridad ambiental (skyNow).
+    cielo: [{ h: 0, base: 'bg_deep2' }],
+    // Esta oficina tiene el ventanal con cielo vivo (drawSky) y la cafetera
+    // dibujada encima del fondo, no pintada en el arte.
+    ventanal: true,
     piso: {
-      yTop: 348, yBot: 793,
-      poli: [[560, 348], [1310, 348], [1983, 480], [1983, 793], [0, 793], [0, 480]],
-      // Alto de cabeza a pies (px) al fondo y al frente del piso.
-      //
-      // Medido contra el arte, no a ojo: el escritorio de la izquierda mide
-      // ~118 px por sus 75 cm reales, o sea que el cuadro está pintado a
-      // ~157 px/m. Una persona de 1,75 m al lado de ese escritorio tiene que
-      // medir ~275 px. Con el ramp anterior ([115, 350]) salía en ~160 px:
-      // un 40% más chica, y por eso los personajes parecían muñecos sueltos
-      // flotando entre los muebles. Con [190, 440] quedan a escala.
-      fig: [190, 440],
+      yTop: 460, yBot: 890,
+      xlTop: 505, xrTop: 720, xlBot: 280, xrBot: 935,
+      // Alto de cabeza a pies, en px. Es la rampa de siempre de esta oficina
+      // (44*s con s = 3.1..20): al fondo 136 px y creciendo hasta que corta el
+      // tope del sprite propio (baseH/44), igual que siempre.
+      fig: [136, 880],
       obst: [
-        { x0: 0, x1: 45, y0: 250, y1: 793, noOcluir: true }, // pared y puerta azul del borde izquierdo (bloquea el paso, nunca tapa)
-        { x0: 40, x1: 145, y0: 425, y1: 585 },    // biblioteca baja + planta
-        { id: 'escIzq', x0: 280, x1: 543, y0: 317, y1: 433 },   // escritorio de la izquierda, con monitores y cajoneras
-        { x0: 527, x1: 575, y0: 243, y1: 369 },   // dispensador de agua
-        { x0: 568, x1: 642, y0: 298, y1: 422 },   // planta grande al lado del sofá
-        { x0: 721, x1: 1132, y0: 298, y1: 366 },  // mesa de reuniones, con sus sillas
-        { id: 'escDer', x0: 1313, x1: 1660, y0: 274, y1: 389 }, // escritorio de la derecha, con monitores
-        { x0: 1660, x1: 1745, y0: 242, y1: 395 }, // heladera
-        { x0: 1745, x1: 1983, y0: 300, y1: 384 }, // mesada de cocina
-        { x0: 651, x1: 1228, y0: 393, y1: 550 },  // sofá
-        { x0: 805, x1: 1060, y0: 543, y1: 652 },  // mesa de centro
-        { x0: 25, x1: 135, y0: 590, y1: 690 },    // puf naranja del rincón
-        { x0: 176, x1: 282, y0: 550, y1: 650 },   // puf gris del rincón
-        { x0: 566, x1: 701, y0: 557, y1: 679 },   // puf naranja del sofá
-        { x0: 1107, x1: 1240, y0: 557, y1: 672 }, // puf gris de la derecha
-        { x0: 90, x1: 195, y0: 645, y1: 730 },    // mesita auxiliar
+        { x0: 640, x1: 1010, y0: 375, y1: 400 },   // mueble bajo la ventana
       ],
     },
-    // Los puestos: los pies de la silla, medidos sobre el arte. La regla es
-    // "los pies donde el mueble toca el piso": el sprite sentado trae su silla
-    // adentro y las piernas cuelgan hasta los pies, así que con los pies en el
-    // borde de abajo del mueble el personaje queda apoyado de verdad.
-    // (Antes los puntos estaban sobre la superficie: el de la mesa de
-    // reuniones caía en el medio de la tapa y el del sofá en la alfombra.)
+    // Los 4 puestos: los pies de la silla, medidos sobre el arte, enfrente de
+    // cada teclado. Los dos de adelante quedan afuera del trapecio caminable:
+    // se llega sentándose con la E, no caminando.
     sillas: [
-      // PCs / sillas gamer
-      { x: 354, y: 410, face: 'right', tipo: 'pc', mueble: 'escIzq' },
-      { x: 438, y: 427, face: 'right', tipo: 'pc', mueble: 'escIzq' },
-      { x: 1413, y: 395, face: 'left',  tipo: 'pc', mueble: 'escDer' },
-      { x: 1518, y: 395, face: 'left',  tipo: 'pc', mueble: 'escDer' },
-      // Mesa de reuniones: sólo la fila del fondo, mirando hacia abajo. Quedan
-      // DETRÁS de la mesa: la oclusión les tapa las piernas y se ve el torso por
-      // encima de la tapa. (La fila de adelante no se usa: en el cuadro esas
-      // sillas quedan tapadas por el sofá y el personaje se veía flotando.)
-      { x: 780, y: 330, face: 'down', tipo: 'reunion' },
-      { x: 860, y: 330, face: 'down', tipo: 'reunion' },
-      { x: 940, y: 330, face: 'down', tipo: 'reunion' },
-      { x: 1020, y: 330, face: 'down', tipo: 'reunion' },
-      // Sofá: los pies quedan en la alfombra, delante del sofá, y el cuerpo se
-      // apoya en el asiento. La mesa de centro tapa las piernas del del medio.
-      { x: 740, y: 596, face: 'down', tipo: 'sofa' },
-      { x: 920, y: 596, face: 'down', tipo: 'sofa' },
-      { x: 1100, y: 596, face: 'down', tipo: 'sofa' },
-      // Pufs
-      { x: 80, y: 698, face: 'down', tipo: 'puf' },
-      { x: 229, y: 658, face: 'down', tipo: 'puf' },
-      { x: 633, y: 687, face: 'down', tipo: 'puf' },
-      { x: 1173, y: 680, face: 'down', tipo: 'puf' },
+      { x: 328, y: 683, face: 'left',  tipo: 'pc' },  // delantero izquierdo
+      { x: 510, y: 518, face: 'left',  tipo: 'pc' },  // de atrás, izquierdo
+      { x: 710, y: 518, face: 'right', tipo: 'pc' },  // de atrás, derecho
+      { x: 861, y: 683, face: 'right', tipo: 'pc' },  // delantero derecho
     ],
-    spawn: { x: 990, y: 745 },
-    // Puerta de vidrio del fondo: zona que dispara el cruce + a qué mundo te
-    // lleva y dónde caés del otro lado (ax/ay). El punto de caída en la terraza
-    // está a ~168 px de la puerta de vuelta: con menos, la E te rebotaba de
-    // ida y vuelta apenas llegabas (el radio de detección es 120).
-    puerta: { x0: 1125, x1: 1270, y0: 320, y1: 375, hacia: 'terr', ax: 1020, ay: 560 },
-  },
-  terr: {
-    titulo: 'la terraza',
-    w: 2039, h: 771,
-    cielo: [
-      { h: 7, base: 'bg_terraza_dia' },
-      { h: 17, base: 'bg_terraza_atardecer' },
-      { h: 19.5, base: 'bg_terraza_noche' },
-    ],
-    piso: {
-      yTop: 435, yBot: 771,
-      poli: [[0, 435], [2039, 435], [2039, 771], [0, 771]],
-      fig: [210, 450],
-      obst: [
-        { x0: 0, x1: 150, y0: 300, y1: 585 },     // dispensadora, planta y farol de la izquierda
-        { x0: 125, x1: 580, y0: 325, y1: 530 },   // sofá (el L completo, con el chaise)
-        { x0: 305, x1: 495, y0: 435, y1: 528 },   // mesa de centro
-        { x0: 578, x1: 618, y0: 380, y1: 455 },   // farol de la derecha
-        { x0: 1540, x1: 1730, y0: 295, y1: 465 }, // macetas grandes
-        { x0: 1745, x1: 2039, y0: 320, y1: 505 }, // parrilla y mesada
-      ],
-    },
-    // En la terraza no hay escritorios: se viene a caminar y a mirar la ciudad.
-    sillas: [
-      { x: 478, y: 377, face: 'down',  tipo: 'sofa' },
-      { x: 403, y: 378, face: 'down',  tipo: 'sofa' },
-      { x: 331, y: 375, face: 'down',  tipo: 'sofa' },
-      { x: 227, y: 396, face: 'right', tipo: 'sofa' },
-    ],
-    spawn: { x: 1020, y: 660 },
-    // No hay puerta dibujada: se vuelve adentro saliendo por el borde de
-    // abajo, al centro (la 🚪 marca el lugar). Al volver caés en el pasillo
-    // libre entre el sofá (x≤1235) y los escritorios de la derecha (x≥1350),
-    // a ~162 px de la puerta para que la E no te devuelva a la terraza.
-    puerta: { x0: 880, x1: 1160, y0: 690, y1: 765, hacia: 'ofi', ax: 1290, ay: 480 },
+    spawn: { x: 700, y: 700 },
   },
 };
 // Mundo en el que está cada uno. Viaja en el estado (myPublic/upsertRemote):
-// cada persona dibuja sólo a la gente de SU escena, así la oficina y la
-// terraza conviven sin pisarse — el mismo truco de la vista previa vieja, sin
-// el gate de Ger.
+// cada persona dibuja sólo a la gente de SU escena. Hoy hay una sola (la
+// oficina), pero el mecanismo queda: sumar un mundo es agregar una entrada.
 let escenaId = 'ofi';
 let escenaFade = 0;
 function escena() { return ESCENAS[escenaId] || ESCENAS.ofi; }
@@ -190,10 +106,13 @@ function escalaFigura(y) {
 // La VELOCIDAD de caminar se mide con otra rampa (la de siempre) para no
 // cambiar el paso que ya se conoce: de 0.35x al fondo a 1.6x al frente.
 function depthScale(y) { const F = piso(); return lerp(3.1, 20, clamp((y - F.yTop) / (F.yBot - F.yTop), 0, 1)); }
-// Altura del sentado (la silla viene adentro del dibujo). Sale de la MISMA
-// rampa de la escena, o los puestos quedaban a otro tamaño que el chibi
-// parado al lado. 0.82 = lo que mide sentado contra parado.
-function sitScale(y) { return escalaFigura(y) * 44 * 0.82 / 48; }
+// Altura del sentado (la silla viene adentro del dibujo). Es la rampa de
+// SIEMPRE de la oficina original, calibrada contra y 560..750 (las y de los
+// cuatro puestos): 4.8 al fondo y 9.8 adelante. La rampa de `fig` no sirve acá
+// porque el sprite del puesto mide 48 de base y la silla gamer ya viene
+// adentro del dibujo: con la otra rampa el de adelante quedaba gigante y
+// tapaba los monitores.
+function sitScale(y) { return lerp(4.8, 9.8, clamp((y - 560) / 190, 0, 1)); }
 // Extremos del polígono del piso a una altura dada: sirve para tirar destinos
 // al azar (el gato) sin salirse del mundo.
 function pisoAncho(y) {
@@ -216,19 +135,180 @@ function pisoAncho(y) {
 // que cambia es cuál variante se mira, con un fundido alrededor de cada
 // cambio (ver cieloPar y drawEscena). Acá sólo queda cuánta oscuridad
 // ambiental hay, que usa el gato para decidir dónde dormir.
-const NOCHE = [
-  { h: 0, amb: 0.34 }, { h: 5, amb: 0.34 }, { h: 6.5, amb: 0.12 },
-  { h: 9, amb: 0 }, { h: 15, amb: 0 }, { h: 18.5, amb: 0.10 },
-  { h: 20, amb: 0.34 }, { h: 24, amb: 0.34 },
+// Rectángulo del ventanal, medido sobre el arte: ahí se pinta el cielo.
+const WIN = { x: 484, y: 291, w: 255, h: 84 };
+
+// ---------- Cielo del ventanal (día/noche y clima real) ----------
+// La oficina original tiene un ventanal pintado con cielo fijo: acá se vuelve
+// a pintar por arriba con el cielo de la hora real y el clima de Córdoba, y
+// con el skyline de edificios de siempre. Es lo que hacía la versión de
+// octubre; el fondo nuevo lo traía pintado y por eso se había ido.
+const SKY_STOPS = [
+  { h: 0,   top: '#070b1e', bot: '#141c33', star: 1,   patch: '#39456b', patchA: 0.25, amb: 0.34 },
+  { h: 5,   top: '#070b1e', bot: '#141c33', star: 1,   patch: '#39456b', patchA: 0.25, amb: 0.34 },
+  { h: 6.5, top: '#ff8f5c', bot: '#ffd9a0', star: 0.2, patch: '#ffcf9e', patchA: 0.40, amb: 0.12 },
+  { h: 9,   top: '#5ab6f0', bot: '#a8dcf6', star: 0,   patch: '#fff6d6', patchA: 0.30, amb: 0 },
+  { h: 15,  top: '#4aa3e8', bot: '#9ed4f2', star: 0,   patch: '#fff2c8', patchA: 0.30, amb: 0 },
+  { h: 18.5,top: '#ff7b4f', bot: '#ffc46b', star: 0.1, patch: '#ffd9a0', patchA: 0.40, amb: 0.10 },
+  { h: 20,  top: '#070b1e', bot: '#141c33', star: 1,   patch: '#39456b', patchA: 0.25, amb: 0.34 },
+  { h: 24,  top: '#070b1e', bot: '#141c33', star: 1,   patch: '#39456b', patchA: 0.25, amb: 0.34 },
 ];
 function skyNow(hf) {
-  let a = NOCHE[0], b = NOCHE[NOCHE.length - 1];
-  for (let i = 0; i < NOCHE.length - 1; i++) {
-    if (hf >= NOCHE[i].h && hf <= NOCHE[i + 1].h) { a = NOCHE[i]; b = NOCHE[i + 1]; break; }
+  let a = SKY_STOPS[0], b = SKY_STOPS[SKY_STOPS.length - 1];
+  for (let i = 0; i < SKY_STOPS.length - 1; i++) {
+    if (hf >= SKY_STOPS[i].h && hf <= SKY_STOPS[i + 1].h) { a = SKY_STOPS[i]; b = SKY_STOPS[i + 1]; break; }
   }
   const t = b.h === a.h ? 0 : (hf - a.h) / (b.h - a.h);
-  return { amb: lerp(a.amb, b.amb, t) };
+  return {
+    top: lerpColor(a.top, b.top, t), bot: lerpColor(a.bot, b.bot, t),
+    star: lerp(a.star, b.star, t), patch: lerpColor(a.patch, b.patch, t),
+    patchA: lerp(a.patchA, b.patchA, t), amb: lerp(a.amb, b.amb, t),
+  };
 }
+function phaseName(h) {
+  if (h >= 5 && h < 8) return '🌅 Amanecer';
+  if (h >= 8 && h < 13) return '☀️ Mañana';
+  if (h >= 13 && h < 19) return '🌇 Tarde';
+  return '🌙 Noche';
+}
+
+// Skyline del ventanal
+const BUILDINGS = [];
+(function () {
+  let x = 0, i = 0;
+  while (x < WIN.w + 20) {
+    const w = 10 + Math.floor(rnd(i, 7, 1) * 16);
+    const h = 16 + Math.floor(rnd(i, 3, 2) * 50);
+    BUILDINGS.push({ x, w, h, brick: rnd(i, 11, 3) > 0.72 });
+    x += w + 1 + Math.floor(rnd(i, 9, 5) * 4);
+    i++;
+  }
+})();
+
+const skyCv = document.createElement('canvas');
+skyCv.width = WIN.w; skyCv.height = WIN.h;
+function drawSky(now, hf, sky) {
+  const g = skyCv.getContext('2d');
+  const W = WIN.w, H = WIN.h;
+  pintarCielo(g, W, H, now, hf, sky);
+  g.fillStyle = '#e8e8ec';
+  g.fillRect(0, 0, W, 3); g.fillRect(0, H - 4, W, 4);
+  g.fillRect(W / 3 - 2, 0, 4, H); g.fillRect(2 * W / 3 - 2, 0, 4, H);
+}
+// El mismo cielo del ventanal, pero sobre cualquier tamaño: en la vista
+// previa se pinta a pantalla completa detrás de las escenas nuevas, así las
+// ventanas muestran sol, nubes, lluvia, nieve y rayos de verdad.
+function pintarCielo(g, W, H, now, hf, sky) {
+  const grad = g.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, sky.top); grad.addColorStop(1, sky.bot);
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+  if (sky.star > 0.02) {
+    for (let i = 0; i < 60; i++) {
+      const sx = rnd(i, 1, 2) * W, sy = rnd(i, 2, 3) * (H * 0.5);
+      const tw = 0.5 + 0.5 * Math.sin(now * 0.003 + i * 2.1);
+      g.fillStyle = `rgba(255,255,255,${(sky.star * tw * 0.9).toFixed(2)})`;
+      g.fillRect(sx, sy, 1, 1);
+    }
+  }
+  if (hf >= 6 && hf <= 19) {
+    const t = (hf - 6) / 13;
+    const sx = t * W, sy = H * 0.75 - Math.sin(Math.PI * t) * H * 0.55;
+    // Con cielo cubierto el sol apenas se adivina detrás de las nubes
+    g.globalAlpha = clima.ok ? Math.max(0.06, 1 - clima.nubes * 0.92) : 1;
+    g.fillStyle = 'rgba(255,215,106,0.35)'; g.beginPath(); g.arc(sx, sy, 8, 0, 7); g.fill();
+    g.fillStyle = '#ffd76a'; g.beginPath(); g.arc(sx, sy, 4, 0, 7); g.fill();
+    g.globalAlpha = 1;
+  } else {
+    const hn = (hf >= 19 ? hf - 19 : hf + 5) / 11;
+    const mx = hn * W, my = H * 0.7 - Math.sin(Math.PI * hn) * H * 0.5;
+    g.fillStyle = '#e8ecf2'; g.beginPath(); g.arc(mx, my, 5, 0, 7); g.fill();
+    g.fillStyle = '#c9cfda'; g.fillRect(mx - 2, my - 2, 2, 2);
+  }
+  const cloudA = 0.85 - sky.star * 0.6;
+  for (let i = 0; i < 4; i++) {
+    const cx = ((now * 0.004 * (1 + i * 0.3) + i * 73) % (W + 40)) - 20;
+    const cy = 8 + i * 10;
+    g.fillStyle = `rgba(255,255,255,${cloudA.toFixed(2)})`;
+    g.fillRect(cx, cy, 24, 4); g.fillRect(cx + 4, cy - 2, 14, 2); g.fillRect(cx + 6, cy + 4, 12, 2);
+  }
+  // Cielo encapotado: velo gris sobre cielo y sol según la cobertura REAL de
+  // nubes; con lluvia/tormenta el gris es más oscuro y plomizo.
+  if (clima.ok && clima.nubes > 0.25) {
+    const tw = climaTipo();
+    const plomizo = tw === 'tormenta' || tw === 'lluvia' || tw === 'llovizna';
+    const a = clima.nubes * (plomizo ? 0.72 : 0.55) * (1 - sky.star * 0.55);
+    g.fillStyle = plomizo ? `rgba(86,94,110,${a.toFixed(2)})` : `rgba(150,158,170,${a.toFixed(2)})`;
+    g.fillRect(0, 0, W, H);
+  }
+  const night = sky.star;
+  pintarEdificios(g, W, H, night);
+  // ---- Clima real por encima del skyline (y debajo del marco) ----
+  if (clima.ok) {
+    const tipo = climaTipo();
+    const extra = Math.round(clima.nubes * 10);
+    const oscura = tipo === 'tormenta' || tipo === 'lluvia' || tipo === 'llovizna';
+    for (let i = 0; i < extra; i++) {
+      const cx = ((now * (0.005 + i * 0.0012) + i * 53) % (W + 80)) - 40;
+      const cy = 3 + rnd(i, 51, 8) * (H * 0.5);
+      g.fillStyle = oscura ? 'rgba(64,72,88,0.8)' : `rgba(214,220,230,${(0.5 + clima.nubes * 0.3).toFixed(2)})`;
+      g.fillRect(cx, cy, 44, 6); g.fillRect(cx + 7, cy - 3, 28, 3); g.fillRect(cx + 10, cy + 6, 24, 3);
+    }
+    if (tipo === 'niebla') {
+      g.fillStyle = 'rgba(190,198,208,0.30)'; g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(190,198,208,0.40)'; g.fillRect(0, H * 0.4, W, H * 0.6);
+    }
+    if (tipo === 'lluvia' || tipo === 'llovizna' || tipo === 'tormenta') {
+      const nGotas = tipo === 'llovizna' ? 26 : 60;
+      g.strokeStyle = tipo === 'llovizna' ? 'rgba(190,210,235,0.35)' : 'rgba(170,195,230,0.55)';
+      g.lineWidth = 1;
+      g.beginPath();
+      for (let i = 0; i < nGotas; i++) {
+        const rx = (rnd(i, 61, 4) * W + now * (0.12 + rnd(i, 67, 2) * 0.1)) % W;
+        const ry = (rnd(i, 71, 6) * H + now * (0.25 + rnd(i, 73, 3) * 0.15)) % H;
+        g.moveTo(rx, ry); g.lineTo(rx - 1.5, ry + 5);
+      }
+      g.stroke();
+    }
+    if (tipo === 'nieve') {
+      g.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let i = 0; i < 34; i++) {
+        const rx = (rnd(i, 81, 4) * W + Math.sin(now * 0.001 + i) * 6 + now * 0.01) % W;
+        const ry = (rnd(i, 83, 6) * H + now * (0.02 + rnd(i, 87, 3) * 0.02)) % H;
+        g.fillRect(rx, ry, 1.5, 1.5);
+      }
+    }
+    if (tipo === 'tormenta') {
+      // Relámpago: destello local, no hace falta sincronizarlo (es ambiente)
+      if (now > clima.rayo && Math.random() < 0.005) clima.rayo = now + 160;
+      if (now < clima.rayo) {
+        g.fillStyle = `rgba(240,245,255,${(0.5 + Math.random() * 0.3).toFixed(2)})`;
+        g.fillRect(0, 0, W, H);
+      }
+    }
+  }
+}
+
+// Skyline en mosaico: la tabla BUILDINGS cubre un ventanal (WIN.w + 20); acá
+// se repite a lo ancho para fondos grandes. En el ventanal da una sola tira,
+// idéntico a antes.
+function pintarEdificios(g, W, H, night) {
+  for (let ox = 0; ox < W; ox += WIN.w + 20) {
+    for (const b of BUILDINGS) {
+      const bx = b.x + ox;
+      if (bx + b.w < 0 || bx > W) continue;
+      g.fillStyle = night > 0.5 ? '#1c2438' : (b.brick ? '#b07860' : '#9aa0a8');
+      g.fillRect(bx, H - b.h, b.w, b.h);
+      for (let wy = H - b.h + 3; wy < H - 3; wy += 4) {
+        for (let wx = bx + 2; wx < bx + b.w - 2; wx += 3) {
+          const on = rnd(wx, wy, 21) > 0.45;
+          if (night > 0.4) { if (on) { g.fillStyle = `rgba(255,215,106,${(0.4 + night * 0.6).toFixed(2)})`; g.fillRect(wx, wy, 1, 2); } }
+          else { g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(wx, wy, 1, 2); }
+        }
+      }
+    }
+  }
+}
+
 
 // Fondos de las escenas: WebP liviano con caída a JPG, en baja prioridad y
 // DESPUÉS de los dibujos (igual que las tandas de café), para no robarle el
@@ -2095,6 +2175,42 @@ function drawEscena(hf) {
   if (ia) ctx.drawImage(ia, 0, 0, DW, DH);
   if (ib && par.t > 0.001) { ctx.globalAlpha = par.t; ctx.drawImage(ib, 0, 0, DW, DH); ctx.globalAlpha = 1; }
   fondoActual = { a: ia, b: ib, t: par.t };
+  if (escena().ventanal) {
+    const now = performance.now();
+    const sky = skyNow(hf);
+    drawSky(now, hf, sky);
+    ctx.drawImage(skyCv, WIN.x, WIN.y);
+    // Mancha de sol sobre el piso (la que siempre hubo en esta oficina)
+    if (sky.patchA > 0.02) {
+      ctx.globalAlpha = sky.patchA;
+      ctx.fillStyle = sky.patch;
+      ctx.beginPath();
+      ctx.moveTo(509, 458); ctx.lineTo(719, 458); ctx.lineTo(820, 700); ctx.lineTo(410, 700);
+      ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    drawCafetera(now);
+    // Velo de noche: oscurece todo y prende los leds de los monitores y de las
+    // lámparas. Va antes de los personajes, igual que siempre.
+    if (sky.amb > 0.01) {
+      ctx.fillStyle = `rgba(8,11,32,${(sky.amb * 0.55).toFixed(2)})`;
+      ctx.fillRect(0, 0, DW, DH);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = `rgba(90,140,255,${(0.10 * sky.amb * 3).toFixed(2)})`;
+      ctx.fillRect(19, 345, 245, 140); ctx.fillRect(341, 345, 98, 75);
+      ctx.fillRect(775, 345, 98, 75); ctx.fillRect(962, 345, 210, 140);
+      ctx.fillStyle = `rgba(59,130,246,${(0.14 * sky.amb * 3).toFixed(2)})`;
+      ctx.fillRect(0, 209, 318, 51); ctx.fillRect(327, 262, 140, 33);
+      ctx.fillRect(757, 262, 140, 33); ctx.fillRect(906, 209, 289, 51);
+      for (const [lx, ly] of [[313, 51], [878, 51], [420, 158], [789, 158], [477, 205], [733, 205]]) {
+        const rg = ctx.createRadialGradient(lx, ly, 3, lx, ly, 70);
+        rg.addColorStop(0, `rgba(255,224,160,${(0.5 * sky.amb * 2).toFixed(2)})`);
+        rg.addColorStop(1, 'rgba(255,224,160,0)');
+        ctx.fillStyle = rg; ctx.fillRect(lx - 70, ly - 70, 140, 140);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+  }
   drawMarcas();
 }
 // ---------- Oclusión: el mueble de delante tapa al personaje ----------
@@ -2133,8 +2249,7 @@ function ocluirPorMuebles(p) {
     }
   }
 }
-// La 🚪 marca el lugar que se cruza con la E (en la terraza no hay puerta
-// dibujada: la marca indica por dónde se vuelve adentro).
+// La 🚪 marca el lugar que se cruza con la E, si la escena tiene puerta.
 function drawMarcas() {
   const pu = escena().puerta;
   if (!pu) return;
@@ -2173,7 +2288,7 @@ const attachmentDownload = document.getElementById('attachmentDownload');
 let activeAttachmentUrl = null;
 // Numero de version: sube de 1 en 1, sin puntos (v38, v39, v40...). El contador
 // viejo era el minor de v1.38.x, asi que v1.38.2 equivale a v38. Solo cambia game.js.
-const VERSION = 'v188 · 24/11/2026';
+const VERSION = 'v189 · 24/11/2026';
 
 // ---------- El index.html es el único que puede llegar viejo ----------
 // Todo lo demás se pide siempre fresco: style.css y game.js con ?t=, y cada
@@ -4006,7 +4121,7 @@ function renderPlayerList() {
       if (abierto) cls.push('abierta');
       return `<div class="${cls.join(' ')}" data-id="${p.id || ''}" data-char="${p.char || ''}" title="Tocá para ver cuándo entró y cuánto estuvo">` +
         `<span class="dot" style="background:${(CHAR_DEF[p.char] || CHAR_DEF.ger).dot}"></span>${esc(p.name)}` +
-        `<span class="pl-flecha">${abierto ? '▾' : '▸'}</span>${p.seated ? ' 🪑' : ''}${(p.escena || 'ofi') === 'terr' ? ' 🌴' : ''} ` +
+        `<span class="pl-flecha">${abierto ? '▾' : '▸'}</span>${p.seated ? ' 🪑' : ''} ` +
         `<span class="pl-status">${st.emoji} ${st.label}</span>` +
         (abierto ? histDetalle(p.char) : '') + '</div>';
     }).join('') +
@@ -4754,7 +4869,7 @@ function update(dt) {
     hintBox.innerHTML = `Cerca de <b>${esc(near.name)}</b> — <span class="key">/w ${esc(near.name)} msg</span> susurrar`;
     hintBox.classList.add('show');
   } else if (state.joined && puertaCerca()) {
-    const otro = escena().puerta.hacia === 'terr' ? 'la terraza' : 'la oficina';
+    const otro = 'el otro lado';
     hintBox.innerHTML = `🚪 <b>Puerta</b> — <span class="key">E</span> ir a ${otro}`;
     hintBox.classList.add('show');
   } else if (state.joined && cafeCerca()) {
@@ -4786,9 +4901,10 @@ function cafeCerca() {
   const me = state.players.get(state.myId);
   return me && Math.hypot(me.x - CAFE.x, me.y - CAFE.y) < CAFE.r;
 }
-// Puerta oficina ⇄ terraza con la E: parado cerca de la puerta, la E cruza con
-// fundido. Nada de cruzar caminando: era fácil atravesarla sin querer y el
-// rearme confundía.
+// Puerta con la E: parado cerca de la puerta, la E cruza con fundido. Nada de
+// cruzar caminando: era fácil atravesarla sin querer y el rearme confundía.
+// La oficina original no tiene puerta (tiene un ventanal), así que acá no se
+// usa: queda para la escena que sí tenga una.
 function puertaCerca() {
   const puerta = escena().puerta;
   if (!puerta) return null;
@@ -4817,7 +4933,7 @@ function cruzarPuerta() {
   // lista de dibujo (invisible en tu propia pantalla).
   me.escena = puerta.hacia;
   me.x = me.tx = puerta.ax; me.y = me.ty = puerta.ay;
-  toast(`🚪 ${puerta.hacia === 'terr' ? 'Saliste a la terraza' : 'Volviste a la oficina'}`);
+  toast('🚪 Cruzaste la puerta');
   sendMoveNow();
 }
 // Botón de acción (tecla E en PC, botón redondo en el celu).
@@ -4961,19 +5077,36 @@ miloToma.src = urlAsset('sprites/milo_toma.png');
 // La máquina de café está PINTADA en el arte de la oficina (sobre la mesada de
 // la cocina): acá sólo queda el vapor que sale de arriba. CAFE es la zona de
 // pie, en el piso frente a la mesada, donde te parás con la E.
-const CAFE = { x: 1795, y: 575, r: 80, mq: { x: 1788, y: 258 }, brewUntil: 0 };
+// En la oficina original la cafetera no está pintada en el fondo: se dibuja
+// acá, sobre el sill del ventanal, donde estaba la maceta.
+const CAFE = { x: 528, y: 470, r: 48, mq: { x: 512, y: 389 }, brewUntil: 0 };
+const cafeImg = new Image();
+cafeImg.src = urlAsset('sprites/cafetera.png');
 function drawCafetera(now) {
   const g = ctx;
   const bx = CAFE.mq.x, by = CAFE.mq.y;
   const brewing = performance.now() < CAFE.brewUntil;
+  if (cafeImg.complete && cafeImg.naturalWidth) {
+    const h = 40, w = h * (cafeImg.naturalWidth / cafeImg.naturalHeight);
+    const sm = g.imageSmoothingEnabled;
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(cafeImg, bx - w / 2, by - h, w, h);
+    g.imageSmoothingEnabled = sm;
+  } else {
+    // Fallback mientras baja el dibujo
+    g.fillStyle = '#232833'; g.fillRect(bx - 11, by - 26, 22, 26);
+    g.fillStyle = '#2f3644'; g.fillRect(bx - 11, by - 26, 22, 4);
+  }
+  g.fillStyle = brewing ? '#ff5a5a' : '#54d16e';                      // LED de estado
+  if (!brewing || Math.floor(now / 220) % 2) g.fillRect(bx + 11, by - 38, 2, 2);
   // Vapor: sólo se anima cuando se está preparando, más una gotita cada tanto
   // para que la máquina se vea viva aunque no haya nadie tomando.
-  const puffs = brewing ? 4 : (Math.floor(now / 4000) % 3 === 0 ? 1 : 0);
+  const puffs = brewing ? 3 : (Math.floor(now / 4000) % 3 === 0 ? 1 : 0);
   g.fillStyle = 'rgba(235,240,248,0.6)';
   for (let i = 0; i < puffs; i++) {
     const t = ((now * 0.001 + i * 0.4) % 1.2) / 1.2;
-    g.globalAlpha = 0.5 * (1 - t);
-    g.fillRect(bx - 2 + Math.sin((t * 4 + i) * 3) * 3, by - t * 26, 2, 2);
+    g.globalAlpha = 0.55 * (1 - t);
+    g.fillRect(bx - 2 + Math.sin((t * 4 + i) * 3) * 2.5, by - 42 - t * 10, 2, 2);
   }
   g.globalAlpha = 1;
 }
@@ -4986,8 +5119,8 @@ function drawCafetera(now) {
 const CAT_SEG = 26000;
 // Su rincón de dormir de noche, en la oficina (medido en el piso libre frente
 // al escritorio izquierdo).
-const CAT_SLEEP_OFI = { x: 480, y: 620 };
-const cat = { x: 480, y: 620, dir: 1, petBy: null, petUntil: 0, heartsUntil: 0, lastMiau: 0 };
+const CAT_SLEEP_OFI = { x: 622, y: 706 };
+const cat = { x: 612, y: 560, dir: 1, petBy: null, petUntil: 0, heartsUntil: 0, lastMiau: 0 };
 // Un punto caminable al azar de la escena: tira una y dentro del piso, mira
 // qué deja libre el polígono a esa altura y prueba candidatos hasta que alguno
 // no caiga adentro de un mueble. Así el gato se adapta solo a cualquier
@@ -5222,11 +5355,10 @@ function render() {
   // es otra variante de la misma escena. sky.amb sólo decide a dónde duerme el
   // gato y qué emoji marca el reloj.
   drawEscena(hf);
-  if (escenaId === 'ofi') drawCafetera(now);
 
   const nocturno = sky.amb > 0.24;
   let catDibujado = false;
-  // Cada uno ve sólo a la gente de su propia escena: la oficina y la terraza
+  // Cada uno ve sólo a la gente de su propia escena
   // conviven sin pisarse. Vos SIEMPRE te ves a vos mismo aunque el campo
   // escena quede desfasado un instante: invisible en tu propia pantalla es
   // "se rompió el juego", no un detalle de rendering.
@@ -5351,7 +5483,7 @@ function render() {
     if (p.bubble && now < p.bubbleUntil) drawBubble(ctx, p.bubble, p.x, ly - fs * 0.8, fs);
   }
   if (!catDibujado) drawCat(now, nocturno);
-  // Fundido del cambio de escena (oficina ⇄ terraza): tapa la costura mientras
+  // Fundido del cambio de escena: tapa la costura mientras
   // aparece el fondo del otro lado.
   if (escenaFade && now - escenaFade < 350) {
     ctx.fillStyle = `rgba(5,6,10,${(1 - (now - escenaFade) / 350).toFixed(2)})`;

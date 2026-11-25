@@ -436,7 +436,7 @@ ok(!/case 'pole'/.test(srv), 'el servidor ya no reenvía la bailarina');
     catch (e) { prov.push(`${n} ilegible: ${e.message}`); return null; }
   };
   const E = tomar('ESCENAS');
-  ok(!!E && !!E.ofi && !!E.terr, 'ESCENAS tiene la oficina y la terraza');
+  ok(!!E && !!E.ofi && !E.terr, 'ESCENAS tiene la oficina, y ya no la terraza');
   const enPoli = (poli, x, y) => {
     let dentro = false;
     for (let i = 0, j = poli.length - 1; i < poli.length; j = i++) {
@@ -445,16 +445,26 @@ ok(!/case 'pole'/.test(srv), 'el servidor ya no reenvía la bailarina');
     }
     return dentro;
   };
+  // Dos formas de piso: el polígono del dueño (escenas nuevas) o el trapecio
+  // de la oficina original (xlTop/xrTop/xlBot/xrBot, con el mismo margen de 24
+  // px que usa walkable()).
   const enPiso = (F, x, y) => {
     if (!F) return false;
     if (y < F.yTop + 10 || y > F.yBot - 6) return false;
-    if (F.poli && !enPoli(F.poli, x, y)) return false;
+    if (F.poli) { if (!enPoli(F.poli, x, y)) return false; }
+    else {
+      const t = (y - F.yTop) / (F.yBot - F.yTop);
+      const xl = F.xlTop + (F.xlBot - F.xlTop) * t + 24;
+      const xr = F.xrTop + (F.xrBot - F.xrTop) * t - 24;
+      if (x < xl || x > xr) return false;
+    }
     return !(F.obst || []).some((o) => x >= o.x0 && x <= o.x1 && y >= o.y0 && y <= o.y1);
   };
   for (const [k, E2] of Object.entries(E || {})) {
-    if (!E2.w || !E2.h || !E2.piso || !E2.spawn || !E2.puerta) { prov.push(`${k}: le falta piso/spawn/puerta`); continue; }
-    if (!Array.isArray(E2.piso.poli) || !Array.isArray(E2.piso.fig)) prov.push(`${k}: piso sin polígono ni fig`);
-    if (!Array.isArray(E2.cielo) || E2.cielo.length < 2) prov.push(`${k}: menos de 2 variantes de cielo`);
+    if (!E2.w || !E2.h || !E2.piso || !E2.spawn) { prov.push(`${k}: le falta piso/spawn`); continue; }
+    if (!Array.isArray(E2.piso.fig)) prov.push(`${k}: piso sin fig`);
+    if (!Array.isArray(E2.piso.poli) && E2.piso.xlTop === undefined) prov.push(`${k}: piso sin polígono ni trapecio`);
+    if (!Array.isArray(E2.cielo) || E2.cielo.length < 1) prov.push(`${k}: sin variantes de cielo`);
     // Las variantes de cielo miden lo mismo o el fundido del cambio de hora
     // salta de tamaño. Se mira el .webp, que es el que se sirve.
     const tams = new Set();
@@ -468,16 +478,20 @@ ok(!/case 'pole'/.test(srv), 'el servidor ya no reenvía la bailarina');
     if (tams.size > 1) prov.push(`${k}: las variantes miden distinto (${[...tams].join(', ')})`);
     (E2.sillas || []).forEach((s, i) => { if (s.x < 0 || s.x > E2.w || s.y < 0 || s.y > E2.h || !s.tipo) prov.push(`${k} interacción${i + 1} inválida`); });
     if (!enPiso(E2.piso, E2.spawn.x, E2.spawn.y)) prov.push(`${k}: spawn no pisables`);
-    // La puerta: su zona tiene que ser alcanzable caminando en ESTA escena y su
-    // destino pisables en la OTRA. Sin esto no se vuelve o se cae al vacío.
-    const otra = E[E2.puerta.hacia];
-    if (!otra) { prov.push(`${k}: la puerta va hacia "${E2.puerta.hacia}", que no existe`); continue; }
-    let entra = false;
-    for (let x = E2.puerta.x0; x <= E2.puerta.x1 && !entra; x += 10) {
-      for (let y = E2.puerta.y0; y <= E2.puerta.y1 && !entra; y += 10) entra = enPiso(E2.piso, x, y);
+    // La puerta (si la escena tiene): su zona tiene que ser alcanzable
+    // caminando en ESTA escena y su destino pisable en la OTRA.
+    if (E2.puerta) {
+      const otra = E[E2.puerta.hacia];
+      if (!otra) prov.push(`${k}: la puerta va hacia "${E2.puerta.hacia}", que no existe`);
+      else {
+        let entra = false;
+        for (let x = E2.puerta.x0; x <= E2.puerta.x1 && !entra; x += 10) {
+          for (let y = E2.puerta.y0; y <= E2.puerta.y1 && !entra; y += 10) entra = enPiso(E2.piso, x, y);
+        }
+        if (!entra) prov.push(`a la puerta de ${k} no se llega caminando`);
+        if (!enPiso(otra.piso, E2.puerta.ax, E2.puerta.ay)) prov.push(`el destino de la puerta de ${k} no es pisable`);
+      }
     }
-    if (!entra) prov.push(`a la puerta de ${k} no se llega caminando`);
-    if (!enPiso(otra.piso, E2.puerta.ax, E2.puerta.ay)) prov.push(`el destino de la puerta de ${k} no es pisable`);
   }
   // La cafetera: la máquina está pintada en el arte, pero la zona de pie tiene
   // que ser pisables y no caer adentro de un mueble.

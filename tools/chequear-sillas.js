@@ -119,11 +119,15 @@ console.log('\nEscala de la figura en cada escena');
 // "correcto" universal (cada cuadro tiene su cámara), pero hay rangos sanos:
 // si alguien pone 5 o 5000 por un typos, el chibi queda microscópico o se come
 // la pantalla. La rampa además tiene que crecer de atrás hacia adelante.
+// El tope del sprite parado (500 px) corta el tramo de adelante: el número
+// crudo de `fig` puede pasar del alto del cuadro, pero lo que se DIBUJA no.
+const TOPE_SPRITE = 500;
 for (const [k, E] of Object.entries(ESCENAS)) {
   const [a, b] = E.piso.fig;
+  const bReal = Math.min(b, TOPE_SPRITE);
   ok(a > 60 && a < E.h * 0.6, `${k}: el alto al fondo del piso es razonable`, `fig[0]=${a} alto=${E.h}`);
-  ok(b > a && b < E.h * 0.9, `${k}: el alto al frente del piso es razonable y crece`, `fig=[${a},${b}] alto=${E.h}`);
-  const razon = b / a;
+  ok(bReal > a && bReal < E.h * 0.9, `${k}: el alto al frente del piso es razonable y crece`, `fig=[${a},${b}] alto=${E.h}`);
+  const razon = bReal / a;
   ok(razon > 1.6 && razon < 4.5, `${k}: la rampa de perspectiva es creíble`, `fig crece ${razon.toFixed(2)}x`);
 }
 
@@ -137,22 +141,24 @@ for (const k of Object.keys(ESCENAS)) {
   ok(depthScale(yFondo) < depthScale(yFrente), `${k}: la velocidad también crece al acercarse`);
   ok(walkable(ESCENAS[k].spawn.x, ESCENAS[k].spawn.y), `${k}: el spawn es caminable`);
   ok(ESCENAS[k].sillas.every((s) => s.x >= 0 && s.x <= ESCENAS[k].w && s.y >= 0 && s.y <= ESCENAS[k].h && s.tipo), `${k}: las interacciones quedan dentro de la escena y tienen tipo`);
-  // La puerta se cruza en los dos sentidos: la zona tiene que ser alcanzable en
-  // ESTA escena y el punto de llegada, caminable en la OTRA.
+  // La puerta se cruza en los dos sentidos (si la escena tiene): la zona tiene
+  // que ser alcanzable en ESTA y el punto de llegada, caminable en la OTRA.
   const pu = ESCENAS[k].puerta;
-  const otra = ESCENAS[pu.hacia];
-  api.setEscena(pu.hacia);
-  ok(walkable(pu.ax, pu.ay), `${k}: el punto de llegada de la puerta es caminable`);
-  api.setEscena(k);
-  ok(!!otra && otra.puerta.hacia === k, `${k}: la puerta va y vuelve (${k} ⇄ ${pu.hacia})`);
+  if (pu) {
+    const otra = ESCENAS[pu.hacia];
+    api.setEscena(pu.hacia);
+    ok(walkable(pu.ax, pu.ay), `${k}: el punto de llegada de la puerta es caminable`);
+    api.setEscena(k);
+    ok(!!otra && otra.puerta.hacia === k, `${k}: la puerta va y vuelve (${k} ⇄ ${pu.hacia})`);
+  } else {
+    ok(true, `${k}: no tiene puerta (la oficina original tiene un ventanal)`);
+  }
 }
 
-console.log('\nLa terraza no tiene escritorios');
-api.setEscena('terr');
-jugadores.clear();
-ok(sillas().filter((s) => s.tipo === 'pc').length === 0, 'la terraza no reparte escritorios (solo tiene sofá)');
+console.log('\nLa oficina es un solo mundo');
+ok(Object.keys(ESCENAS).length === 1 && !!ESCENAS.ofi, 'no quedó ninguna escena de la terraza');
 const dt = puntoDePie();
-ok(walkable(dt.x, dt.y) && dt.x === ESCENAS.terr.spawn.x, 'el que entra a la terraza cae en su punto de aparición');
+ok(walkable(dt.x, dt.y), 'el que entra de pie cae en un punto caminable');
 
 if (fallos.length) {
   console.error(`\n❌ ${fallos.length} problema(s) en el reparto de escritorios.\n`);
